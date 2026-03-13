@@ -135,28 +135,7 @@
         </n-tooltip>
       </div>
 
-      <!-- 国际化 -->
-      <div
-        class="layout-header-trigger layout-header-trigger-min"
-        v-if="userStore.loginConfig?.i18nSwitch"
-      >
-        <n-dropdown
-          :value="i18nStore.getLocale()"
-          trigger="click"
-          @select="localeSelect"
-          :options="availableLocales"
-          show-arrow
-        >
-          <n-tooltip placement="bottom">
-            <template #trigger>
-              <n-icon size="18">
-                <LanguageOutline />
-              </n-icon>
-            </template>
-            <span>切换语言</span>
-          </n-tooltip>
-        </n-dropdown>
-      </div>
+      <!-- 运维版隐藏语言切换入口 -->
 
       <!-- 个人中心 -->
       <div class="layout-header-trigger layout-header-trigger-min">
@@ -224,7 +203,6 @@
   import SystemMessage from './SystemMessage.vue';
   import { notificationStoreWidthOut } from '@/store/modules/notification';
   import { getIcon } from '@/enums/systemMessageEnum';
-  import { availableLocales, useI18nStore } from '@/store/modules/i18n';
   import Search from './Search.vue';
 
   export default defineComponent({
@@ -246,7 +224,6 @@
       },
     },
     setup(props, { emit }) {
-      const i18nStore = useI18nStore();
       const userStore = useUserStore();
       const notificationStore = notificationStoreWidthOut();
       const useLockscreen = useLockscreenStore();
@@ -263,7 +240,7 @@
 
       // const { username, avatar } = userStore?.info || {};
       const drawerSetting = ref();
-      const projectName = userStore.loginConfig?.projectName;
+      const projectName = userStore.loginConfig?.projectName || import.meta.env.VITE_GLOB_APP_TITLE;
 
       const state = reactive({
         // username: username || '',
@@ -385,17 +362,19 @@
         //   icon: 'SearchOutlined',
         //   tips: '搜索',
         // },
-        {
-          icon: 'GithubOutlined',
-          tips: 'github',
-          eventObject: {
-            click: () => window.open('https://github.com/bufanyun/hotgo'),
-          },
-        },
-        {
-          icon: 'BellOutlined',
-          tips: '我的消息',
-        },
+        // 运维版隐藏外部 GitHub 入口。
+        // {
+        //   icon: 'GithubOutlined',
+        //   tips: 'github',
+        //   eventObject: {
+        //     click: () => window.open('https://github.com/bufanyun/hotgo'),
+        //   },
+        // },
+        // 运维版隐藏站内消息入口。
+        // {
+        //   icon: 'BellOutlined',
+        //   tips: '我的消息',
+        // },
         {
           icon: 'LockOutlined',
           tips: '锁屏',
@@ -454,15 +433,6 @@
             doLogout();
             break;
         }
-      };
-
-      // 多久下拉菜单
-      const localeSelect = (key) => {
-        i18nStore.setLocale(key);
-        message.success('切换成功');
-        setTimeout(function () {
-          location.reload();
-        }, 800);
       };
 
       function openSetting() {
@@ -577,9 +547,6 @@
         userStore,
         updateMenu,
         projectName,
-        localeSelect,
-        i18nStore,
-        availableLocales,
       };
     },
   });

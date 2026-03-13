@@ -17,7 +17,7 @@
     },
     setup() {
       const userStore = useUserStore();
-      const projectName = userStore.loginConfig?.projectName;
+      const projectName = userStore.loginConfig?.projectName || import.meta.env.VITE_GLOB_APP_TITLE;
       return {
         projectName,
       };

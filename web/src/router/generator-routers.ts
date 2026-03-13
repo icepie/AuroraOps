@@ -6,9 +6,106 @@ import type { AppRouteRecordRaw } from '@/router/types';
 
 const Iframe = () => import('@/views/iframe/index.vue');
 const LayoutMap = new Map<string, () => Promise<typeof import('*.vue')>>();
+const OPS_ROUTE_NAME_BLACKLIST = new Set([
+  'dashboard_workplace',
+  'apidocs',
+  'about',
+  'about_index',
+  'addons',
+  'hgexample',
+  'hgexample_portal',
+  'hgexample_config',
+  'hgexample_table_index',
+  'table_view',
+  'develop_code',
+  'develop_code_deploy',
+  'develop_addons',
+  'apply_notice',
+  'apply_attachment',
+  'apply_provinces',
+  'home',
+  'home_account',
+  'home_message',
+  'asset',
+  'asset_recharge',
+  'asset_cash',
+  'creditsLogIndex',
+  'sms_log',
+]);
+const OPS_ROUTE_PATH_BLACKLIST = ['/doc', '/about', '/addons', '/develop'];
+const OPS_ROUTE_PATH_FRAGMENT_BLACKLIST = [
+  '/workplace',
+  '/hgexample',
+  '/asset',
+  '/home',
+  '/addons',
+  '/develop',
+];
+const OPS_ROUTE_COMPONENT_FRAGMENT_BLACKLIST = [
+  '/dashboard/workplace/',
+  '/addons/',
+  '/develop/',
+  '/asset/',
+  '/home/',
+  '/about/',
+  '/apply/notice/',
+  '/apply/attachment/',
+  '/apply/provinces/',
+];
+const OPS_ROUTE_TITLE_MAP: Record<string, string> = {
+  Dashboard: '运维总览',
+  dashboard_console: '运维总览',
+  Applys: '日志中心',
+};
+const OPS_HIDDEN_ROUTE_NAMES = new Set(['home', 'home_account']);
 
 LayoutMap.set('LAYOUT', Layout);
 LayoutMap.set('IFRAME', Iframe);
+
+function shouldHideOpsRoute(route: any) {
+  const routeName = route.name || '';
+  const routePath = route.path || '';
+  const routeComponent = typeof route.component === 'string' ? route.component : '';
+
+  if (OPS_HIDDEN_ROUTE_NAMES.has(routeName)) {
+    return false;
+  }
+
+  if (OPS_ROUTE_NAME_BLACKLIST.has(routeName)) {
+    return true;
+  }
+
+  if (OPS_ROUTE_PATH_BLACKLIST.includes(routePath)) {
+    return true;
+  }
+
+  if (OPS_ROUTE_PATH_FRAGMENT_BLACKLIST.some((item) => routePath.includes(item))) {
+    return true;
+  }
+
+  if (
+    OPS_ROUTE_COMPONENT_FRAGMENT_BLACKLIST.some((item) => routeComponent.includes(item))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeOpsRouteMeta(route: any) {
+  const title = OPS_ROUTE_TITLE_MAP[route.name];
+  route.meta = {
+    ...route.meta,
+    ...(title
+      ? {
+          title,
+          label: title,
+        }
+      : {}),
+    hidden: OPS_HIDDEN_ROUTE_NAMES.has(route.name) ? true : route.meta?.hidden,
+  };
+  return route;
+}
 
 /**
  * 格式化 后端 结构信息并递归生成层级路由表
@@ -17,41 +114,58 @@ LayoutMap.set('IFRAME', Iframe);
  * @returns {*}
  */
 export const routerGenerator = (routerMap, parent?): any[] => {
-  return routerMap.map((item) => {
-    const currentRouter: any = {
-      // 路由地址 动态拼接生成如 /dashboard/workplace
-      path: `${(parent && parent.path) || ''}/${item.path}`,
-      // 路由名称，建议唯一
-      name: item.name || '',
-      // 该路由对应页面的 组件
-      component: item.component,
-      // meta: 页面标题, 菜单图标, 页面权限(供指令权限用，可去掉)
-      meta: {
-        ...item.meta,
-        label: item.meta.title,
-        icon: constantRouterIcon[item.meta.icon] || null,
-        permissions: item.meta.permissions || null,
-      },
-    };
+  return routerMap
+    .map((item) => {
+      const currentRouter: any = {
+        // 路由地址 动态拼接生成如 /dashboard/workplace
+        path: `${(parent && parent.path) || ''}/${item.path}`,
+        // 路由名称，建议唯一
+        name: item.name || '',
+        // 该路由对应页面的 组件
+        component: item.component,
+        // meta: 页面标题, 菜单图标, 页面权限(供指令权限用，可去掉)
+        meta: {
+          ...item.meta,
+          label: item.meta.title,
+          icon: constantRouterIcon[item.meta.icon] || null,
+          permissions: item.meta.permissions || null,
+        },
+      };
 
-    // 为了防止出现后端返回结果不规范，处理有可能出现拼接出两个 反斜杠
-    currentRouter.path = currentRouter.path.replace('//', '/');
-    // 重定向 ,菜单类型为目录默认默认跳转
-    if(item.meta.type === 1){
-      item.redirect && (currentRouter.redirect = item.redirect);
-    }
-    // 是否有子菜单，并递归处理
-    if (item.children && item.children.length > 0) {
-      //如果未定义 redirect 默认第一个子路由为 redirect
-      if(item.meta.type === 1) {
-        !item.redirect && (currentRouter.redirect = `${item.path}/${item.children[0].path}`);
+      // 为了防止出现后端返回结果不规范，处理有可能出现拼接出两个 反斜杠
+      currentRouter.path = currentRouter.path.replace('//', '/');
+      // 重定向 ,菜单类型为目录默认默认跳转
+      if (item.meta.type === 1) {
+        item.redirect && (currentRouter.redirect = item.redirect);
       }
-      // Recursion
-      currentRouter.children = routerGenerator(item.children, currentRouter);
-    }
+      // 是否有子菜单，并递归处理
+      if (item.children && item.children.length > 0) {
+        //如果未定义 redirect 默认第一个子路由为 redirect
+        if (item.meta.type === 1) {
+          !item.redirect && (currentRouter.redirect = `${item.path}/${item.children[0].path}`);
+        }
+        // Recursion
+        currentRouter.children = routerGenerator(item.children, currentRouter);
+      }
 
-    return currentRouter;
-  });
+      normalizeOpsRouteMeta(currentRouter);
+      return currentRouter;
+    })
+    .filter((route) => {
+      if (shouldHideOpsRoute(route)) {
+        return false;
+      }
+
+      if (route.children && route.children.length === 0) {
+        delete route.children;
+      }
+
+      if (route.meta?.type === 1 && !route.children?.length && route.component === 'LAYOUT') {
+        return false;
+      }
+
+      return true;
+    });
 };
 
 /**

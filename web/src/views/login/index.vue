@@ -33,7 +33,9 @@
   import { useUserStore } from '@/store/modules/user';
 
   const userStore = useUserStore();
-  const projectName = computed(() => userStore.loginConfig?.projectName);
+  const projectName = computed(
+    () => userStore.loginConfig?.projectName || import.meta.env.VITE_GLOB_APP_TITLE
+  );
 
   interface LoginModule {
     key: string;
@@ -76,13 +78,13 @@
   }
 
   onMounted(() => {
-    //是否开放注册
-    if (userStore.loginConfig?.loginRegisterSwitch === 1) {
-      const findItem = modules.find((item) => item.key === 'register');
-      if (!findItem) {
-        modules.push({ key: 'register', label: '注册账号', component: RegisterFrom });
-      }
-    }
+    // 交付客户的运维版暂时关闭注册入口，保留原逻辑便于后续恢复。
+    // if (userStore.loginConfig?.loginRegisterSwitch === 1) {
+    //   const findItem = modules.find((item) => item.key === 'register');
+    //   if (!findItem) {
+    //     modules.push({ key: 'register', label: '注册账号', component: RegisterFrom });
+    //   }
+    // }
 
     const key = router.currentRoute.value.query?.scope as string;
     if (key) {

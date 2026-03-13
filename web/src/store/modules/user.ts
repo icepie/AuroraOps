@@ -21,6 +21,17 @@ import {
 import { isWechatBrowser } from '@/utils/is';
 import { DeptTypeEnum } from '@/enums/deptEnum';
 const Storage = createStorage({ storage: localStorage });
+const APP_BRAND_NAME = (import.meta.env.VITE_GLOB_APP_TITLE || '').trim();
+
+function normalizeLoginConfig(config: LoginConfigState | null): LoginConfigState | null {
+  if (!config) {
+    return null;
+  }
+  return {
+    ...config,
+    projectName: APP_BRAND_NAME || config.projectName,
+  };
+}
 
 export interface UserInfoState {
   id: number;
@@ -93,7 +104,7 @@ export const useUserStore = defineStore({
     permissions: [],
     info: Storage.get(CURRENT_USER, null),
     config: Storage.get(CURRENT_CONFIG, null),
-    loginConfig: Storage.get(CURRENT_LOGIN_CONFIG, null),
+    loginConfig: normalizeLoginConfig(Storage.get(CURRENT_LOGIN_CONFIG, null)),
   }),
   getters: {
     getToken(): string {
@@ -156,7 +167,7 @@ export const useUserStore = defineStore({
       this.config = config;
     },
     setLoginConfig(config: LoginConfigState | null) {
-      this.loginConfig = config;
+      this.loginConfig = normalizeLoginConfig(config);
     },
     // 账号登录
     async login(userInfo) {
@@ -229,7 +240,7 @@ export const useUserStore = defineStore({
       return new Promise((resolve, reject) => {
         getLoginConfig()
           .then((res) => {
-            const result = res as unknown as LoginConfigState;
+            const result = normalizeLoginConfig(res as unknown as LoginConfigState);
             that.setLoginConfig(result);
             storage.set(CURRENT_LOGIN_CONFIG, result);
             resolve(res);

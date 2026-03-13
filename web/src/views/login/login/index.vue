@@ -1,4 +1,7 @@
 <template>
+  <Form @updateActiveModule="updateActiveModule" mode="account" />
+  <!-- 运维版仅保留账号密码登录 -->
+  <!--
   <n-tabs type="segment" justify-content="space-evenly">
     <n-tab-pane name="account" tab="账号登录">
       <Form @updateActiveModule="updateActiveModule" mode="account" />
@@ -7,6 +10,7 @@
       <Form @updateActiveModule="updateActiveModule" mode="mobile" />
     </n-tab-pane>
   </n-tabs>
+  -->
 </template>
 
 <script lang="ts" setup>

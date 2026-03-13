@@ -19,8 +19,10 @@
         <n-card :bordered="false" size="small" :title="typeTitle" class="proCard">
           <BasicSetting v-if="type === 1" />
           <SafetySetting v-if="type === 2" />
-          <CashSetting v-if="type === 3" />
-          <ThirdBind v-if="type === 4" />
+          <!-- 运维版暂不开放提现设置 -->
+          <!-- <CashSetting v-if="type === 3" /> -->
+          <!-- 运维版暂不开放第三方绑定 -->
+          <!-- <ThirdBind v-if="type === 4" /> -->
         </n-card>
       </n-grid-item>
     </n-grid>
@@ -30,8 +32,8 @@
   import { ref, onMounted } from 'vue';
   import BasicSetting from './BasicSetting.vue';
   import SafetySetting from './SafetySetting.vue';
-  import CashSetting from './CashSetting.vue';
-  import ThirdBind from './ThirdBind.vue';
+  // import CashSetting from './CashSetting.vue';
+  // import ThirdBind from './ThirdBind.vue';
   import { useRouter } from 'vue-router';
   import {pushHashRouterParameter} from "@/utils/urlUtils";
 
@@ -50,16 +52,16 @@
       desc: '密码、手机号、邮箱等设置',
       key: 2,
     },
-    {
-      name: '提现设置',
-      desc: '提现收款账号支付宝设置',
-      key: 3,
-    },
-    {
-      name: '第三方绑定',
-      desc: '第三方快捷登录、消息推送',
-      key: 4,
-    },
+    // {
+    //   name: '提现设置',
+    //   desc: '提现收款账号支付宝设置',
+    //   key: 3,
+    // },
+    // {
+    //   name: '第三方绑定',
+    //   desc: '第三方快捷登录、消息推送',
+    //   key: 4,
+    // },
   ];
 
   onMounted(() => {

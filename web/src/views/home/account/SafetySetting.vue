@@ -1,42 +1,18 @@
 <template>
-  <n-grid cols="1" responsive="screen" class="-mt-5">
-    <n-grid-item>
-      <n-list>
-        <n-list-item>
-          <template #suffix>
-            <n-button type="primary" text @click="openUpdatePassForm">修改</n-button>
+  <n-card :bordered="false" class="security-card">
+    <n-list>
+      <n-list-item>
+        <template #suffix>
+          <n-button type="primary" text @click="openUpdatePassForm">修改</n-button>
+        </template>
+        <n-thing title="登录密码">
+          <template #description>
+            <span class="text-gray-400">定期更新登录密码，保障运维账号安全。</span>
           </template>
-          <n-thing title="账户密码">
-            <template #description
-              ><span class="text-gray-400">绑定手机和邮箱，并设置密码，帐号更安全</span></template
-            >
-          </n-thing>
-        </n-list-item>
-        <n-list-item>
-          <template #suffix>
-            <n-button type="primary" text @click="openUpdateMobileForm">修改</n-button>
-          </template>
-          <n-thing title="绑定手机">
-            <template #description
-              ><span class="text-gray-400"
-                >已绑定手机号：+86{{ userStore.info?.mobile }}</span
-              ></template
-            >
-          </n-thing>
-        </n-list-item>
-        <n-list-item>
-          <template #suffix>
-            <n-button type="primary" text @click="openUpdateEmailForm">修改</n-button>
-          </template>
-          <n-thing title="绑定邮箱">
-            <template #description
-              ><span class="text-gray-400">已绑定邮箱：{{ userStore.info?.email }}</span></template
-            >
-          </n-thing>
-        </n-list-item>
-      </n-list>
-    </n-grid-item>
-  </n-grid>
+        </n-thing>
+      </n-list-item>
+    </n-list>
+  </n-card>
 
   <n-modal
     v-model:show="showModal"
@@ -69,109 +45,17 @@
     </n-form>
   </n-modal>
 
-  <n-modal
-    :block-scroll="false"
-    :mask-closable="false"
-    v-model:show="showMobileModal"
-    :show-icon="false"
-    preset="dialog"
-    title="修改手机号"
-    :style="{
-      width: dialogWidth,
-    }"
-  >
-    <n-form :label-width="80" :model="formMobileValue" ref="formMobileRef">
-      <n-form-item label="短信验证码" path="code" v-if="userStore.info?.mobile !== ''">
-        <n-input-group>
-          <n-input v-model:value="formMobileValue.code" placeholder="请输入验证码" />
-          <n-button
-            type="primary"
-            ghost
-            @click="sendMobileCode"
-            :disabled="isCounting"
-            :loading="sendLoading"
-          >
-            {{ sendLabel }}
-          </n-button>
-        </n-input-group>
-
-        <template #feedback> 接收号码：+86{{ userStore.info?.mobile }} </template>
-      </n-form-item>
-
-      <n-form-item label="换绑手机号" path="mobile">
-        <n-input v-model:value="formMobileValue.mobile" placeholder="请输入换绑手机号" />
-      </n-form-item>
-      <div>
-        <n-space justify="end">
-          <n-button @click="showMobileModal = false">取消</n-button>
-          <n-button type="primary" :loading="formMobileBtnLoading" @click="formMobileSubmit"
-            >保存更新</n-button
-          >
-        </n-space>
-      </div>
-    </n-form>
-  </n-modal>
-
-  <n-modal
-    :block-scroll="false"
-    :mask-closable="false"
-    v-model:show="showEmailModal"
-    :show-icon="false"
-    preset="dialog"
-    title="修改邮箱"
-    :style="{
-      width: dialogWidth,
-    }"
-  >
-    <n-form :label-width="80" :model="formEmailValue" ref="formEmailRef">
-      <n-form-item label="邮箱验证码" path="code" v-if="userStore.info?.email !== ''">
-        <n-input-group>
-          <n-input v-model:value="formEmailValue.code" placeholder="请输入验证码" />
-          <n-button
-            type="primary"
-            ghost
-            @click="sendEmailCode"
-            :disabled="isCounting"
-            :loading="sendLoading"
-          >
-            {{ sendLabel }}
-          </n-button>
-        </n-input-group>
-        <template #feedback> 接收邮箱：{{ userStore.info?.email }} </template>
-      </n-form-item>
-
-      <n-form-item label="换绑邮箱" path="email">
-        <n-input v-model:value="formEmailValue.email" placeholder="请输入换绑邮箱" />
-      </n-form-item>
-      <div>
-        <n-space justify="end">
-          <n-button @click="showEmailModal = false">取消</n-button>
-          <n-button type="primary" :loading="formEmailBtnLoading" @click="formEmailSubmit"
-            >保存更新</n-button
-          >
-        </n-space>
-      </div>
-    </n-form>
-  </n-modal>
 </template>
 
 <script lang="ts" setup>
   import { computed, ref } from 'vue';
   import { useMessage } from 'naive-ui';
   import { useRouter, useRoute } from 'vue-router';
-  import { useSendCode } from '@/hooks/common';
   import { adaModalWidth } from '@/utils/hotgo';
-  import {
-    updateMemberPwd,
-    updateMemberMobile,
-    updateMemberEmail,
-    SendBindEmail,
-    SendBindSms,
-  } from '@/api/system/user';
+  import { updateMemberPwd } from '@/api/system/user';
   import { TABS_ROUTES } from '@/store/mutation-types';
   import { useUserStore } from '@/store/modules/user';
 
-  const { sendLabel, isCounting, loading: sendLoading, activateSend } = useSendCode();
   const userStore = useUserStore();
   const rules = {
     basicName: {
@@ -232,84 +116,10 @@
     formValue.value.newPassword = '';
     formValue.value.oldPassword = '';
   }
-
-  const formMobileBtnLoading = ref(false);
-  const formMobileRef: any = ref(null);
-  const showMobileModal = ref(false);
-  const formMobileValue = ref({
-    mobile: '',
-    code: '',
-  });
-
-  function formMobileSubmit() {
-    formMobileRef.value.validate((errors) => {
-      if (!errors) {
-        formMobileBtnLoading.value = true;
-        updateMemberMobile({
-          mobile: formMobileValue.value.mobile,
-          code: formMobileValue.value.code,
-        })
-          .then((_res) => {
-            message.success('更新成功');
-            showMobileModal.value = false;
-            userStore.GetInfo();
-          })
-          .finally(() => {
-            formMobileBtnLoading.value = false;
-          });
-      } else {
-        message.error('验证失败，请填写完整信息');
-      }
-    });
-  }
-
-  function openUpdateMobileForm() {
-    showMobileModal.value = true;
-    formMobileValue.value.mobile = '';
-    formMobileValue.value.code = '';
-  }
-
-  const formEmailBtnLoading = ref(false);
-  const formEmailRef: any = ref(null);
-  const showEmailModal = ref(false);
-  const formEmailValue = ref({
-    email: '',
-    code: '',
-  });
-
-  function formEmailSubmit() {
-    formEmailRef.value.validate((errors) => {
-      if (!errors) {
-        formEmailBtnLoading.value = true;
-        updateMemberEmail({
-          email: formEmailValue.value.email,
-          code: formEmailValue.value.code,
-        })
-          .then((_res) => {
-            message.success('更新成功');
-            showEmailModal.value = false;
-            userStore.GetInfo();
-          })
-          .finally(() => {
-            formEmailBtnLoading.value = false;
-          });
-      } else {
-        message.error('验证失败，请填写完整信息');
-      }
-    });
-  }
-
-  function openUpdateEmailForm() {
-    showEmailModal.value = true;
-    formEmailValue.value.email = '';
-    formEmailValue.value.code = '';
-  }
-
-  function sendMobileCode() {
-    activateSend(SendBindSms());
-  }
-
-  function sendEmailCode() {
-    activateSend(SendBindEmail());
-  }
 </script>
+
+<style lang="less" scoped>
+  .security-card {
+    margin-top: 8px;
+  }
+</style>

@@ -385,6 +385,40 @@ type (
 		// VerifyCode 效验验证码
 		VerifyCode(ctx context.Context, in *sysin.VerifyCodeInp) (err error)
 	}
+	ISysOpsAsset interface {
+		// Model 运维资产ORM模型
+		Model(ctx context.Context, option ...*handler.Option) *gdb.Model
+		// List 获取运维资产列表
+		List(ctx context.Context, in *sysin.OpsAssetListInp) (list []*sysin.OpsAssetListModel, totalCount int, err error)
+		// Edit 修改/新增运维资产
+		Edit(ctx context.Context, in *sysin.OpsAssetEditInp) (err error)
+		// Delete 删除运维资产
+		Delete(ctx context.Context, in *sysin.OpsAssetDeleteInp) (err error)
+		// MaxSort 获取运维资产最大排序
+		MaxSort(ctx context.Context, in *sysin.OpsAssetMaxSortInp) (res *sysin.OpsAssetMaxSortModel, err error)
+		// View 获取运维资产指定信息
+		View(ctx context.Context, in *sysin.OpsAssetViewInp) (res *sysin.OpsAssetViewModel, err error)
+		// Status 更新运维资产状态
+		Status(ctx context.Context, in *sysin.OpsAssetStatusInp) (err error)
+	}
+	ISysOpsDevice interface {
+		// Model 运维设备ORM模型
+		Model(ctx context.Context, option ...*handler.Option) *gdb.Model
+		// List 获取运维设备列表
+		List(ctx context.Context, in *sysin.OpsDeviceListInp) (list []*sysin.OpsDeviceListModel, totalCount int, err error)
+		// Edit 修改/新增运维设备
+		Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (err error)
+		// Delete 删除运维设备
+		Delete(ctx context.Context, in *sysin.OpsDeviceDeleteInp) (err error)
+		// MaxSort 获取运维设备最大排序
+		MaxSort(ctx context.Context, in *sysin.OpsDeviceMaxSortInp) (res *sysin.OpsDeviceMaxSortModel, err error)
+		// View 获取运维设备指定信息
+		View(ctx context.Context, in *sysin.OpsDeviceViewInp) (res *sysin.OpsDeviceViewModel, err error)
+		// Status 更新运维设备状态
+		Status(ctx context.Context, in *sysin.OpsDeviceStatusInp) (err error)
+		// Option 获取运维设备选项
+		Option(ctx context.Context) (opts []*model.Option, err error)
+	}
 	ISysTestCategory interface {
 		// Model 测试分类ORM模型
 		Model(ctx context.Context, option ...*handler.Option) *gdb.Model
@@ -421,6 +455,8 @@ var (
 	localSysLog            ISysLog
 	localSysLoginLog       ISysLoginLog
 	localSysNormalTreeDemo ISysNormalTreeDemo
+	localSysOpsAsset       ISysOpsAsset
+	localSysOpsDevice      ISysOpsDevice
 	localSysOptionTreeDemo ISysOptionTreeDemo
 	localSysProvinces      ISysProvinces
 	localSysServeLicense   ISysServeLicense
@@ -647,6 +683,28 @@ func SysSmsLog() ISysSmsLog {
 
 func RegisterSysSmsLog(i ISysSmsLog) {
 	localSysSmsLog = i
+}
+
+func SysOpsAsset() ISysOpsAsset {
+	if localSysOpsAsset == nil {
+		panic("implement not found for interface ISysOpsAsset, forgot register?")
+	}
+	return localSysOpsAsset
+}
+
+func RegisterSysOpsAsset(i ISysOpsAsset) {
+	localSysOpsAsset = i
+}
+
+func SysOpsDevice() ISysOpsDevice {
+	if localSysOpsDevice == nil {
+		panic("implement not found for interface ISysOpsDevice, forgot register?")
+	}
+	return localSysOpsDevice
+}
+
+func RegisterSysOpsDevice(i ISysOpsDevice) {
+	localSysOpsDevice = i
 }
 
 func SysTestCategory() ISysTestCategory {

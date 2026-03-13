@@ -113,10 +113,12 @@
         登录
       </n-button>
 
-      <FormOther moduleKey="register" tag="注册账号" @updateActiveModule="updateActiveModule" />
+      <!-- 运维版暂时关闭注册与第三方登录入口 -->
+      <!-- <FormOther moduleKey="register" tag="注册账号" @updateActiveModule="updateActiveModule" /> -->
     </n-space>
 
-    <DemoAccount @login="handleDemoAccountLogin" />
+    <!-- 运维版不展示演示账号 -->
+    <!-- <DemoAccount @login="handleDemoAccountLogin" /> -->
   </n-form>
 </template>
 

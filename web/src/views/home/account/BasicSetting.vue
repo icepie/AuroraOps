@@ -25,12 +25,15 @@
               >
                 <n-descriptions-item label="管理员ID">{{ formValue.id }}</n-descriptions-item>
                 <n-descriptions-item label="用户名"> {{ formValue.username }} </n-descriptions-item>
+                <!-- 运维版隐藏余额与积分展示 -->
+                <!--
                 <n-descriptions-item label="余额">{{
                   Number(formValue.balance).toFixed(2)
                 }}</n-descriptions-item>
                 <n-descriptions-item label="积分">
                   {{ Number(formValue.integral).toFixed(2) }}
                 </n-descriptions-item>
+                -->
                 <n-descriptions-item label="登录IP">{{
                   formValue.lastLoginIp
                 }}</n-descriptions-item>
@@ -80,9 +83,12 @@
           <n-input v-model:value="formValue.realName" />
         </n-form-item>
 
+        <!-- 运维版隐藏 QQ 号字段 -->
+        <!--
         <n-form-item label="QQ号码" path="qq">
           <n-input v-model:value="formValue.qq" placeholder="请输入QQ号码" />
         </n-form-item>
+        -->
 
         <n-form-item label="生日" path="birthday">
           <DatePicker v-model:formValue="formValue.birthday" type="date" />
