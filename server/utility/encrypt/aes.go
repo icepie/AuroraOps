@@ -8,7 +8,8 @@ package encrypt
 
 import (
 	"encoding/base64"
-	"github.com/forgoer/openssl"
+
+	"github.com/go-think/openssl"
 )
 
 // AesECBEncrypt 加密
