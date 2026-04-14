@@ -139,3 +139,53 @@ func (in *OpsDeviceStatusInp) Filter(ctx context.Context) (err error) {
 }
 
 type OpsDeviceStatusModel struct{}
+
+type OpsDeviceClientRegisterInp struct {
+	Name       string `json:"name"       dc:"设备名称"`
+	Hostname   string `json:"hostname"   dc:"主机名"`
+	Ip         string `json:"ip"         dc:"IP地址"`
+	DeviceType string `json:"deviceType" dc:"设备类型"`
+	OsName     string `json:"osName"     dc:"操作系统"`
+	Location   string `json:"location"   dc:"部署位置"`
+}
+
+func (in *OpsDeviceClientRegisterInp) Filter(ctx context.Context) (err error) {
+	if verr := g.Validator().Rules("required").Data(in.Name).Messages("设备名称不能为空").Run(ctx); verr != nil {
+		return verr.Current()
+	}
+	if verr := g.Validator().Rules("required").Data(in.Hostname).Messages("主机名不能为空").Run(ctx); verr != nil {
+		return verr.Current()
+	}
+	return
+}
+
+type OpsDeviceClientRegisterModel struct {
+	Id        uint64 `json:"id"        dc:"设备ID"`
+	Name      string `json:"name"      dc:"设备名称"`
+	Hostname  string `json:"hostname"  dc:"主机名"`
+	Ip        string `json:"ip"        dc:"IP地址"`
+	Created   bool   `json:"created"   dc:"是否新建设备"`
+	CreatedAt string `json:"createdAt" dc:"创建结果"`
+}
+
+type OpsDeviceClientHeartbeatInp struct {
+	Id       uint64 `json:"id"       dc:"设备ID"`
+	Hostname string `json:"hostname" dc:"主机名"`
+	Ip       string `json:"ip"       dc:"IP地址"`
+	OsName   string `json:"osName"   dc:"操作系统"`
+}
+
+func (in *OpsDeviceClientHeartbeatInp) Filter(ctx context.Context) (err error) {
+	if in.Id == 0 {
+		return gerror.New("设备ID不能为空")
+	}
+	if verr := g.Validator().Rules("required").Data(in.Hostname).Messages("主机名不能为空").Run(ctx); verr != nil {
+		return verr.Current()
+	}
+	return
+}
+
+type OpsDeviceClientHeartbeatModel struct {
+	Id      uint64 `json:"id"      dc:"设备ID"`
+	AliveAt string `json:"aliveAt" dc:"心跳时间"`
+}

@@ -26,7 +26,8 @@ func Admin(ctx context.Context, group *ghttp.RouterGroup) {
 
 	group.Group(simple.RouterPrefix(ctx, consts.AppAdmin), func(group *ghttp.RouterGroup) {
 		group.Bind(
-			common.Site, // 基础
+			common.Site,   // 基础
+			common.Client, // 客户端接入
 		)
 		group.Middleware(service.Middleware().AdminAuth)
 		group.Bind(

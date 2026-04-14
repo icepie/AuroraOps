@@ -418,6 +418,10 @@ type (
 		Status(ctx context.Context, in *sysin.OpsDeviceStatusInp) (err error)
 		// Option 获取运维设备选项
 		Option(ctx context.Context) (opts []*model.Option, err error)
+		// ClientRegister 客户端检查连接并自动注册设备
+		ClientRegister(ctx context.Context, in *sysin.OpsDeviceClientRegisterInp) (res *sysin.OpsDeviceClientRegisterModel, err error)
+		// ClientHeartbeat 客户端设备心跳
+		ClientHeartbeat(ctx context.Context, in *sysin.OpsDeviceClientHeartbeatInp) (res *sysin.OpsDeviceClientHeartbeatModel, err error)
 	}
 	ISysOpsDeviceGroup interface {
 		// Model 设备分组ORM模型

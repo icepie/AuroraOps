@@ -5,4 +5,8 @@
 pull.bat
 push.sh
 /dist
-
+node_modules/
+.cache/
+.tmp/
+client/dist/
+client/.vite/

@@ -3,6 +3,7 @@ package sys
 import (
 	"context"
 	"fmt"
+	"hotgo/internal/consts"
 	"hotgo/internal/dao"
 	"hotgo/internal/library/hgorm/handler"
 	"hotgo/internal/model"
@@ -15,6 +16,7 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
@@ -200,5 +202,122 @@ func (s *sSysOpsDevice) Option(ctx context.Context) (opts []*model.Option, err e
 			Value: item.Id,
 		})
 	}
+	return
+}
+
+func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceClientRegisterInp) (res *sysin.OpsDeviceClientRegisterModel, err error) {
+	res = &sysin.OpsDeviceClientRegisterModel{
+		Name:     in.Name,
+		Hostname: in.Hostname,
+		Ip:       in.Ip,
+	}
+
+	deviceType := in.DeviceType
+	if deviceType == "" {
+		deviceType = "physical"
+	}
+
+	location := in.Location
+	if location == "" && in.OsName != "" {
+		location = in.OsName
+	}
+
+	nowText := gtime.Now().Format("Y-m-d H:i:s")
+
+	err = g.DB().Transaction(ctx, func(ctx context.Context, _ gdb.TX) (err error) {
+		var current entity.OpsDevice
+		query := dao.OpsDevice.Ctx(ctx)
+
+		if err = query.Where(dao.OpsDevice.Columns().Hostname, in.Hostname).Scan(&current); err != nil {
+			return gerror.Wrap(err, "查询设备信息失败，请稍后重试！")
+		}
+
+		if current.Id > 0 {
+			updateData := do.OpsDevice{
+				Name:     in.Name,
+				Hostname: in.Hostname,
+				Ip:       in.Ip,
+				OsName:   in.OsName,
+			}
+
+			if _, err = dao.OpsDevice.Ctx(ctx).
+				WherePri(current.Id).
+				Data(updateData).
+				OmitEmptyData().
+				Update(); err != nil {
+				return gerror.Wrap(err, "更新客户端设备信息失败，请稍后重试！")
+			}
+
+			res.Id = current.Id
+			res.Created = false
+			res.CreatedAt = nowText
+			return nil
+		}
+
+		maxSort, err := s.MaxSort(ctx, &sysin.OpsDeviceMaxSortInp{})
+		if err != nil {
+			return err
+		}
+
+		insertData := do.OpsDevice{
+			Name:       in.Name,
+			Hostname:   in.Hostname,
+			Ip:         in.Ip,
+			DeviceType: deviceType,
+			OsName:     in.OsName,
+			Location:   location,
+			Sort:       maxSort.Sort,
+			Status:     consts.StatusEnabled,
+			Remark:     "AuroraOps Client 自动注册",
+		}
+
+		result, err := dao.OpsDevice.Ctx(ctx).
+			Fields(sysin.OpsDeviceInsertFields{}).
+			Data(insertData).
+			OmitEmptyData().
+			InsertAndGetId()
+		if err != nil {
+			return gerror.Wrap(err, "注册客户端设备失败，请稍后重试！")
+		}
+
+		res.Id = gconv.Uint64(result)
+		res.Created = true
+		res.CreatedAt = nowText
+		return nil
+	})
+	return
+}
+
+func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDeviceClientHeartbeatInp) (res *sysin.OpsDeviceClientHeartbeatModel, err error) {
+	res = &sysin.OpsDeviceClientHeartbeatModel{
+		Id:      in.Id,
+		AliveAt: gtime.Now().Format("Y-m-d H:i:s"),
+	}
+
+	device := &entity.OpsDevice{}
+	if err = dao.OpsDevice.Ctx(ctx).WherePri(in.Id).Scan(device); err != nil {
+		return nil, gerror.Wrap(err, "查询设备信息失败，请稍后重试！")
+	}
+	if device.Id == 0 {
+		return nil, gerror.New("设备不存在，请重新注册")
+	}
+	if device.Hostname != "" && device.Hostname != in.Hostname {
+		return nil, gerror.New("设备主机名不匹配，请重新注册")
+	}
+
+	updateData := do.OpsDevice{
+		Hostname: in.Hostname,
+		Ip:       in.Ip,
+		OsName:   in.OsName,
+		Status:   consts.StatusEnabled,
+	}
+	if _, err = dao.OpsDevice.Ctx(ctx).
+		WherePri(in.Id).
+		Data(updateData).
+		OmitEmptyData().
+		Update(); err != nil {
+		return nil, gerror.Wrap(err, "更新设备心跳失败，请稍后重试！")
+	}
+
 	return
 }

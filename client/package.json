@@ -1,0 +1,32 @@
+{
+  "name": "auroraops-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AuroraOps desktop client for device-to-server linkage",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 0.0.0.0\" \"wait-on tcp:5173 && electron .\"",
+    "dev:renderer": "vite --host 0.0.0.0",
+    "dev:electron": "wait-on tcp:5173 && electron .",
+    "start": "electron .",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.38"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.2",
+    "@vitejs/plugin-vue": "^5.1.3",
+    "concurrently": "^9.0.1",
+    "electron": "^31.7.7",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2",
+    "vue-tsc": "^2.0.29",
+    "wait-on": "^8.0.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
