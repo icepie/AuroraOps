@@ -2,6 +2,7 @@ package sys
 
 import (
 	"context"
+	"fmt"
 	"hotgo/internal/dao"
 	"hotgo/internal/library/hgorm/handler"
 	"hotgo/internal/model"
@@ -32,32 +33,54 @@ func (s *sSysOpsDevice) Model(ctx context.Context, option ...*handler.Option) *g
 }
 
 func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (list []*sysin.OpsDeviceListModel, totalCount int, err error) {
-	mod := s.Model(ctx).Fields(sysin.OpsDeviceListModel{})
+	mod := s.Model(ctx).As("d").
+		LeftJoin(
+			fmt.Sprintf("%s g", dao.OpsDeviceGroup.Table()),
+			fmt.Sprintf("d.%s = g.%s", dao.OpsDevice.Columns().GroupId, dao.OpsDeviceGroup.Columns().Id),
+		).
+		Fields(
+			"d.id",
+			"d.group_id",
+			"g.name as group_name",
+			"d.name",
+			"d.hostname",
+			"d.ip",
+			"d.device_type",
+			"d.os_name",
+			"d.location",
+			"d.status",
+			"d.created_at",
+		)
 
 	if in.Id > 0 {
-		mod = mod.Where(dao.OpsDevice.Columns().Id, in.Id)
+		mod = mod.Where("d."+dao.OpsDevice.Columns().Id, in.Id)
+	}
+	if in.GroupScope == "ungrouped" {
+		mod = mod.Where("d."+dao.OpsDevice.Columns().GroupId, 0)
+	} else if in.GroupId > 0 {
+		mod = mod.Where("d."+dao.OpsDevice.Columns().GroupId, in.GroupId)
 	}
 	if in.Name != "" {
-		mod = mod.WhereLike(dao.OpsDevice.Columns().Name, "%"+in.Name+"%")
+		mod = mod.WhereLike("d."+dao.OpsDevice.Columns().Name, "%"+in.Name+"%")
 	}
 	if in.Hostname != "" {
-		mod = mod.WhereLike(dao.OpsDevice.Columns().Hostname, "%"+in.Hostname+"%")
+		mod = mod.WhereLike("d."+dao.OpsDevice.Columns().Hostname, "%"+in.Hostname+"%")
 	}
 	if in.Ip != "" {
-		mod = mod.WhereLike(dao.OpsDevice.Columns().Ip, "%"+in.Ip+"%")
+		mod = mod.WhereLike("d."+dao.OpsDevice.Columns().Ip, "%"+in.Ip+"%")
 	}
 	if in.DeviceType != "" {
-		mod = mod.Where(dao.OpsDevice.Columns().DeviceType, in.DeviceType)
+		mod = mod.Where("d."+dao.OpsDevice.Columns().DeviceType, in.DeviceType)
 	}
 	if in.Status > 0 {
-		mod = mod.Where(dao.OpsDevice.Columns().Status, in.Status)
+		mod = mod.Where("d."+dao.OpsDevice.Columns().Status, in.Status)
 	}
 	if len(in.CreatedAt) == 2 {
-		mod = mod.WhereBetween(dao.OpsDevice.Columns().CreatedAt, in.CreatedAt[0], in.CreatedAt[1])
+		mod = mod.WhereBetween("d."+dao.OpsDevice.Columns().CreatedAt, in.CreatedAt[0], in.CreatedAt[1])
 	}
 
 	mod = mod.Page(in.Page, in.PerPage)
-	mod = mod.OrderAsc(dao.OpsDevice.Columns().Sort).OrderDesc(dao.OpsDevice.Columns().Id)
+	mod = mod.OrderAsc("d." + dao.OpsDevice.Columns().Sort).OrderDesc("d." + dao.OpsDevice.Columns().Id)
 
 	if err = mod.ScanAndCount(&list, &totalCount, false); err != nil {
 		return nil, 0, gerror.Wrap(err, "获取运维设备列表失败，请稍后重试！")
@@ -66,7 +89,18 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 }
 
 func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (err error) {
+	if in.GroupId > 0 {
+		exists, countErr := dao.OpsDeviceGroup.Ctx(ctx).WherePri(in.GroupId).Count()
+		if countErr != nil {
+			return gerror.Wrap(countErr, "校验设备分组失败，请稍后重试！")
+		}
+		if exists == 0 {
+			return gerror.New("设备分组不存在，请重新选择")
+		}
+	}
+
 	data := do.OpsDevice{
+		GroupId:    in.GroupId,
 		Name:       in.Name,
 		Hostname:   in.Hostname,
 		Ip:         in.Ip,

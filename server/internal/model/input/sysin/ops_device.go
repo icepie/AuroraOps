@@ -13,6 +13,7 @@ import (
 )
 
 type OpsDeviceUpdateFields struct {
+	GroupId    uint64 `json:"groupId"    dc:"设备分组"`
 	Name       string `json:"name"       dc:"设备名称"`
 	Hostname   string `json:"hostname"   dc:"主机名"`
 	Ip         string `json:"ip"         dc:"IP地址"`
@@ -25,6 +26,7 @@ type OpsDeviceUpdateFields struct {
 }
 
 type OpsDeviceInsertFields struct {
+	GroupId    uint64 `json:"groupId"    dc:"设备分组"`
 	Name       string `json:"name"       dc:"设备名称"`
 	Hostname   string `json:"hostname"   dc:"主机名"`
 	Ip         string `json:"ip"         dc:"IP地址"`
@@ -80,6 +82,8 @@ type OpsDeviceViewModel struct {
 type OpsDeviceListInp struct {
 	form.PageReq
 	Id         uint64        `json:"id"         dc:"设备ID"`
+	GroupId    uint64        `json:"groupId"    dc:"分组ID"`
+	GroupScope string        `json:"groupScope" dc:"分组筛选范围"`
 	Name       string        `json:"name"       dc:"设备名称"`
 	Hostname   string        `json:"hostname"   dc:"主机名"`
 	Ip         string        `json:"ip"         dc:"IP地址"`
@@ -94,6 +98,8 @@ func (in *OpsDeviceListInp) Filter(ctx context.Context) (err error) {
 
 type OpsDeviceListModel struct {
 	Id         uint64      `json:"id"         dc:"设备ID"`
+	GroupId    uint64      `json:"groupId"    dc:"分组ID"`
+	GroupName  string      `json:"groupName"  dc:"设备分组"`
 	Name       string      `json:"name"       dc:"设备名称"`
 	Hostname   string      `json:"hostname"   dc:"主机名"`
 	Ip         string      `json:"ip"         dc:"IP地址"`

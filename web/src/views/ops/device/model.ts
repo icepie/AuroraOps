@@ -4,8 +4,10 @@ import { FormSchema } from '@/components/Form';
 import { defRangeShortcuts } from '@/utils/dateUtil';
 import { renderOptionTag } from '@/utils';
 import { useDictStore } from '@/store/modules/dict';
+import { Option as DeviceGroupOption } from '@/api/opsDeviceGroup';
 
 const dict = useDictStore();
+export const OPS_DEVICE_GROUP_OPTION_KEY = 'opsDeviceGroupOptionRemote';
 
 export const deviceTypeOptions = [
   { label: '物理机', value: 'physical', key: 'physical' },
@@ -19,6 +21,8 @@ export const deviceTypeOptions = [
 
 export class State {
   public id = 0;
+  public groupId = null;
+  public groupName = '';
   public name = '';
   public hostname = '';
   public ip = '';
@@ -145,6 +149,15 @@ export const columns = [
     width: 90,
   },
   {
+    title: '设备分组',
+    key: 'groupName',
+    align: 'left',
+    width: 140,
+    render(row: State) {
+      return h('span', {}, row.groupName || '未分组');
+    },
+  },
+  {
     title: '设备名称',
     key: 'name',
     align: 'left',
@@ -202,4 +215,9 @@ export const columns = [
 
 export function loadOptions() {
   dict.loadOptions(['sys_normal_disable']);
+}
+
+export async function loadGroupOptions() {
+  const options = await DeviceGroupOption();
+  dict.setOption(OPS_DEVICE_GROUP_OPTION_KEY, options || []);
 }

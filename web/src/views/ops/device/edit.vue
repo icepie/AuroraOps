@@ -21,6 +21,17 @@
           >
             <n-grid cols="1 s:1 m:2 l:2 xl:2 2xl:2" responsive="screen">
               <n-gi span="2">
+                <n-form-item label="设备分组" path="groupId">
+                  <n-select
+                    v-model:value="formValue.groupId"
+                    :options="dict.getOptionUnRef(OPS_DEVICE_GROUP_OPTION_KEY)"
+                    clearable
+                    filterable
+                    placeholder="请选择设备分组"
+                  />
+                </n-form-item>
+              </n-gi>
+              <n-gi span="2">
                 <n-form-item label="设备名称" path="name">
                   <n-input v-model:value="formValue.name" placeholder="请输入设备名称" />
                 </n-form-item>
@@ -87,15 +98,22 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, computed } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
   import { useDictStore } from '@/store/modules/dict';
   import { Edit, View, MaxSort } from '@/api/opsDevice';
-  import { State, newState, rules, deviceTypeOptions } from './model';
+  import {
+    State,
+    newState,
+    rules,
+    deviceTypeOptions,
+    OPS_DEVICE_GROUP_OPTION_KEY,
+    loadGroupOptions,
+  } from './model';
   import { useProjectSettingStore } from '@/store/modules/projectSetting';
   import { useMessage } from 'naive-ui';
   import { adaModalWidth } from '@/utils/hotgo';
 
-  const emit = defineEmits(['reloadTable']);
+  const emit = defineEmits(['reload-table']);
   const message = useMessage();
   const settingStore = useProjectSettingStore();
   const dict = useDictStore();
@@ -115,7 +133,7 @@
           .then(() => {
             message.success('操作成功');
             closeForm();
-            emit('reloadTable');
+            emit('reload-table');
           })
           .finally(() => {
             formBtnLoading.value = false;
@@ -159,5 +177,9 @@
 
   defineExpose({
     openModal,
+  });
+
+  onMounted(() => {
+    loadGroupOptions();
   });
 </script>

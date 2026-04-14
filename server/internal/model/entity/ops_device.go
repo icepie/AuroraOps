@@ -11,6 +11,7 @@ import (
 // OpsDevice is the golang structure for table ops_device.
 type OpsDevice struct {
 	Id         uint64      `json:"id"         orm:"id"          description:"设备ID"`
+	GroupId    uint64      `json:"groupId"    orm:"group_id"    description:"分组ID"`
 	Name       string      `json:"name"       orm:"name"        description:"设备名称"`
 	Hostname   string      `json:"hostname"   orm:"hostname"    description:"主机名"`
 	Ip         string      `json:"ip"         orm:"ip"          description:"IP地址"`

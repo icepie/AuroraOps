@@ -22,6 +22,7 @@ type OpsDeviceDao struct {
 // OpsDeviceColumns defines and stores column names for the table hg_ops_device.
 type OpsDeviceColumns struct {
 	Id         string // 设备ID
+	GroupId    string // 分组ID
 	Name       string // 设备名称
 	Hostname   string // 主机名
 	Ip         string // IP地址
@@ -39,6 +40,7 @@ type OpsDeviceColumns struct {
 // opsDeviceColumns holds the columns for the table hg_ops_device.
 var opsDeviceColumns = OpsDeviceColumns{
 	Id:         "id",
+	GroupId:    "group_id",
 	Name:       "name",
 	Hostname:   "hostname",
 	Ip:         "ip",

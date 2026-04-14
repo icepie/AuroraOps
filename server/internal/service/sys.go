@@ -419,6 +419,24 @@ type (
 		// Option 获取运维设备选项
 		Option(ctx context.Context) (opts []*model.Option, err error)
 	}
+	ISysOpsDeviceGroup interface {
+		// Model 设备分组ORM模型
+		Model(ctx context.Context, option ...*handler.Option) *gdb.Model
+		// List 获取设备分组列表
+		List(ctx context.Context) (list []*sysin.OpsDeviceGroupListModel, err error)
+		// Edit 修改/新增设备分组
+		Edit(ctx context.Context, in *sysin.OpsDeviceGroupEditInp) (err error)
+		// Delete 删除设备分组
+		Delete(ctx context.Context, in *sysin.OpsDeviceGroupDeleteInp) (err error)
+		// MaxSort 获取设备分组最大排序
+		MaxSort(ctx context.Context, in *sysin.OpsDeviceGroupMaxSortInp) (res *sysin.OpsDeviceGroupMaxSortModel, err error)
+		// View 获取设备分组指定信息
+		View(ctx context.Context, in *sysin.OpsDeviceGroupViewInp) (res *sysin.OpsDeviceGroupViewModel, err error)
+		// Status 更新设备分组状态
+		Status(ctx context.Context, in *sysin.OpsDeviceGroupStatusInp) (err error)
+		// Option 获取设备分组选项
+		Option(ctx context.Context) (opts []*model.Option, err error)
+	}
 	ISysTestCategory interface {
 		// Model 测试分类ORM模型
 		Model(ctx context.Context, option ...*handler.Option) *gdb.Model
@@ -457,6 +475,7 @@ var (
 	localSysNormalTreeDemo ISysNormalTreeDemo
 	localSysOpsAsset       ISysOpsAsset
 	localSysOpsDevice      ISysOpsDevice
+	localSysOpsDeviceGroup ISysOpsDeviceGroup
 	localSysOptionTreeDemo ISysOptionTreeDemo
 	localSysProvinces      ISysProvinces
 	localSysServeLicense   ISysServeLicense
@@ -705,6 +724,17 @@ func SysOpsDevice() ISysOpsDevice {
 
 func RegisterSysOpsDevice(i ISysOpsDevice) {
 	localSysOpsDevice = i
+}
+
+func SysOpsDeviceGroup() ISysOpsDeviceGroup {
+	if localSysOpsDeviceGroup == nil {
+		panic("implement not found for interface ISysOpsDeviceGroup, forgot register?")
+	}
+	return localSysOpsDeviceGroup
+}
+
+func RegisterSysOpsDeviceGroup(i ISysOpsDeviceGroup) {
+	localSysOpsDeviceGroup = i
 }
 
 func SysTestCategory() ISysTestCategory {

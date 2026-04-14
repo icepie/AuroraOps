@@ -13,6 +13,7 @@ import (
 type OpsDevice struct {
 	g.Meta     `orm:"table:hg_ops_device, do:true"`
 	Id         any         // 设备ID
+	GroupId    any         // 分组ID
 	Name       any         // 设备名称
 	Hostname   any         // 主机名
 	Ip         any         // IP地址
