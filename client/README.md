@@ -1,50 +1,60 @@
-# AuroraOps Client
+# electron-vite-template
 
-AuroraOps 桌面客户端骨架，使用 `Electron + Vite + Vue 3`。
+![GitHub Repo stars](https://img.shields.io/github/stars/umbrella22/electron-vite-template)
+[![vue](https://img.shields.io/badge/vue-3.5.22-brightgreen.svg)](https://github.com/vuejs/vue-next)
+[![vite](https://img.shields.io/badge/vite-7.1.11-brightgreen.svg)](https://github.com/vitejs/vite)
+[![electron](https://img.shields.io/badge/electron-38.3.0-brightgreen.svg)](https://github.com/electron/electron)
+[![license](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/umbrella22/electron-vite-template/blob/master/LICENSE)
 
-当前目标：
+# Installation
 
-- 作为设备侧客户端承载桌面能力
-- 与 AuroraOps 服务端做状态同步、设备注册、心跳和远程控制联动
-- 为后续托盘、自动启动、采集器、隧道代理等能力预留入口
+You can choose to clone the project or fork repository, or download the zip file directly. It is recommended to clone the repository so that you can receive the latest patches.
 
-## 目录
+To run a project, you need to have **node version 22** or higher and **use npm as your dependency management tool**
 
-```text
-client/
-  electron/         Electron 主进程和 preload
-  src/              Vite 渲染层
-  package.json
-  vite.config.ts
-```
+[Document (Chinese only)](https://umbrella22.github.io/electron-vue-template-doc/)
 
-## 启动
+[For Chinese Developers](/README_ZH.md)
 
-```bash
-cd client
-pnpm install
-cp .env.example .env
-pnpm dev
-```
+[![Build TEST](https://github.com/umbrella22/electron-vite-template/actions/workflows/Build.yml/badge.svg)](https://github.com/umbrella22/electron-vite-template/actions/workflows/Build.yml)
 
-## 构建
+# Build Setup
 
 ```bash
-cd client
-pnpm build
+# Clone this repository
+$ git clone https://github.com/umbrella22/electron-vite-template.git
+# Go into the repository
+$ cd electron-vite-template
+# install dependencies
+$ npm install
+
+# serve with hot reload at localhost:9080
+$ npm run dev
+
+# build electron application for production
+$ npm run build
+
+
 ```
 
-## 当前已预留能力
+---
 
-- `window.auroraClient.getRuntimeInfo()`
-- `window.auroraClient.openExternal(url)`
-- `window.auroraClient.checkServer(url)`
+# Function list
 
-后续如果要继续做设备联动，可以在这个骨架上继续加：
+[x] Auto update
+[x] Incremental update
+[x] Loading animation before startup
+[x] i18n
 
-- 设备指纹采集
-- 客户端注册和鉴权
-- WebSocket / SSE 长连接
-- 托盘常驻
-- 开机自启
-- 本地命令执行与审计
+# Built-in
+
+- [vue-router](https://next.router.vuejs.org/index.html)
+- [pinia](https://pinia.esm.dev/)
+- [electron](http://www.electronjs.org/docs)
+- electron-updater
+- typescript
+
+# Note
+
+- [gitee](https://gitee.com/Zh-Sky/electron-vite-template) is only for domestic users to pull code，from github to synchronize，please visit github for PR
+- **Welcome to Issues and PR**
