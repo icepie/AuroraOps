@@ -18,6 +18,9 @@ type OpsAsset struct {
 	Model         string      `json:"model"         orm:"model"         description:"型号"`
 	SerialNo      string      `json:"serialNo"      orm:"serial_no"     description:"序列号"`
 	Specification string      `json:"specification" orm:"specification" description:"规格参数"`
+	Source        string      `json:"source"        orm:"source"        description:"资产来源"`
+	SyncHash      string      `json:"syncHash"      orm:"sync_hash"     description:"同步摘要"`
+	LastSeenAt    *gtime.Time `json:"lastSeenAt"    orm:"last_seen_at"  description:"最近观测时间"`
 	Sort          int         `json:"sort"          orm:"sort"          description:"排序"`
 	Remark        string      `json:"remark"        orm:"remark"        description:"备注"`
 	Status        int         `json:"status"        orm:"status"        description:"状态，1正常，2停用"`

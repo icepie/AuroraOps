@@ -160,12 +160,14 @@ func (in *OpsDeviceClientRegisterInp) Filter(ctx context.Context) (err error) {
 }
 
 type OpsDeviceClientRegisterModel struct {
-	Id        uint64 `json:"id"        dc:"设备ID"`
-	Name      string `json:"name"      dc:"设备名称"`
-	Hostname  string `json:"hostname"  dc:"主机名"`
-	Ip        string `json:"ip"        dc:"IP地址"`
-	Created   bool   `json:"created"   dc:"是否新建设备"`
-	CreatedAt string `json:"createdAt" dc:"创建结果"`
+	Id         uint64 `json:"id"         dc:"设备ID"`
+	Name       string `json:"name"       dc:"设备名称"`
+	Hostname   string `json:"hostname"   dc:"主机名"`
+	Ip         string `json:"ip"         dc:"IP地址"`
+	Created    bool   `json:"created"    dc:"是否新建设备"`
+	CreatedAt  string `json:"createdAt"  dc:"创建结果"`
+	Token      string `json:"token"      dc:"设备接入令牌"`
+	TcpAddress string `json:"tcpAddress" dc:"TCP服务地址"`
 }
 
 type OpsDeviceClientHeartbeatInp struct {
@@ -188,4 +190,11 @@ func (in *OpsDeviceClientHeartbeatInp) Filter(ctx context.Context) (err error) {
 type OpsDeviceClientHeartbeatModel struct {
 	Id      uint64 `json:"id"      dc:"设备ID"`
 	AliveAt string `json:"aliveAt" dc:"心跳时间"`
+}
+
+type OpsDeviceTcpLoginModel struct {
+	DeviceId    uint64 `json:"deviceId"   dc:"设备ID"`
+	Name        string `json:"name"       dc:"设备名称"`
+	Hostname    string `json:"hostname"   dc:"主机名"`
+	ConnectedAt string `json:"connectedAt" dc:"连接时间"`
 }

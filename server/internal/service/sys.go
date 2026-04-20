@@ -400,6 +400,10 @@ type (
 		View(ctx context.Context, in *sysin.OpsAssetViewInp) (res *sysin.OpsAssetViewModel, err error)
 		// Status 更新运维资产状态
 		Status(ctx context.Context, in *sysin.OpsAssetStatusInp) (err error)
+		// ClientSync 客户端全量同步资产快照
+		ClientSync(ctx context.Context, in *sysin.OpsAssetClientSyncInp) (res *sysin.OpsAssetClientSyncModel, err error)
+		// ClientPull 客户端拉取服务端资产元数据
+		ClientPull(ctx context.Context, in *sysin.OpsAssetClientPullInp) (res *sysin.OpsAssetClientPullModel, err error)
 	}
 	ISysOpsDevice interface {
 		// Model 运维设备ORM模型
@@ -422,6 +426,10 @@ type (
 		ClientRegister(ctx context.Context, in *sysin.OpsDeviceClientRegisterInp) (res *sysin.OpsDeviceClientRegisterModel, err error)
 		// ClientHeartbeat 客户端设备心跳
 		ClientHeartbeat(ctx context.Context, in *sysin.OpsDeviceClientHeartbeatInp) (res *sysin.OpsDeviceClientHeartbeatModel, err error)
+		// IssueClientToken 签发设备接入令牌
+		IssueClientToken(ctx context.Context, deviceId uint64, hostname string) (token string, err error)
+		// VerifyClientToken 校验设备接入令牌
+		VerifyClientToken(ctx context.Context, deviceId uint64, hostname, token string) (err error)
 	}
 	ISysOpsDeviceGroup interface {
 		// Model 设备分组ORM模型

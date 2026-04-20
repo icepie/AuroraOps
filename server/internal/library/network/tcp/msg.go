@@ -80,3 +80,27 @@ type ServerHeartbeatReq struct {
 type ServerHeartbeatRes struct {
 	ServerRes
 }
+
+// DeviceLoginReq 设备客户端登录
+type DeviceLoginReq struct {
+	DeviceId  uint64 `json:"deviceId"  description:"设备ID"`
+	Name      string `json:"name"      description:"设备名称"`
+	Hostname  string `json:"hostname"  description:"主机名"`
+	Token     string `json:"token"     description:"设备令牌"`
+	Timestamp int64  `json:"timestamp" description:"客户端时间戳"`
+}
+
+// DeviceLoginRes 响应设备登录
+type DeviceLoginRes struct {
+	ServerRes
+}
+
+// DeviceHeartbeatReq 设备心跳
+type DeviceHeartbeatReq struct {
+	DeviceId uint64 `json:"deviceId" description:"设备ID"`
+}
+
+// DeviceHeartbeatRes 响应设备心跳
+type DeviceHeartbeatRes struct {
+	ServerRes
+}

@@ -3,6 +3,7 @@ import { getPreloadFile, winURL } from '../config/static-path'
 import { updater } from '../services/hot-updater'
 import DownloadFile from '../services/download-file'
 import Update from '../services/check-update'
+import { agentService } from '../services/agent-service'
 import config from '@config/index'
 import { IIpcMainHandle } from '@ipcManager/index'
 import { webContentSend } from './web-content-send'
@@ -11,6 +12,25 @@ export class IpcMainHandleClass implements IIpcMainHandle {
   private allUpdater: Update
   constructor() {
     this.allUpdater = new Update()
+  }
+  SaveAgentConfig = async (
+    event: Electron.IpcMainInvokeEvent,
+    args: { serverHost: string; deviceName: string },
+  ) => {
+    return agentService.saveConfig(args)
+  }
+  StartAgent = async () => {
+    return agentService.start()
+  }
+  StopAgent = async () => {
+    return agentService.stop()
+  }
+  GetAgentStatus = async () => {
+    return agentService.getStatus()
+  }
+  GetAgentBaseUrl = async () => {
+    await agentService.ensureServerStarted()
+    return agentService.getBaseUrl()
   }
   StartDownload: (
     event: Electron.IpcMainInvokeEvent,
@@ -58,7 +78,7 @@ export class IpcMainHandleClass implements IIpcMainHandle {
         devTools: process.env.NODE_ENV === 'development',
         // 在macos中启用橡皮动画
         scrollBounce: process.platform === 'darwin',
-        preload: getPreloadFile('main-preload'),
+        preload: getPreloadFile('preload'),
       },
     })
     // 开发模式下自动开启devtools

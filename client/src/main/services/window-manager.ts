@@ -2,6 +2,7 @@ import config from '@config/index'
 import { BrowserWindow, dialog } from 'electron'
 import { winURL, loadingURL, getPreloadFile } from '../config/static-path'
 import { useProcessException } from '@main/hooks/exception-hook'
+import { agentService } from './agent-service'
 
 class MainInit {
   public winURL: string = ''
@@ -18,8 +19,27 @@ class MainInit {
     this.childProcessGone = childProcessGone
     this.mainWindowGone = mainWindowGone
   }
+
+  private get useStartupChart() {
+    return config.UseStartupChart && process.env.NODE_ENV !== 'development'
+  }
+
+  private revealMainWindow() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return
+    }
+    if (!this.mainWindow.isVisible()) {
+      this.mainWindow.show()
+    }
+    if (this.loadWindow && !this.loadWindow.isDestroyed()) {
+      this.loadWindow.destroy()
+    }
+  }
   // 主窗口函数
-  createMainWindow() {
+  async createMainWindow() {
+    console.log('[window-manager] starting agent server')
+    await agentService.ensureServerStarted()
+    console.log('[window-manager] creating main window', this.winURL)
     this.mainWindow = new BrowserWindow({
       titleBarOverlay: {
         color: '#fff',
@@ -42,13 +62,33 @@ class MainInit {
       },
     })
 
-    // 加载主窗口
-    this.mainWindow.loadURL(this.winURL)
-    // dom-ready之后显示界面
-    this.mainWindow.once('ready-to-show', () => {
-      this.mainWindow.show()
-      if (config.UseStartupChart) this.loadWindow.destroy()
+    let revealTimer: NodeJS.Timeout | null = setTimeout(() => {
+      revealTimer = null
+      this.revealMainWindow()
+    }, 3000)
+
+    const revealOnce = () => {
+      if (revealTimer) {
+        clearTimeout(revealTimer)
+        revealTimer = null
+      }
+      console.log('[window-manager] revealing main window')
+      this.revealMainWindow()
+    }
+
+    this.mainWindow.once('ready-to-show', revealOnce)
+    this.mainWindow.webContents.once('did-finish-load', revealOnce)
+    this.mainWindow.webContents.once('did-fail-load', (_, errorCode, errorDescription) => {
+      if (revealTimer) {
+        clearTimeout(revealTimer)
+        revealTimer = null
+      }
+      throw new Error(`failed to load agent ui (${errorCode}): ${errorDescription}`)
     })
+
+    // 加载主窗口
+    console.log('[window-manager] loading url', this.winURL)
+    await this.mainWindow.loadURL(this.winURL)
     // 开发模式下自动开启devtools
     if (process.env.NODE_ENV === 'development') {
       this.mainWindow.webContents.openDevTools({
@@ -66,8 +106,27 @@ class MainInit {
      */
     this.childProcessGone(this.mainWindow)
     this.mainWindow.on('closed', () => {
+      if (revealTimer) {
+        clearTimeout(revealTimer)
+        revealTimer = null
+      }
       this.mainWindow = null
     })
+  }
+
+  async openMainWindow() {
+    try {
+      await this.createMainWindow()
+    } catch (error) {
+      if (this.loadWindow && !this.loadWindow.isDestroyed()) {
+        this.loadWindow.destroy()
+      }
+      dialog.showErrorBox(
+        'AuroraOps Client',
+        error instanceof Error ? error.message : String(error),
+      )
+      throw error
+    }
   }
   // 加载窗口函数
   loadingWindow(loadingURL: string) {
@@ -89,15 +148,15 @@ class MainInit {
     this.loadWindow.setAlwaysOnTop(true)
     // 延迟两秒可以根据情况后续调快，= =，就相当于个，sleep吧，就那种。 = =。。。
     setTimeout(() => {
-      this.createMainWindow()
+      void this.openMainWindow()
     }, 1500)
   }
   // 初始化窗口函数
   initWindow() {
-    if (config.UseStartupChart) {
+    if (this.useStartupChart) {
       return this.loadingWindow(this.shartURL)
     } else {
-      return this.createMainWindow()
+      return void this.openMainWindow()
     }
   }
 }

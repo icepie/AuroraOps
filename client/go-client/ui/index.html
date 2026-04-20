@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AuroraOps Client</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="panel">
+        <p class="eyebrow">AuroraOps Client</p>
+        <h1>设备绑定与资产采集</h1>
+        <p class="summary">主页面由 Go Agent 提供，本地通过 HTTP 控制连接状态。可直接在无图形模式下通过命令行配置并启动。</p>
+      </div>
+      <div class="panel" id="statusPanel">
+        <span class="meta">当前状态</span>
+        <strong class="status-strong" id="stateText">未启动</strong>
+        <span class="meta" id="deviceIdText">设备ID: -</span>
+        <span class="meta" id="tcpText">TCP: -</span>
+        <span class="meta" id="messageText"></span>
+      </div>
+    </section>
+
+    <section class="content">
+      <form class="panel" id="configForm">
+        <h2>连接配置</h2>
+        <label>
+          <span>设备名称</span>
+          <input id="deviceName" placeholder="例如：北京机房-01" />
+        </label>
+        <label>
+          <span>服务端地址</span>
+          <input id="serverHost" placeholder="例如：192.168.1.20:8000 或 http://192.168.1.20:8000" />
+        </label>
+        <div class="actions">
+          <button type="submit">保存并连接</button>
+          <button type="button" class="secondary" id="previewBtn">预览资产</button>
+          <button type="button" class="secondary" id="refreshBtn">刷新状态</button>
+          <button type="button" class="danger" id="stopBtn">停止客户端</button>
+        </div>
+      </form>
+      <div class="panel">
+        <h2>说明</h2>
+        <dl>
+          <div>
+            <dt>HTTP 控制接口</dt>
+            <dd>/api/status /api/config /api/start /api/stop</dd>
+          </div>
+          <div>
+            <dt>无图形配置</dt>
+            <dd>auroraops-agent --headless --server 192.168.1.20:8000 --name node-01 --port 18765</dd>
+          </div>
+          <div>
+            <dt>连接能力</dt>
+            <dd>自动注册设备、建立 TCP 长连接、定期心跳并同步 CPU、内存、硬盘、网卡等资产；页面与 Electron 均通过本地 HTTP 控制 Go Agent</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="content">
+      <div class="panel preview-panel">
+        <h2>采集预览</h2>
+        <p class="summary">用于确认本机实际上报的物理资产结构，并对比服务端已有资产，区分新增、更新、保持不变和仅服务端存在的数据。</p>
+        <div id="assetPreview" class="asset-preview empty">点击“预览资产”后显示本机采集结果</div>
+      </div>
+      <div class="panel preview-panel">
+        <h2>采集诊断</h2>
+        <p class="summary">展示 CPU、内存、磁盘、网卡、主板等采集阶段的执行结果，便于定位为什么资产为空。</p>
+        <div id="diagnosticPreview" class="diagnostic-preview empty">点击“预览资产”后显示采集诊断结果</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

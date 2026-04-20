@@ -83,6 +83,9 @@ CREATE TABLE IF NOT EXISTS `hg_ops_asset` (
   `model` varchar(128) NOT NULL DEFAULT '' COMMENT '型号',
   `serial_no` varchar(128) NOT NULL DEFAULT '' COMMENT '序列号',
   `specification` varchar(500) NOT NULL DEFAULT '' COMMENT '规格参数',
+  `source` varchar(32) NOT NULL DEFAULT 'manual' COMMENT '资产来源',
+  `sync_hash` varchar(64) NOT NULL DEFAULT '' COMMENT '同步摘要',
+  `last_seen_at` datetime DEFAULT NULL COMMENT '最近观测时间',
   `sort` int NOT NULL DEFAULT '0' COMMENT '排序',
   `remark` varchar(500) NOT NULL DEFAULT '' COMMENT '备注',
   `status` tinyint NOT NULL DEFAULT '1' COMMENT '状态，1正常，2停用',
@@ -92,11 +95,72 @@ CREATE TABLE IF NOT EXISTS `hg_ops_asset` (
   PRIMARY KEY (`id`),
   KEY `idx_ops_asset_device_id` (`device_id`),
   KEY `idx_ops_asset_type` (`asset_type`),
+  KEY `idx_ops_asset_source` (`source`),
   KEY `idx_ops_asset_name` (`asset_name`),
   KEY `idx_ops_asset_status` (`status`),
   KEY `idx_ops_asset_sort` (`sort`),
   KEY `idx_ops_asset_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='运维资产';
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_asset` ADD COLUMN `source` varchar(32) NOT NULL DEFAULT ''manual'' COMMENT ''资产来源'' AFTER `specification`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_asset'
+    AND COLUMN_NAME = 'source'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_asset` ADD COLUMN `sync_hash` varchar(64) NOT NULL DEFAULT '''' COMMENT ''同步摘要'' AFTER `source`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_asset'
+    AND COLUMN_NAME = 'sync_hash'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_asset` ADD COLUMN `last_seen_at` datetime DEFAULT NULL COMMENT ''最近观测时间'' AFTER `sync_hash`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_asset'
+    AND COLUMN_NAME = 'last_seen_at'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'CREATE INDEX `idx_ops_asset_source` ON `hg_ops_asset` (`source`)',
+    'SELECT 1'
+  )
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_asset'
+    AND INDEX_NAME = 'idx_ops_asset_source'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @now := NOW();
 
@@ -500,6 +564,11 @@ WHERE r.`key` IN ('super', 'manage')
     WHERE rm.`role_id` = r.`id`
       AND rm.`menu_id` = m.`id`
   );
+
+UPDATE `hg_ops_asset`
+SET `asset_name` = '网卡'
+WHERE `asset_type` = 'network'
+  AND `asset_name` = 'Network Interface';
 
 COMMIT;
 

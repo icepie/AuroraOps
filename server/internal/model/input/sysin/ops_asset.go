@@ -20,6 +20,8 @@ type OpsAssetUpdateFields struct {
 	Model         string `json:"model"         dc:"型号"`
 	SerialNo      string `json:"serialNo"      dc:"序列号"`
 	Specification string `json:"specification" dc:"规格参数"`
+	Source        string `json:"source"        dc:"资产来源"`
+	SyncHash      string `json:"syncHash"      dc:"同步摘要"`
 	Sort          int    `json:"sort"          dc:"排序"`
 	Remark        string `json:"remark"        dc:"备注"`
 	Status        int    `json:"status"        dc:"状态"`
@@ -33,6 +35,8 @@ type OpsAssetInsertFields struct {
 	Model         string `json:"model"         dc:"型号"`
 	SerialNo      string `json:"serialNo"      dc:"序列号"`
 	Specification string `json:"specification" dc:"规格参数"`
+	Source        string `json:"source"        dc:"资产来源"`
+	SyncHash      string `json:"syncHash"      dc:"同步摘要"`
 	Sort          int    `json:"sort"          dc:"排序"`
 	Remark        string `json:"remark"        dc:"备注"`
 	Status        int    `json:"status"        dc:"状态"`
@@ -105,6 +109,8 @@ type OpsAssetListModel struct {
 	Brand      string      `json:"brand"      dc:"品牌"`
 	Model      string      `json:"model"      dc:"型号"`
 	SerialNo   string      `json:"serialNo"   dc:"序列号"`
+	Source     string      `json:"source"     dc:"资产来源"`
+	LastSeenAt *gtime.Time `json:"lastSeenAt" dc:"最近观测时间"`
 	Status     int         `json:"status"     dc:"状态"`
 	CreatedAt  *gtime.Time `json:"createdAt"  dc:"创建时间"`
 }
@@ -138,3 +144,85 @@ func (in *OpsAssetStatusInp) Filter(ctx context.Context) (err error) {
 }
 
 type OpsAssetStatusModel struct{}
+
+type OpsAssetSyncItem struct {
+	AssetType     string `json:"assetType"     dc:"资产类型"`
+	UniqueKey     string `json:"uniqueKey"     dc:"资产唯一键"`
+	AssetName     string `json:"assetName"     dc:"资产名称"`
+	Brand         string `json:"brand"         dc:"品牌"`
+	Model         string `json:"model"         dc:"型号"`
+	SerialNo      string `json:"serialNo"      dc:"序列号"`
+	Specification string `json:"specification" dc:"规格参数"`
+	Source        string `json:"source"        dc:"资产来源"`
+	SyncHash      string `json:"syncHash"      dc:"同步摘要"`
+	Remark        string `json:"remark"        dc:"备注"`
+}
+
+type OpsAssetClientSyncInp struct {
+	DeviceId uint64              `json:"deviceId" dc:"设备ID"`
+	Assets   []*OpsAssetSyncItem `json:"assets"   dc:"资产列表"`
+}
+
+func (in *OpsAssetClientSyncInp) Filter(ctx context.Context) (err error) {
+	if in.DeviceId == 0 {
+		return gerror.New("设备ID不能为空")
+	}
+	if len(in.Assets) == 0 {
+		return gerror.New("资产列表不能为空")
+	}
+	for _, item := range in.Assets {
+		if item == nil {
+			return gerror.New("资产项不能为空")
+		}
+		if item.AssetType == "" {
+			return gerror.New("资产类型不能为空")
+		}
+		if item.UniqueKey == "" {
+			return gerror.New("资产唯一键不能为空")
+		}
+		if item.AssetName == "" {
+			return gerror.New("资产名称不能为空")
+		}
+	}
+	return
+}
+
+type OpsAssetClientSyncModel struct {
+	DeviceId uint64 `json:"deviceId" dc:"设备ID"`
+	Total    int    `json:"total"    dc:"本次同步资产数"`
+	Created  int    `json:"created"  dc:"新增资产数"`
+	Updated  int    `json:"updated"  dc:"更新资产数"`
+	Disabled int    `json:"disabled" dc:"停用资产数"`
+}
+
+type OpsAssetClientPullInp struct {
+	DeviceId uint64 `json:"deviceId" dc:"设备ID"`
+}
+
+func (in *OpsAssetClientPullInp) Filter(ctx context.Context) (err error) {
+	if in.DeviceId == 0 {
+		return gerror.New("设备ID不能为空")
+	}
+	return nil
+}
+
+type OpsAssetClientPullItem struct {
+	Id            uint64      `json:"id"            dc:"资产ID"`
+	AssetType     string      `json:"assetType"     dc:"资产类型"`
+	UniqueKey     string      `json:"uniqueKey"     dc:"资产唯一键"`
+	AssetName     string      `json:"assetName"     dc:"资产名称"`
+	Brand         string      `json:"brand"         dc:"品牌"`
+	Model         string      `json:"model"         dc:"型号"`
+	SerialNo      string      `json:"serialNo"      dc:"序列号"`
+	Specification string      `json:"specification" dc:"规格参数"`
+	Source        string      `json:"source"        dc:"资产来源"`
+	SyncHash      string      `json:"syncHash"      dc:"同步摘要"`
+	Remark        string      `json:"remark"        dc:"备注"`
+	Status        int         `json:"status"        dc:"状态"`
+	LastSeenAt    *gtime.Time `json:"lastSeenAt"    dc:"最近观测时间"`
+}
+
+type OpsAssetClientPullModel struct {
+	DeviceId uint64                    `json:"deviceId" dc:"设备ID"`
+	Assets   []*OpsAssetClientPullItem `json:"assets"   dc:"资产列表"`
+}

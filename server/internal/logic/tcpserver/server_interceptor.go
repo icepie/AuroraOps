@@ -17,11 +17,13 @@ import (
 // 免登录路由
 var noLoginRouter = map[string]struct{}{
 	"ServerLoginReq": {}, // 服务登录
+	"DeviceLoginReq": {}, // 设备登录
 }
 
 // 免验证路由
 var noVerifyRouter = map[string]struct{}{
 	"ServerHeartbeatReq": {}, // 心跳
+	"DeviceHeartbeatReq": {}, // 设备心跳
 }
 
 func (s *sTCPServer) isNoLoginRouter(router string) bool {
@@ -50,7 +52,7 @@ func (s *sTCPServer) DefaultInterceptor(ctx context.Context, msg *tcp.Message) (
 	}
 
 	// 检查授权有效期
-	if conn.Auth.EndAt.Before(gtime.Now()) {
+	if conn.Auth.EndAt != nil && conn.Auth.EndAt.Before(gtime.Now()) {
 		err = gerror.NewCode(gcode.CodeNotAuthorized, "授权已过期")
 		return
 	}

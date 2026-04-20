@@ -23,3 +23,21 @@ type ClientHeartbeatReq struct {
 type ClientHeartbeatRes struct {
 	*sysin.OpsDeviceClientHeartbeatModel
 }
+
+type ClientAssetSyncReq struct {
+	g.Meta `path:"/client/assets/sync" method:"post" tags:"客户端接入" summary:"客户端全量同步硬件资产"`
+	sysin.OpsAssetClientSyncInp
+}
+
+type ClientAssetSyncRes struct {
+	*sysin.OpsAssetClientSyncModel
+}
+
+type ClientAssetPullReq struct {
+	g.Meta `path:"/client/assets/pull" method:"get" tags:"客户端接入" summary:"客户端拉取服务端资产元数据"`
+	sysin.OpsAssetClientPullInp
+}
+
+type ClientAssetPullRes struct {
+	*sysin.OpsAssetClientPullModel
+}

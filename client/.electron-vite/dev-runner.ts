@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'development'
 
 import readline from 'node:readline'
+import { watch as fsWatch } from 'node:fs'
 import electron from 'electron'
 import chalk from 'chalk'
 import { join } from 'path'
@@ -19,8 +20,10 @@ const mainOpt = rollupOptions(process.env.NODE_ENV, 'main')
 const preloadOpt = rollupOptions(process.env.NODE_ENV, 'preload')
 
 let electronProcess: ChildProcess | null = null
+let agentBuilderProcess: ChildProcess | null = null
 let manualRestart = false
 let readlineInterface: readline.Interface | null = null
+let agentRebuildTimer: NodeJS.Timeout | null = null
 
 interface Shortcut {
   key: string
@@ -29,6 +32,13 @@ interface Shortcut {
 }
 
 const shortcutList: Shortcut[] = [
+  {
+    key: 'g',
+    description: config.dev.chineseLog ? '重建 Go Agent' : 'Rebuild Go Agent',
+    action() {
+      rebuildGoAgent()
+    },
+  },
   {
     key: 'r',
     description: config.dev.chineseLog ? '重启主进程' : 'Restart Main Process',
@@ -62,6 +72,7 @@ async function startRenderer(port: number): Promise<void> {
   })
   process.env.PORT = String(port)
   await server.listen(port)
+  console.log(chalk.gray(`[dev-runner] renderer listening on ${port}`))
   console.log(
     '\n\n' +
       chalk.blue(
@@ -86,6 +97,7 @@ function startMain(): Promise<void> {
       )
     })
     MainWatcher.on('event', (event) => {
+      console.log(chalk.gray(`[dev-runner] main watcher event: ${event.code}`))
       if (event.code === 'END') {
         if (electronProcess && !controlledRestart) {
           restartElectron()
@@ -134,6 +146,7 @@ function startPreload(): Promise<void> {
       )
     })
     PreloadWatcher.on('event', (event) => {
+      console.log(chalk.gray(`[dev-runner] preload watcher event: ${event.code}`))
       if (event.code === 'END') {
         if (electronProcess && !controlledRestart) {
           restartElectron()
@@ -159,10 +172,8 @@ function startPreload(): Promise<void> {
 }
 
 function startElectron() {
-  var args = [
-    '--inspect=5858',
-    join(__dirname, '../dist/electron/main/main.js'),
-  ]
+  const appRoot = join(__dirname, '..')
+  var args = ['--inspect=5858', '.']
 
   // detect yarn or npm and process commandline args accordingly
   if (process.env.npm_execpath?.endsWith('yarn.js')) {
@@ -171,7 +182,11 @@ function startElectron() {
     args = args.concat(process.argv.slice(2))
   }
 
-  electronProcess = spawn(electron as any, args)
+  console.log(chalk.gray(`[dev-runner] starting electron: ${(electron as any).toString()} ${args.join(' ')}`))
+  electronProcess = spawn(electron as any, args, {
+    cwd: appRoot,
+    stdio: 'pipe',
+  })
 
   electronProcess.stdout?.on('data', (data: string) => {
     electronLog(removeJunk(data), 'blue')
@@ -181,7 +196,71 @@ function startElectron() {
   })
 
   electronProcess.on('close', () => {
+    console.log(chalk.gray('[dev-runner] electron process closed'))
     if (!manualRestart) process.exit()
+  })
+}
+
+function rebuildGoAgent() {
+  if (agentBuilderProcess) {
+    return
+  }
+  logStats(
+    'Go Agent',
+    config.dev.chineseLog ? '检测到变更，开始重建...' : 'Change detected, rebuilding...',
+  )
+  agentBuilderProcess = spawn(
+    process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    ['run', 'dev:agent'],
+    {
+      cwd: join(__dirname, '..'),
+      stdio: 'pipe',
+    },
+  )
+
+  agentBuilderProcess.stdout?.on('data', (data: string) => {
+    electronLog(removeJunk(data), 'green')
+  })
+  agentBuilderProcess.stderr?.on('data', (data: string) => {
+    electronLog(removeJunk(data), 'red')
+  })
+  agentBuilderProcess.on('close', (code) => {
+    logStats(
+      'Go Agent',
+      code === 0
+        ? config.dev.chineseLog
+          ? 'Go Agent 重建完成'
+          : 'Go Agent rebuild complete'
+        : config.dev.chineseLog
+          ? `Go Agent 重建失败，退出码 ${code}`
+          : `Go Agent rebuild failed with code ${code}`,
+    )
+    agentBuilderProcess = null
+  })
+}
+
+function initGoAgentWatcher() {
+  const watchTargets = [
+    join(__dirname, '..', 'go-client'),
+  ]
+
+  watchTargets.forEach((watchTarget) => {
+    fsWatch(
+      watchTarget,
+      {
+        recursive: true,
+      },
+      (_, filename) => {
+        if (!filename) return
+        if (!/\.(go|mod|sum)$/.test(filename)) return
+        if (agentRebuildTimer) {
+          clearTimeout(agentRebuildTimer)
+        }
+        agentRebuildTimer = setTimeout(() => {
+          rebuildGoAgent()
+        }, 300)
+      },
+    )
   })
 }
 
@@ -265,6 +344,7 @@ function greeting() {
 
 async function init() {
   const port = await detect(config.dev.port || 9080)
+  console.log(chalk.gray(`[dev-runner] selected renderer port ${port}`))
   if (target === 'web') {
     await startRenderer(port)
     return
@@ -272,6 +352,8 @@ async function init() {
   greeting()
   try {
     await Promise.all([startRenderer(port), startMain(), startPreload()])
+    console.log(chalk.gray('[dev-runner] build watchers ready'))
+    initGoAgentWatcher()
     startElectron()
     initReadline()
   } catch (error) {

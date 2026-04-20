@@ -23,6 +23,49 @@ export interface IpcRendererEventListener<Send = void> {
 
 export class IpcChannelMainClass {
   IsUseSysTitle: IpcMainEventListener<void, boolean> = null
+  SaveAgentConfig: IpcMainEventListener<
+    { serverHost: string; deviceName: string },
+    {
+      serverHost: string
+      deviceName: string
+      httpBase: string
+      deviceId?: number
+      token?: string
+      tcpAddress?: string
+      hostname?: string
+    }
+  > = null
+  StartAgent: IpcMainEventListener<
+    void,
+    {
+      state: string
+      deviceId?: number
+      tcpAddress?: string
+      message?: string
+      updatedAt: number
+    }
+  > = null
+  StopAgent: IpcMainEventListener<
+    void,
+    {
+      state: string
+      deviceId?: number
+      tcpAddress?: string
+      message?: string
+      updatedAt: number
+    }
+  > = null
+  GetAgentStatus: IpcMainEventListener<
+    void,
+    {
+      state: string
+      deviceId?: number
+      tcpAddress?: string
+      message?: string
+      updatedAt: number
+    }
+  > = null
+  GetAgentBaseUrl: IpcMainEventListener<void, string> = null
   /**
    * 退出应用
    */

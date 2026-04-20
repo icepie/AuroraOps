@@ -15,7 +15,9 @@ import (
 	"hotgo/internal/consts"
 	"hotgo/internal/dao"
 	"hotgo/internal/library/network/tcp"
+	"hotgo/internal/model/do"
 	"hotgo/internal/model/entity"
+	"hotgo/internal/service"
 	"hotgo/utility/convert"
 	"hotgo/utility/encrypt"
 )
@@ -163,5 +165,90 @@ func (s *sTCPServer) onServerHeartbeat(ctx context.Context, req *tcp.ServerHeart
 		return
 	}
 
+	_ = conn.Send(ctx, res)
+}
+
+func (s *sTCPServer) onDeviceLogin(ctx context.Context, req *tcp.DeviceLoginReq) {
+	var (
+		conn   = tcp.ConnFromCtx(ctx)
+		res    = new(tcp.DeviceLoginRes)
+		device = new(entity.OpsDevice)
+	)
+
+	if conn == nil {
+		g.Log().Warningf(ctx, "conn is nil.")
+		return
+	}
+	if req.DeviceId == 0 {
+		res.SetError(gerror.New("设备ID不能为空"))
+		_ = conn.Send(ctx, res)
+		return
+	}
+	if err := dao.OpsDevice.Ctx(ctx).WherePri(req.DeviceId).Scan(device); err != nil {
+		res.SetError(err)
+		_ = conn.Send(ctx, res)
+		return
+	}
+	if device.Id == 0 {
+		res.SetError(gerror.New("设备不存在，请重新绑定"))
+		_ = conn.Send(ctx, res)
+		return
+	}
+	if device.Status != consts.StatusEnabled {
+		res.SetError(gerror.New("设备已停用，请联系管理员"))
+		_ = conn.Send(ctx, res)
+		return
+	}
+	if err := service.SysOpsDevice().VerifyClientToken(ctx, req.DeviceId, req.Hostname, req.Token); err != nil {
+		res.SetError(err)
+		_ = conn.Send(ctx, res)
+		return
+	}
+
+	auth := &tcp.AuthMeta{
+		Name:  req.Name,
+		Group: "device",
+		AppId: fmt.Sprintf("device:%d", req.DeviceId),
+		Extra: g.Map{
+			"deviceId": req.DeviceId,
+			"hostname": req.Hostname,
+		},
+	}
+	s.serv.AuthClient(conn, auth)
+
+	if _, err := dao.OpsDevice.Ctx(ctx).
+		WherePri(req.DeviceId).
+		Data(do.OpsDevice{
+			Name:     req.Name,
+			Hostname: req.Hostname,
+			Status:   consts.StatusEnabled,
+		}).
+		OmitEmptyData().
+		Update(); err != nil {
+		res.SetError(err)
+		_ = conn.Send(ctx, res)
+		return
+	}
+
+	_ = conn.Send(ctx, res)
+}
+
+func (s *sTCPServer) onDeviceHeartbeat(ctx context.Context, req *tcp.DeviceHeartbeatReq) {
+	var (
+		conn = tcp.ConnFromCtx(ctx)
+		res  = new(tcp.DeviceHeartbeatRes)
+	)
+
+	if conn == nil {
+		g.Log().Warningf(ctx, "conn is nil.")
+		return
+	}
+	client := s.serv.GetClient(conn.Conn)
+	if client == nil || client.Auth == nil {
+		res.SetError(gerror.New("登录异常，请重新绑定"))
+		_ = conn.Send(ctx, res)
+		return
+	}
+	client.Heartbeat = gtime.Timestamp()
 	_ = conn.Send(ctx, res)
 }

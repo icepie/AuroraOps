@@ -31,3 +31,25 @@ func (c *cClient) Heartbeat(ctx context.Context, req *apicommon.ClientHeartbeatR
 	res.OpsDeviceClientHeartbeatModel = data
 	return
 }
+
+func (c *cClient) AssetSync(ctx context.Context, req *apicommon.ClientAssetSyncReq) (res *apicommon.ClientAssetSyncRes, err error) {
+	data, err := service.SysOpsAsset().ClientSync(ctx, &req.OpsAssetClientSyncInp)
+	if err != nil {
+		return nil, err
+	}
+
+	res = new(apicommon.ClientAssetSyncRes)
+	res.OpsAssetClientSyncModel = data
+	return
+}
+
+func (c *cClient) AssetPull(ctx context.Context, req *apicommon.ClientAssetPullReq) (res *apicommon.ClientAssetPullRes, err error) {
+	data, err := service.SysOpsAsset().ClientPull(ctx, &req.OpsAssetClientPullInp)
+	if err != nil {
+		return nil, err
+	}
+
+	res = new(apicommon.ClientAssetPullRes)
+	res.OpsAssetClientPullModel = data
+	return
+}

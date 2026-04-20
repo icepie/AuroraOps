@@ -29,6 +29,9 @@ type OpsAssetColumns struct {
 	Model         string // 型号
 	SerialNo      string // 序列号
 	Specification string // 规格参数
+	Source        string // 资产来源
+	SyncHash      string // 同步摘要
+	LastSeenAt    string // 最近观测时间
 	Sort          string // 排序
 	Remark        string // 备注
 	Status        string // 状态，1正常，2停用
@@ -47,6 +50,9 @@ var opsAssetColumns = OpsAssetColumns{
 	Model:         "model",
 	SerialNo:      "serial_no",
 	Specification: "specification",
+	Source:        "source",
+	SyncHash:      "sync_hash",
+	LastSeenAt:    "last_seen_at",
 	Sort:          "sort",
 	Remark:        "remark",
 	Status:        "status",

@@ -50,11 +50,27 @@ interface memoryInfo {
   usedJSHeapSize: number
 }
 
+interface AgentStatus {
+  state:
+    | 'idle'
+    | 'starting'
+    | 'registered'
+    | 'connected'
+    | 'reconnecting'
+    | 'stopped'
+    | 'error'
+  deviceId?: number
+  tcpAddress?: string
+  message?: string
+  updatedAt: number
+}
+
 declare global {
+  interface Performance {
+    memory: memoryInfo
+  }
+
   interface Window {
-    performance: {
-      memory: memoryInfo
-    }
     /**
      * 渲染进程的IPC通道
      * 但是只能是给主进程发消息(invoke)和监听主进程的消息(on/once)

@@ -2,13 +2,14 @@
 import { join } from 'path'
 import config from '@config/index'
 import { app } from 'electron'
+import { agentService } from '../services/agent-service'
 
 const env = app.isPackaged ? 'production' : 'development'
 
 const filePath = {
   winURL: {
-    development: `http://localhost:${process.env.PORT}`,
-    production: `file://${join(app.getAppPath(), 'dist', 'electron', 'renderer', 'index.html')}`,
+    development: agentService.getUiUrl(),
+    production: agentService.getUiUrl(),
   },
   loadingURL: {
     development: `http://localhost:${process.env.PORT}/loader.html`,
@@ -30,16 +31,9 @@ const filePath = {
     ),
   },
   getPreloadFile(fileName: string) {
-    if (env !== 'development') {
-      return join(
-        app.getAppPath(),
-        'dist',
-        'electron',
-        'main',
-        `${fileName}.js`,
-      )
-    }
-    return join(app.getAppPath(), `${fileName}.js`)
+    const resolved = join(__dirname, `${fileName}.js`)
+    console.log('[static-path] preload resolved', fileName, resolved)
+    return resolved
   },
 }
 

@@ -2,6 +2,7 @@ package sys
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"hotgo/internal/consts"
 	"hotgo/internal/dao"
@@ -12,10 +13,14 @@ import (
 	"hotgo/internal/model/input/form"
 	"hotgo/internal/model/input/sysin"
 	"hotgo/internal/service"
+	"hotgo/utility/encrypt"
+	"net"
+	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -229,7 +234,11 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 		query := dao.OpsDevice.Ctx(ctx)
 
 		if err = query.Where(dao.OpsDevice.Columns().Hostname, in.Hostname).Scan(&current); err != nil {
-			return gerror.Wrap(err, "查询设备信息失败，请稍后重试！")
+			if isNoRowsError(err) {
+				err = nil
+			} else {
+				return gerror.Wrap(err, "查询设备信息失败，请稍后重试！")
+			}
 		}
 
 		if current.Id > 0 {
@@ -251,6 +260,11 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 			res.Id = current.Id
 			res.Created = false
 			res.CreatedAt = nowText
+			res.Token, err = s.IssueClientToken(ctx, current.Id, in.Hostname)
+			if err != nil {
+				return err
+			}
+			res.TcpAddress = s.getTCPServerAddress(ctx)
 			return nil
 		}
 
@@ -283,6 +297,11 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 		res.Id = gconv.Uint64(result)
 		res.Created = true
 		res.CreatedAt = nowText
+		res.Token, err = s.IssueClientToken(ctx, res.Id, in.Hostname)
+		if err != nil {
+			return err
+		}
+		res.TcpAddress = s.getTCPServerAddress(ctx)
 		return nil
 	})
 	return
@@ -296,7 +315,9 @@ func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDevice
 
 	device := &entity.OpsDevice{}
 	if err = dao.OpsDevice.Ctx(ctx).WherePri(in.Id).Scan(device); err != nil {
-		return nil, gerror.Wrap(err, "查询设备信息失败，请稍后重试！")
+		if !isNoRowsError(err) {
+			return nil, gerror.Wrap(err, "查询设备信息失败，请稍后重试！")
+		}
 	}
 	if device.Id == 0 {
 		return nil, gerror.New("设备不存在，请重新注册")
@@ -320,4 +341,54 @@ func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDevice
 	}
 
 	return
+}
+
+func (s *sSysOpsDevice) IssueClientToken(ctx context.Context, deviceId uint64, hostname string) (token string, err error) {
+	if deviceId == 0 {
+		return "", gerror.New("设备ID不能为空")
+	}
+	hostname = strings.TrimSpace(hostname)
+	if hostname == "" {
+		return "", gerror.New("主机名不能为空")
+	}
+
+	secret := g.Cfg().MustGet(ctx, "token.secretKey").String()
+	sign := encrypt.Md5ToString(fmt.Sprintf("%d:%s:%s", deviceId, hostname, secret))
+	return fmt.Sprintf("%d:%s", deviceId, sign), nil
+}
+
+func (s *sSysOpsDevice) VerifyClientToken(ctx context.Context, deviceId uint64, hostname, token string) (err error) {
+	expected, err := s.IssueClientToken(ctx, deviceId, hostname)
+	if err != nil {
+		return err
+	}
+	if token != expected {
+		return gerror.New("设备令牌无效，请重新绑定")
+	}
+	return nil
+}
+
+func (s *sSysOpsDevice) getTCPServerAddress(ctx context.Context) string {
+	address := g.Cfg().MustGet(ctx, "tcp.server.address").String()
+	if strings.HasPrefix(address, ":") {
+		request := ghttp.RequestFromCtx(ctx)
+		if request != nil {
+			host := request.GetHost()
+			if parsedHost, _, err := net.SplitHostPort(host); err == nil && parsedHost != "" {
+				return parsedHost + address
+			}
+			if host != "" {
+				return host + address
+			}
+		}
+		return "127.0.0.1" + address
+	}
+	return address
+}
+
+func isNoRowsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return gerror.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no rows in result set")
 }

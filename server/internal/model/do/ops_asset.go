@@ -20,6 +20,9 @@ type OpsAsset struct {
 	Model         any         // 型号
 	SerialNo      any         // 序列号
 	Specification any         // 规格参数
+	Source        any         // 资产来源
+	SyncHash      any         // 同步摘要
+	LastSeenAt    *gtime.Time // 最近观测时间
 	Sort          any         // 排序
 	Remark        any         // 备注
 	Status        any         // 状态，1正常，2停用

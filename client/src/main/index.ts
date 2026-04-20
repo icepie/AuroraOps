@@ -19,7 +19,7 @@ function onAppReady() {
   new InitWindow().initWindow()
   if (process.env.NODE_ENV === 'development') {
     const { VUEJS_DEVTOOLS } = require('electron-devtools-vendor')
-    session.defaultSession.loadExtension(VUEJS_DEVTOOLS, {
+    session.defaultSession.extensions.loadExtension(VUEJS_DEVTOOLS, {
       allowFileAccess: true,
     })
     console.log('已安装: vue-devtools')

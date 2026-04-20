@@ -44,6 +44,8 @@ func (s *sTCPServer) Start(ctx context.Context) {
 		s.serv.RegisterRouter(
 			s.onServerLogin,     // 服务登录
 			s.onServerHeartbeat, // 心跳
+			s.onDeviceLogin,     // 设备登录
+			s.onDeviceHeartbeat, // 设备心跳
 			s.OnAuthSummary,     // 获取授权信息
 			s.OnExampleHello,    // 一个tcp请求例子
 		)
