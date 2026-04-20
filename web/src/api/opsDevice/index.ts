@@ -53,3 +53,11 @@ export function Option() {
     method: 'GET',
   });
 }
+
+export function CreateTerminal(params) {
+  return http.request({
+    url: '/opsDevice/terminal/create',
+    method: 'POST',
+    params,
+  });
+}

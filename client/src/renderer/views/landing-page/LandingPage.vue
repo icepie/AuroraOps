@@ -110,7 +110,13 @@ async function stopAgent() {
 }
 
 onMounted(async () => {
-  status.value = await ipcRendererChannel.GetAgentStatus.invoke()
+  const [nextStatus, nextConfig] = await Promise.all([
+    ipcRendererChannel.GetAgentStatus.invoke(),
+    ipcRendererChannel.GetAgentConfig.invoke(),
+  ])
+  status.value = nextStatus
+  form.deviceName = nextConfig.deviceName || ''
+  form.serverHost = nextConfig.serverHost || ''
 })
 </script>
 

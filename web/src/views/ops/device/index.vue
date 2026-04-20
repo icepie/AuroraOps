@@ -1,11 +1,13 @@
 <template>
   <div class="device-page">
-    <n-grid cols="1 s:1 m:1 l:4 xl:4 2xl:4" responsive="screen" :x-gap="12">
-      <n-gi span="1">
+    <div class="device-layout" :class="{ 'device-layout--collapsed': groupCollapsed }">
+      <div v-if="!groupCollapsed" class="device-layout__aside">
         <n-card :bordered="false" class="proCard group-panel" size="small">
           <template #header>
             <div class="group-header">
-              <div class="group-title">设备分组</div>
+              <div class="group-header__heading">
+                <div class="group-title">设备分组</div>
+              </div>
               <n-space size="small" class="soft-action-group">
                 <n-tooltip v-if="hasPermission(['/opsDeviceGroup/edit'])" trigger="hover">
                   <template #trigger>
@@ -99,14 +101,31 @@
             </div>
           </div>
         </n-card>
-      </n-gi>
-      <n-gi span="3">
+      </div>
+      <div class="device-layout__main">
         <n-card :bordered="false" class="proCard device-table-panel">
           <template #header>
             <div class="table-header">
-              <div>
-                <div class="table-header__title">设备列表</div>
-                <div class="table-header__subtitle">当前筛选：{{ selectedGroupLabel }}</div>
+              <div class="table-header__toggle-row">
+                <n-button quaternary size="small" class="table-header__toggle" @click="toggleGroupPanel">
+                  <template #icon>
+                    <n-icon>
+                      <component :is="groupCollapsed ? MenuUnfoldOutlined : MenuFoldOutlined" />
+                    </n-icon>
+                  </template>
+                  {{ groupCollapsed ? '显示分组' : '隐藏分组' }}
+                </n-button>
+              </div>
+              <div class="table-header__main">
+                <div class="table-header__content">
+                  <div class="table-header__title-row">
+                    <div class="table-header__title">设备列表</div>
+                    <n-tag size="small" round :bordered="false" class="table-header__tag">
+                      {{ selectedGroupLabel }}
+                    </n-tag>
+                  </div>
+                  <div class="table-header__subtitle">设备分组收起后，这里直接切换显示与隐藏。</div>
+                </div>
               </div>
             </div>
           </template>
@@ -157,23 +176,33 @@
             </template>
           </BasicTable>
         </n-card>
-      </n-gi>
-    </n-grid>
+      </div>
+    </div>
     <Edit ref="editRef" @reload-table="handleReload" />
     <GroupModal ref="groupModalRef" @reload-groups="handleGroupReload" />
   </div>
 </template>
 
 <script lang="ts" setup>
-  import { h, reactive, ref, computed, onMounted } from 'vue';
-  import { useDialog, useMessage } from 'naive-ui';
-  import { BasicTable, TableAction } from '@/components/Table';
+  import { h, reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue';
+  import { useRouter } from 'vue-router';
+  import { useDialog, useMessage, NButton, NIcon, NDropdown } from 'naive-ui';
+  import { BasicTable } from '@/components/Table';
   import { BasicForm, useForm } from '@/components/Form/index';
   import { usePermission } from '@/hooks/web/usePermission';
   import { useDictStore } from '@/store/modules/dict';
-  import { List, Delete, Status } from '@/api/opsDevice';
+  import { List, Delete, Status, CreateTerminal } from '@/api/opsDevice';
   import { Delete as DeleteGroup, List as GroupList } from '@/api/opsDeviceGroup';
-  import { PlusOutlined, DeleteOutlined, SearchOutlined, EditOutlined } from '@vicons/antd';
+  import {
+    PlusOutlined,
+    DeleteOutlined,
+    SearchOutlined,
+    EditOutlined,
+    EllipsisOutlined,
+    CodeOutlined,
+    MenuFoldOutlined,
+    MenuUnfoldOutlined,
+  } from '@vicons/antd';
   import { columns, schemas, loadOptions, State, loadGroupOptions } from './model';
   import { adaTableScrollX } from '@/utils/hotgo';
   import Edit from './edit.vue';
@@ -182,6 +211,7 @@
   const dict = useDictStore();
   const dialog = useDialog();
   const message = useMessage();
+  const router = useRouter();
   const { hasPermission } = usePermission();
   const actionRef = ref();
   const searchFormRef = ref<any>({});
@@ -191,40 +221,72 @@
   const groupList = ref<any[]>([]);
   const activeGroupKey = ref<string>('all');
   const groupKeyword = ref('');
+  const groupCollapsed = ref(false);
+  let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   const actionColumn = reactive({
-    width: 216,
+    width: 118,
     title: '操作',
     key: 'action',
     fixed: 'right',
     render(record: State) {
-      return h(TableAction as any, {
-        style: 'button',
-        actions: [
+      const options = buildActionMenuOptions(record);
+
+      return h('div', { class: 'device-action-cell' }, [
+        h(
+          NButton,
           {
-            label: '编辑',
-            onClick: handleEdit.bind(null, record),
-            auth: ['/opsDevice/edit'],
+            size: 'small',
+            quaternary: true,
+            type: record.online === true ? 'primary' : 'default',
+            class: 'device-action-cell__terminal',
+            onClick: handleTerminal.bind(null, record),
           },
           {
-            label: '禁用',
-            onClick: handleStatus.bind(null, record, 2),
-            ifShow: () => record.status === 1,
-            auth: ['/opsDevice/status'],
+            icon: () =>
+              h(
+                NIcon,
+                { size: 14 },
+                {
+                  default: () => h(CodeOutlined),
+                },
+              ),
+            default: () => '终端',
           },
-          {
-            label: '启用',
-            onClick: handleStatus.bind(null, record, 1),
-            ifShow: () => record.status === 2,
-            auth: ['/opsDevice/status'],
-          },
-          {
-            label: '删除',
-            onClick: handleDelete.bind(null, record),
-            auth: ['/opsDevice/delete'],
-          },
-        ],
-      });
+        ),
+        options.length
+          ? h(
+              NDropdown,
+              {
+                trigger: 'click',
+                options,
+                onSelect: (key: string) => handleActionSelect(key, record),
+              },
+              {
+                default: () =>
+                  h(
+                    NButton,
+                    {
+                      quaternary: true,
+                      circle: true,
+                      size: 'small',
+                      class: 'device-action-cell__more',
+                    },
+                    {
+                      icon: () =>
+                        h(
+                          NIcon,
+                          { size: 16 },
+                          {
+                            default: () => h(EllipsisOutlined),
+                          },
+                        ),
+                    },
+                  ),
+              },
+            )
+          : null,
+      ]);
     },
   });
 
@@ -322,6 +384,10 @@
     reloadTable();
   }
 
+  function toggleGroupPanel() {
+    groupCollapsed.value = !groupCollapsed.value;
+  }
+
   function openGroupModal(record: Recordable | null = null) {
     groupModalRef.value?.openModal(record);
   }
@@ -343,6 +409,65 @@
 
   function handleEdit(record: Recordable) {
     editRef.value.openModal(record);
+  }
+
+  function buildActionMenuOptions(record: State) {
+    const options: Array<{ label: string; key: string }> = [];
+
+    if (hasPermission(['/opsDevice/edit'])) {
+      options.push({ label: '编辑', key: 'edit' });
+    }
+    if (hasPermission(['/opsDevice/status'])) {
+      if (record.status === 1) {
+        options.push({ label: '禁用', key: 'disable' });
+      } else if (record.status === 2) {
+        options.push({ label: '启用', key: 'enable' });
+      }
+    }
+    if (hasPermission(['/opsDevice/delete'])) {
+      options.push({ label: '删除', key: 'delete' });
+    }
+
+    return options;
+  }
+
+  function handleActionSelect(key: string, record: Recordable) {
+    switch (key) {
+      case 'edit':
+        handleEdit(record);
+        break;
+      case 'disable':
+        handleStatus(record, 2);
+        break;
+      case 'enable':
+        handleStatus(record, 1);
+        break;
+      case 'delete':
+        handleDelete(record);
+        break;
+      default:
+        break;
+    }
+  }
+
+  async function handleTerminal(record: Recordable) {
+    if (!record.online) {
+      message.warning('设备已离线');
+      return;
+    }
+    const res = await CreateTerminal({ deviceId: record.id });
+    if (!res?.sessionId) {
+      message.error('创建远程终端失败');
+      return;
+    }
+    await router.push({
+      name: 'ops_device_terminal_index',
+      query: {
+        sessionId: res.sessionId,
+        deviceId: record.id,
+        name: record.name || '',
+      },
+    });
   }
 
   function handleDelete(record: Recordable) {
@@ -412,6 +537,16 @@
     loadOptions();
     await loadGroupOptions();
     await loadGroups();
+    refreshTimer = setInterval(() => {
+      reloadTable();
+    }, 10000);
+  });
+
+  onBeforeUnmount(() => {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
   });
 </script>
 
@@ -422,11 +557,29 @@
     }
   }
 
+  .device-layout {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    transition: grid-template-columns 0.2s ease;
+  }
+
+  .device-layout--collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .device-layout__aside,
+  .device-layout__main {
+    min-width: 0;
+  }
+
   .group-panel {
     min-height: 100%;
     border: 1px solid rgba(148, 163, 184, 0.12);
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.03);
     background: #ffffff;
+    overflow: hidden;
   }
 
   .group-header {
@@ -434,6 +587,13 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .group-header__heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
   }
 
   .group-title {
@@ -533,9 +693,40 @@
 
   .table-header {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .table-header__toggle-row {
+    width: 100%;
+  }
+
+  .table-header__main {
+    display: flex;
+    align-items: center;
     gap: 12px;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .table-header__toggle {
+    flex: 0 0 auto;
+    border-radius: 12px;
+    padding: 0 12px;
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  .table-header__content {
+    min-width: 0;
+  }
+
+  .table-header__title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
     flex-wrap: wrap;
   }
 
@@ -545,27 +736,58 @@
     font-weight: 700;
   }
 
+  .table-header__tag {
+    color: #475569;
+    background: #f1f5f9;
+  }
+
   .table-header__subtitle {
     margin-top: 4px;
     color: #64748b;
-    font-size: 13px;
+    font-size: 12px;
   }
 
-  .table-header__meta {
+  .device-action-cell {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    justify-content: flex-end;
+    gap: 4px;
   }
 
-  .table-header__meta--compact {
-    align-self: center;
+  .device-action-cell__terminal {
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 10px;
+  }
+
+  .device-action-cell__more {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
   }
 
   @media (max-width: 768px) {
+    .device-layout,
+    .device-layout--collapsed {
+      grid-template-columns: 1fr;
+    }
+
     .group-toolbar {
       align-items: flex-start;
       flex-direction: column;
+    }
+
+    .group-header {
+      flex-wrap: wrap;
+    }
+
+    .soft-action-group {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .table-header__toggle {
+      padding: 0 10px;
     }
   }
 </style>

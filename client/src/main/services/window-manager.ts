@@ -1,5 +1,5 @@
 import config from '@config/index'
-import { BrowserWindow, dialog } from 'electron'
+import { BrowserWindow, dialog, type Event as ElectronEvent } from 'electron'
 import { winURL, loadingURL, getPreloadFile } from '../config/static-path'
 import { useProcessException } from '@main/hooks/exception-hook'
 import { agentService } from './agent-service'
@@ -11,6 +11,7 @@ class MainInit {
   public mainWindow: BrowserWindow = null
   private childProcessGone = null
   private mainWindowGone = null
+  private quitting = false
 
   constructor() {
     const { childProcessGone, mainWindowGone } = useProcessException()
@@ -33,6 +34,31 @@ class MainInit {
     }
     if (this.loadWindow && !this.loadWindow.isDestroyed()) {
       this.loadWindow.destroy()
+    }
+  }
+
+  showMainWindow() {
+    this.revealMainWindow()
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return
+    }
+    if (this.mainWindow.isMinimized()) {
+      this.mainWindow.restore()
+    }
+    this.mainWindow.focus()
+  }
+
+  hideMainWindow() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return
+    }
+    this.mainWindow.hide()
+  }
+
+  prepareQuit() {
+    this.quitting = true
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.removeAllListeners('close')
     }
   }
   // 主窗口函数
@@ -105,6 +131,13 @@ class MainInit {
      * @date 2020-11-27
      */
     this.childProcessGone(this.mainWindow)
+    this.mainWindow.on('close', (event: ElectronEvent) => {
+      if (this.quitting) {
+        return
+      }
+      event.preventDefault()
+      this.mainWindow.hide()
+    })
     this.mainWindow.on('closed', () => {
       if (revealTimer) {
         clearTimeout(revealTimer)

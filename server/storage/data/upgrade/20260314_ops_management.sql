@@ -208,7 +208,7 @@ INSERT INTO `hg_admin_menu` (
   `status`, `created_at`, `updated_at`
 )
 SELECT
-  @opsRootId, '资产管理', 'opsHardware', 'hardware', '', 2, '', '/opsAsset/list,/opsDevice/option',
+  @opsRootId, '硬件管理', 'opsHardware', 'hardware', '', 2, '', '/opsHardware/overview,/opsHardware/export,/opsDeviceGroup/list,/opsAsset/list',
   '', '/ops/hardware/index', 1, 'opsManage', 0, 0,
   '', 0, 0, 0, 2, CONCAT('tr_', @opsRootId, ' '), 20, '',
   1, @now, @now
@@ -450,7 +450,7 @@ INSERT INTO `hg_admin_menu` (
   `status`, `created_at`, `updated_at`
 )
 SELECT
-  @opsHardwareId, '资产详情', 'opsAssetView', '', '', 3, '', '/opsAsset/view',
+  @opsHardwareId, '硬件详情', 'opsAssetView', '', '', 3, '', '/opsAsset/view',
   '', '', 1, '', 0, 0,
   '', 0, 1, 0, 3, CONCAT('tr_', @opsRootId, ' tr_', @opsHardwareId, ' '), 10, '',
   1, @now, @now
@@ -467,7 +467,7 @@ INSERT INTO `hg_admin_menu` (
   `status`, `created_at`, `updated_at`
 )
 SELECT
-  @opsHardwareId, '编辑资产', 'opsAssetEdit', '', '', 3, '', '/opsAsset/edit',
+  @opsHardwareId, '编辑硬件', 'opsAssetEdit', '', '', 3, '', '/opsAsset/edit',
   '', '', 1, '', 0, 0,
   '', 0, 1, 0, 3, CONCAT('tr_', @opsRootId, ' tr_', @opsHardwareId, ' '), 20, '',
   1, @now, @now
@@ -486,7 +486,7 @@ INSERT INTO `hg_admin_menu` (
   `status`, `created_at`, `updated_at`
 )
 SELECT
-  @opsAssetEditId, '资产最大排序', 'opsAssetMaxSort', '', '', 3, '', '/opsAsset/maxSort',
+  @opsAssetEditId, '硬件最大排序', 'opsAssetMaxSort', '', '', 3, '', '/opsAsset/maxSort',
   '', '', 1, '', 0, 0,
   '', 0, 1, 0, 4, CONCAT('tr_', @opsRootId, ' tr_', @opsHardwareId, ' tr_', @opsAssetEditId, ' '), 30, '',
   1, @now, @now
@@ -503,7 +503,7 @@ INSERT INTO `hg_admin_menu` (
   `status`, `created_at`, `updated_at`
 )
 SELECT
-  @opsHardwareId, '删除资产', 'opsAssetDelete', '', '', 3, '', '/opsAsset/delete',
+  @opsHardwareId, '删除硬件', 'opsAssetDelete', '', '', 3, '', '/opsAsset/delete',
   '', '', 1, '', 0, 0,
   '', 0, 1, 0, 3, CONCAT('tr_', @opsRootId, ' tr_', @opsHardwareId, ' '), 40, '',
   1, @now, @now
@@ -520,7 +520,7 @@ INSERT INTO `hg_admin_menu` (
   `status`, `created_at`, `updated_at`
 )
 SELECT
-  @opsHardwareId, '资产状态', 'opsAssetStatus', '', '', 3, '', '/opsAsset/status',
+  @opsHardwareId, '硬件状态', 'opsAssetStatus', '', '', 3, '', '/opsAsset/status',
   '', '', 1, '', 0, 0,
   '', 0, 1, 0, 3, CONCAT('tr_', @opsRootId, ' tr_', @opsHardwareId, ' '), 50, '',
   1, @now, @now
@@ -569,6 +569,34 @@ UPDATE `hg_ops_asset`
 SET `asset_name` = '网卡'
 WHERE `asset_type` = 'network'
   AND `asset_name` = 'Network Interface';
+
+UPDATE `hg_admin_menu`
+SET `title` = '硬件管理'
+WHERE `name` = 'opsHardware';
+
+UPDATE `hg_admin_menu`
+SET `permissions` = '/opsHardware/overview,/opsHardware/export,/opsDeviceGroup/list,/opsAsset/list'
+WHERE `name` = 'opsHardware';
+
+UPDATE `hg_admin_menu`
+SET `title` = '硬件详情'
+WHERE `name` = 'opsAssetView';
+
+UPDATE `hg_admin_menu`
+SET `title` = '编辑硬件'
+WHERE `name` = 'opsAssetEdit';
+
+UPDATE `hg_admin_menu`
+SET `title` = '硬件最大排序'
+WHERE `name` = 'opsAssetMaxSort';
+
+UPDATE `hg_admin_menu`
+SET `title` = '删除硬件'
+WHERE `name` = 'opsAssetDelete';
+
+UPDATE `hg_admin_menu`
+SET `title` = '硬件状态'
+WHERE `name` = 'opsAssetStatus';
 
 COMMIT;
 

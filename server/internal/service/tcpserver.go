@@ -40,6 +40,18 @@ type (
 		DefaultInterceptor(ctx context.Context, msg *tcp.Message) (err error)
 		// PreFilterInterceptor 预处理
 		PreFilterInterceptor(ctx context.Context, msg *tcp.Message) (err error)
+		// CreateTerminalSession 创建设备终端会话
+		CreateTerminalSession(ctx context.Context, deviceId uint64, userId int64) (sessionId string, err error)
+		// SendTerminalOpen 打开终端
+		SendTerminalOpen(ctx context.Context, sessionId string, cols, rows uint32, shell string) (err error)
+		// SendTerminalInput 发送终端输入
+		SendTerminalInput(ctx context.Context, sessionId, input string) (err error)
+		// SendTerminalResize 调整终端尺寸
+		SendTerminalResize(ctx context.Context, sessionId string, cols, rows uint32) (err error)
+		// SendTerminalClose 关闭终端
+		SendTerminalClose(ctx context.Context, sessionId, message string) (err error)
+		// SubscribeTerminal 订阅终端输出
+		SubscribeTerminal(sessionId string) (ch <-chan []byte, cancel func(), err error)
 	}
 )
 

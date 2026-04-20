@@ -65,6 +65,18 @@ export class IpcChannelMainClass {
       updatedAt: number
     }
   > = null
+  GetAgentConfig: IpcMainEventListener<
+    void,
+    {
+      serverHost: string
+      deviceName: string
+      httpBase: string
+      deviceId?: number
+      token?: string
+      tcpAddress?: string
+      hostname?: string
+    }
+  > = null
   GetAgentBaseUrl: IpcMainEventListener<void, string> = null
   /**
    * 退出应用

@@ -14,7 +14,9 @@ import (
 )
 
 type sTCPServer struct {
-	serv *tcp.Server
+	serv        *tcp.Server
+	terminals   *terminalManager
+	terminalHub *terminalHub
 }
 
 func init() {
@@ -22,7 +24,10 @@ func init() {
 }
 
 func newTCPServer() *sTCPServer {
-	return &sTCPServer{}
+	return &sTCPServer{
+		terminals:   newTerminalManager(),
+		terminalHub: newTerminalHub(),
+	}
 }
 
 // Instance 获取实例
@@ -46,8 +51,10 @@ func (s *sTCPServer) Start(ctx context.Context) {
 			s.onServerHeartbeat, // 心跳
 			s.onDeviceLogin,     // 设备登录
 			s.onDeviceHeartbeat, // 设备心跳
-			s.OnAuthSummary,     // 获取授权信息
-			s.OnExampleHello,    // 一个tcp请求例子
+			s.onDeviceTerminalOutput,
+			s.onDeviceTerminalClosed,
+			s.OnAuthSummary,  // 获取授权信息
+			s.OnExampleHello, // 一个tcp请求例子
 		)
 
 		// 注册RPC路由
@@ -57,6 +64,8 @@ func (s *sTCPServer) Start(ctx context.Context) {
 
 		// 注册拦截器
 		s.serv.RegisterInterceptor(s.DefaultInterceptor, s.PreFilterInterceptor)
+
+		go s.terminals.cleanupLoop(ctx)
 
 		// 服务监听
 		if err := s.serv.Listen(); err != nil {

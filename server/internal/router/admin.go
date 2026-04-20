@@ -13,6 +13,7 @@ import (
 	"hotgo/internal/controller/admin/common"
 	"hotgo/internal/controller/admin/pay"
 	"hotgo/internal/controller/admin/sys"
+	"hotgo/internal/library/response"
 	"hotgo/internal/router/genrouter"
 	"hotgo/internal/service"
 	"hotgo/utility/simple"
@@ -29,6 +30,13 @@ func Admin(ctx context.Context, group *ghttp.RouterGroup) {
 			common.Site,   // 基础
 			common.Client, // 客户端接入
 		)
+		group.GET("/opsDevice/terminal/ws", func(r *ghttp.Request) {
+			if err := service.Middleware().DeliverUserContext(r); err != nil {
+				response.JsonExit(r, 401, err.Error())
+				return
+			}
+			sys.OpsDevice.TerminalWS(r)
+		})
 		group.Middleware(service.Middleware().AdminAuth)
 		group.Bind(
 			common.Console,   // 控制台

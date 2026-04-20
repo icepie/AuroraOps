@@ -6,7 +6,7 @@
       :show-icon="false"
       preset="dialog"
       transform-origin="center"
-      :title="formValue.id > 0 ? '编辑资产 #' + formValue.id : '新增资产'"
+      :title="formValue.id > 0 ? '编辑硬件 #' + formValue.id : '新增硬件'"
       :style="{ width: dialogWidth }"
     >
       <n-scrollbar style="max-height: 87vh" class="pr-5">
@@ -32,13 +32,13 @@
                 </n-form-item>
               </n-gi>
               <n-gi span="1">
-                <n-form-item label="资产类型" path="assetType">
+                <n-form-item label="硬件类型" path="assetType">
                   <n-select v-model:value="formValue.assetType" :options="assetTypeOptions" />
                 </n-form-item>
               </n-gi>
               <n-gi span="2">
-                <n-form-item label="资产名称" path="assetName">
-                  <n-input v-model:value="formValue.assetName" placeholder="请输入资产名称" />
+                <n-form-item label="硬件名称" path="assetName">
+                  <n-input v-model:value="formValue.assetName" placeholder="请输入硬件名称" />
                 </n-form-item>
               </n-gi>
               <n-gi span="1">

@@ -4,6 +4,7 @@ import { RedirectRoute } from '@/router/base';
 import { PageEnum } from '@/enums/pageEnum';
 import { createRouterGuards } from './router-guards';
 import { createRouterIcon } from './router-icons';
+import { Layout } from '@/router/constant';
 
 // @ts-ignore
 const modules = import.meta.glob('./modules/**/*.ts');
@@ -39,11 +40,32 @@ export const LoginRoute: RouteRecordRaw = {
   },
 };
 
+export const OpsTerminalRoute: RouteRecordRaw = {
+  path: '/ops/device/terminal',
+  name: 'ops_device_terminal_root',
+  component: Layout,
+  meta: {
+    title: '远程终端',
+    hidden: true,
+  },
+  children: [
+    {
+      path: '/ops/device/terminal',
+      name: 'ops_device_terminal_index',
+      component: () => import('@/views/ops/device/terminal.vue'),
+      meta: {
+        title: '远程终端',
+        hidden: true,
+      },
+    },
+  ],
+};
+
 //需要验证权限
 export const asyncRoutes = [...routeModuleList];
 
 //普通路由 无需验证权限
-export const constantRouter: any[] = [LoginRoute, RootRoute, RedirectRoute];
+export const constantRouter: any[] = [LoginRoute, RootRoute, RedirectRoute, OpsTerminalRoute];
 
 const router = createRouter({
   history: createWebHashHistory(''),

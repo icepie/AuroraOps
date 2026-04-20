@@ -28,6 +28,9 @@ export class IpcMainHandleClass implements IIpcMainHandle {
   GetAgentStatus = async () => {
     return agentService.getStatus()
   }
+  GetAgentConfig = async () => {
+    return agentService.getConfig()
+  }
   GetAgentBaseUrl = async () => {
     await agentService.ensureServerStarted()
     return agentService.getBaseUrl()

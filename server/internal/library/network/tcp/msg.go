@@ -104,3 +104,36 @@ type DeviceHeartbeatReq struct {
 type DeviceHeartbeatRes struct {
 	ServerRes
 }
+
+type DeviceTerminalOpenReq struct {
+	SessionId string `json:"sessionId" description:"终端会话ID"`
+	Cols      uint32 `json:"cols"      description:"列数"`
+	Rows      uint32 `json:"rows"      description:"行数"`
+	Shell     string `json:"shell"     description:"指定Shell"`
+}
+
+type DeviceTerminalInputReq struct {
+	SessionId string `json:"sessionId" description:"终端会话ID"`
+	Input     string `json:"input"     description:"输入内容"`
+}
+
+type DeviceTerminalResizeReq struct {
+	SessionId string `json:"sessionId" description:"终端会话ID"`
+	Cols      uint32 `json:"cols"      description:"列数"`
+	Rows      uint32 `json:"rows"      description:"行数"`
+}
+
+type DeviceTerminalCloseReq struct {
+	SessionId string `json:"sessionId" description:"终端会话ID"`
+	Message   string `json:"message"   description:"关闭原因"`
+}
+
+type DeviceTerminalOutputReq struct {
+	SessionId string `json:"sessionId" description:"终端会话ID"`
+	Output    string `json:"output"    description:"终端输出"`
+}
+
+type DeviceTerminalClosedReq struct {
+	SessionId string `json:"sessionId" description:"终端会话ID"`
+	Message   string `json:"message"   description:"关闭原因"`
+}

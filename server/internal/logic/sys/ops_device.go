@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hotgo/internal/consts"
 	"hotgo/internal/dao"
+	"hotgo/internal/library/contexts"
 	"hotgo/internal/library/hgorm/handler"
 	"hotgo/internal/model"
 	"hotgo/internal/model/do"
@@ -15,6 +16,8 @@ import (
 	"hotgo/internal/service"
 	"hotgo/utility/encrypt"
 	"net"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -92,7 +95,47 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 	if err = mod.ScanAndCount(&list, &totalCount, false); err != nil {
 		return nil, 0, gerror.Wrap(err, "获取运维设备列表失败，请稍后重试！")
 	}
+	onlineSet := s.getOnlineDeviceIDs()
+	for _, item := range list {
+		if item == nil {
+			continue
+		}
+		_, item.Online = onlineSet[item.Id]
+	}
 	return
+}
+
+func (s *sSysOpsDevice) getOnlineDeviceIDs() map[uint64]struct{} {
+	onlineSet := make(map[uint64]struct{})
+	clients := service.TCPServer().Instance().GetGroupClients("device")
+	for _, client := range clients {
+		if client == nil || client.Auth == nil {
+			continue
+		}
+		if deviceID := parseOnlineDeviceID(client.Auth.AppId); deviceID > 0 {
+			onlineSet[deviceID] = struct{}{}
+			continue
+		}
+		if client.Auth.Extra == nil {
+			continue
+		}
+		if deviceID := gconv.Uint64(client.Auth.Extra["deviceId"]); deviceID > 0 {
+			onlineSet[deviceID] = struct{}{}
+		}
+	}
+	return onlineSet
+}
+
+func parseOnlineDeviceID(appID string) uint64 {
+	const prefix = "device:"
+	if !strings.HasPrefix(appID, prefix) {
+		return 0
+	}
+	deviceID, err := strconv.ParseUint(strings.TrimPrefix(appID, prefix), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return deviceID
 }
 
 func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (err error) {
@@ -208,6 +251,37 @@ func (s *sSysOpsDevice) Option(ctx context.Context) (opts []*model.Option, err e
 		})
 	}
 	return
+}
+
+func (s *sSysOpsDevice) CreateTerminalSession(ctx context.Context, in *sysin.OpsDeviceTerminalCreateInp) (res *sysin.OpsDeviceTerminalCreateModel, err error) {
+	device := new(entity.OpsDevice)
+	if err = dao.OpsDevice.Ctx(ctx).WherePri(in.DeviceId).Scan(device); err != nil {
+		return nil, gerror.Wrap(err, "获取运维设备信息失败，请稍后重试！")
+	}
+	if device.Id == 0 {
+		return nil, gerror.New("设备不存在")
+	}
+	if !s.isDeviceOnline(in.DeviceId) {
+		return nil, gerror.New("设备离线，无法发起远程登录")
+	}
+
+	userID := contexts.GetUserId(ctx)
+	sessionID, createErr := service.TCPServer().CreateTerminalSession(ctx, in.DeviceId, userID)
+	if createErr != nil {
+		return nil, gerror.New(createErr.Error())
+	}
+
+	res = &sysin.OpsDeviceTerminalCreateModel{
+		SessionId: sessionID,
+		WsPath:    fmt.Sprintf("/admin/opsDevice/terminal/ws?sessionId=%s", url.QueryEscape(sessionID)),
+		PagePath:  fmt.Sprintf("/admin/#/ops/device/terminal?sessionId=%s&deviceId=%d&name=%s", url.QueryEscape(sessionID), in.DeviceId, url.QueryEscape(device.Name)),
+	}
+	return
+}
+
+func (s *sSysOpsDevice) isDeviceOnline(deviceID uint64) bool {
+	_, ok := s.getOnlineDeviceIDs()[deviceID]
+	return ok
 }
 
 func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceClientRegisterInp) (res *sysin.OpsDeviceClientRegisterModel, err error) {

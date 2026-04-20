@@ -1,5 +1,6 @@
 import { h, ref } from 'vue';
 import { cloneDeep } from 'lodash-es';
+import { NTag } from 'naive-ui';
 import { FormSchema } from '@/components/Form';
 import { defRangeShortcuts } from '@/utils/dateUtil';
 import { renderOptionTag } from '@/utils';
@@ -29,6 +30,7 @@ export class State {
   public deviceType = 'physical';
   public osName = '';
   public location = '';
+  public online = false;
   public sort = 0;
   public status = 1;
   public remark = '';
@@ -195,6 +197,24 @@ export const columns = [
     key: 'location',
     align: 'left',
     width: 180,
+  },
+  {
+    title: '在线状态',
+    key: 'online',
+    align: 'left',
+    width: 100,
+    render(row: State) {
+      return h(
+        NTag,
+        {
+          type: row.online ? 'success' : 'default',
+          bordered: false,
+        },
+        {
+          default: () => (row.online ? '在线' : '离线'),
+        }
+      );
+    },
   },
   {
     title: '状态',

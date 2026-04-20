@@ -169,6 +169,12 @@ class AgentService {
     return data.status
   }
 
+  async getConfig() {
+    await this.ensureServerStarted()
+    const data = await this.request('/api/status')
+    return data.config
+  }
+
   private async request(path: string, init?: RequestInit) {
     const response = await fetch(`${this.getBaseUrl()}${path}`, init)
     const data = (await response.json()) as ControlResponse

@@ -62,3 +62,12 @@ type OptionReq struct {
 }
 
 type OptionRes []*model.Option
+
+type TerminalCreateReq struct {
+	g.Meta `path:"/opsDevice/terminal/create" method:"post" tags:"运维设备" summary:"创建设备远程终端会话"`
+	sysin.OpsDeviceTerminalCreateInp
+}
+
+type TerminalCreateRes struct {
+	*sysin.OpsDeviceTerminalCreateModel
+}

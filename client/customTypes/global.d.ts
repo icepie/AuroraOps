@@ -65,6 +65,16 @@ interface AgentStatus {
   updatedAt: number
 }
 
+interface AgentConfig {
+  serverHost: string
+  deviceName: string
+  httpBase: string
+  deviceId?: number
+  token?: string
+  tcpAddress?: string
+  hostname?: string
+}
+
 declare global {
   interface Performance {
     memory: memoryInfo

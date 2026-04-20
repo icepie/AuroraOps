@@ -58,6 +58,7 @@ type AgentState struct {
 	status     AgentStatus
 	cancel     context.CancelFunc
 	running    bool
+	runID      uint64
 }
 
 type HTTPEnvelope struct {
@@ -410,6 +411,8 @@ func (s *AgentState) startAgent() (AgentStatus, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	s.running = true
+	s.runID++
+	runID := s.runID
 	s.status = AgentStatus{
 		State:     "starting",
 		Message:   "agent starting",
@@ -417,7 +420,7 @@ func (s *AgentState) startAgent() (AgentStatus, error) {
 	}
 
 	cfg := s.config
-	go s.runConnector(ctx, cfg)
+	go s.runConnector(ctx, runID, cfg)
 	return s.status, nil
 }
 
@@ -440,41 +443,48 @@ func (s *AgentState) stopAgent() AgentStatus {
 	return s.status
 }
 
-func (s *AgentState) runConnector(ctx context.Context, cfg Config) {
+func (s *AgentState) runConnector(ctx context.Context, runID uint64, cfg Config) {
 	httpClient := &http.Client{Timeout: 15 * time.Second}
 	hostname, _ := os.Hostname()
 	ip := detectIP()
 	osName := runtime.GOOS
 
-	updatedCfg, err := registerDevice(ctx, httpClient, s.configPath, cfg, hostname, ip, osName)
+	updatedCfg, err := registerDevice(ctx, httpClient, cfg, hostname, ip, osName)
 	if err != nil {
-		s.updateStatus("error", updatedCfg.DeviceID, updatedCfg.TCPAddress, err.Error())
-		s.markStopped()
+		s.updateStatusIfActive(runID, "error", updatedCfg.DeviceID, updatedCfg.TCPAddress, err.Error())
+		s.markStoppedIfActive(runID)
 		return
 	}
-	s.setConfig(updatedCfg)
-	s.updateStatus("registered", updatedCfg.DeviceID, updatedCfg.TCPAddress, "")
+	if !s.setConfigIfActive(runID, updatedCfg) {
+		return
+	}
+	if err = saveConfigFile(s.configPath, updatedCfg); err != nil {
+		s.updateStatusIfActive(runID, "error", updatedCfg.DeviceID, updatedCfg.TCPAddress, err.Error())
+		s.markStoppedIfActive(runID)
+		return
+	}
+	s.updateStatusIfActive(runID, "registered", updatedCfg.DeviceID, updatedCfg.TCPAddress, "")
 
 	if err = syncAssets(ctx, httpClient, updatedCfg); err != nil {
 		log.Printf("asset sync failed after registration: %v\n", err)
-		s.updateStatus("registered", updatedCfg.DeviceID, updatedCfg.TCPAddress, "资产同步失败: "+err.Error())
+		s.updateStatusIfActive(runID, "registered", updatedCfg.DeviceID, updatedCfg.TCPAddress, "资产同步失败: "+err.Error())
 	}
 
 	backoff := 2 * time.Second
 	for {
 		if ctx.Err() != nil {
-			s.markStopped()
+			s.markStoppedIfActive(runID)
 			return
 		}
 		err = connectTCP(ctx, updatedCfg)
 		if ctx.Err() != nil {
-			s.markStopped()
+			s.markStoppedIfActive(runID)
 			return
 		}
-		s.updateStatus("reconnecting", updatedCfg.DeviceID, updatedCfg.TCPAddress, errString(err))
+		s.updateStatusIfActive(runID, "reconnecting", updatedCfg.DeviceID, updatedCfg.TCPAddress, errString(err))
 		select {
 		case <-ctx.Done():
-			s.markStopped()
+			s.markStoppedIfActive(runID)
 			return
 		case <-time.After(backoff):
 		}
@@ -484,7 +494,7 @@ func (s *AgentState) runConnector(ctx context.Context, cfg Config) {
 	}
 }
 
-func registerDevice(ctx context.Context, client *http.Client, cfgPath string, cfg Config, hostname, ip, osName string) (Config, error) {
+func registerDevice(ctx context.Context, client *http.Client, cfg Config, hostname, ip, osName string) (Config, error) {
 	req := RegisterRequest{
 		Name:       cfg.DeviceName,
 		Hostname:   hostname,
@@ -503,9 +513,6 @@ func registerDevice(ctx context.Context, client *http.Client, cfgPath string, cf
 		cfg.TCPAddress = reg.TCPAddress
 	}
 	cfg.Hostname = hostname
-	if err := saveConfigFile(cfgPath, cfg); err != nil {
-		return cfg, err
-	}
 	return cfg, nil
 }
 
@@ -518,18 +525,24 @@ func connectTCP(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	tcpClient := NewAgentTCPClient(conn)
+	terminalManager := NewTerminalManager(tcpClient)
+	tcpClient.SetHandler(terminalManager.HandleEnvelope)
+	tcpClient.Start()
+	defer tcpClient.Close()
+	defer terminalManager.CloseAll()
 
-	if err := sendTCP(conn, "DeviceLoginReq", DeviceLoginRequest{
+	loginPayload, err := tcpClient.Request("DeviceLoginRes", 20*time.Second, "DeviceLoginReq", DeviceLoginRequest{
 		DeviceID:  cfg.DeviceID,
 		Name:      cfg.DeviceName,
 		Hostname:  cfg.Hostname,
 		Token:     cfg.Token,
 		Timestamp: time.Now().Unix(),
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	if err := readTCPResponse(conn, "DeviceLoginRes"); err != nil {
+	if err := readTCPResponsePayload(loginPayload); err != nil {
 		return err
 	}
 
@@ -544,10 +557,11 @@ func connectTCP(ctx context.Context, cfg Config) error {
 		case <-ctx.Done():
 			return nil
 		case <-hbTicker.C:
-			if err := sendTCP(conn, "DeviceHeartbeatReq", DeviceHeartbeatRequest{DeviceID: cfg.DeviceID}); err != nil {
+			payload, err := tcpClient.Request("DeviceHeartbeatRes", 20*time.Second, "DeviceHeartbeatReq", DeviceHeartbeatRequest{DeviceID: cfg.DeviceID})
+			if err != nil {
 				return err
 			}
-			if err := readTCPResponse(conn, "DeviceHeartbeatRes"); err != nil {
+			if err = readTCPResponsePayload(payload); err != nil {
 				return err
 			}
 			if statusErr := postJSON(ctx, client, cfg.HTTPBase+"/admin/client/heartbeat", HeartbeatRequest{
@@ -564,6 +578,17 @@ func connectTCP(ctx context.Context, cfg Config) error {
 			}
 		}
 	}
+}
+
+func readTCPResponsePayload(payload json.RawMessage) error {
+	var res TCPResponse
+	if err := json.Unmarshal(payload, &res); err != nil {
+		return err
+	}
+	if res.Code != 0 && res.Code != 2000 {
+		return errors.New(res.Message)
+	}
+	return nil
 }
 
 func syncAssets(ctx context.Context, client *http.Client, cfg Config) error {
@@ -1479,23 +1504,34 @@ func (s *AgentState) saveConfig(serverHost, deviceName string) (Config, error) {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	bindingChanged := s.config.ServerHost != serverHost || s.config.DeviceName != deviceName
 	if bindingChanged {
+		if s.cancel != nil {
+			s.cancel()
+			s.cancel = nil
+		}
+		s.running = false
+		s.runID++
 		s.config.DeviceID = 0
 		s.config.Token = ""
 		s.config.TCPAddress = ""
 		s.config.Hostname = ""
+		s.status = AgentStatus{
+			State:     "idle",
+			Message:   "配置已更新，请重新连接",
+			UpdatedAt: time.Now().UnixMilli(),
+		}
 	}
 	s.config.ServerHost = serverHost
 	s.config.DeviceName = deviceName
 	s.config.HTTPBase = normalizeHTTPBase(serverHost)
+	cfg := s.config
+	s.mu.Unlock()
 
-	if err := saveConfigFile(s.configPath, s.config); err != nil {
-		return s.config, err
+	if err := saveConfigFile(s.configPath, cfg); err != nil {
+		return cfg, err
 	}
-	return s.config, nil
+	return cfg, nil
 }
 
 func (s *AgentState) loadConfig() error {
@@ -1524,6 +1560,16 @@ func (s *AgentState) setConfig(cfg Config) {
 	s.config = cfg
 }
 
+func (s *AgentState) setConfigIfActive(runID uint64, cfg Config) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runID != runID {
+		return false
+	}
+	s.config = cfg
+	return true
+}
+
 func (s *AgentState) getStatus() AgentStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1542,9 +1588,40 @@ func (s *AgentState) updateStatus(state string, deviceID uint64, tcpAddress, mes
 	}
 }
 
+func (s *AgentState) updateStatusIfActive(runID uint64, state string, deviceID uint64, tcpAddress, message string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runID != runID {
+		return false
+	}
+	s.status = AgentStatus{
+		State:      state,
+		DeviceID:   deviceID,
+		TCPAddress: tcpAddress,
+		Message:    message,
+		UpdatedAt:  time.Now().UnixMilli(),
+	}
+	return true
+}
+
 func (s *AgentState) markStopped() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.cancel != nil {
+		s.cancel = nil
+	}
+	s.running = false
+	if s.status.State != "stopped" {
+		s.status.UpdatedAt = time.Now().UnixMilli()
+	}
+}
+
+func (s *AgentState) markStoppedIfActive(runID uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runID != runID {
+		return
+	}
 	if s.cancel != nil {
 		s.cancel = nil
 	}

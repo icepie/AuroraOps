@@ -405,6 +405,12 @@ type (
 		// ClientPull 客户端拉取服务端资产元数据
 		ClientPull(ctx context.Context, in *sysin.OpsAssetClientPullInp) (res *sysin.OpsAssetClientPullModel, err error)
 	}
+	ISysOpsHardware interface {
+		// Overview 获取设备级硬件概览列表
+		Overview(ctx context.Context, in *sysin.OpsHardwareOverviewInp) (list []*sysin.OpsHardwareOverviewModel, totalCount int, err error)
+		// Export 导出设备级硬件概览列表
+		Export(ctx context.Context, in *sysin.OpsHardwareOverviewInp) (err error)
+	}
 	ISysOpsDevice interface {
 		// Model 运维设备ORM模型
 		Model(ctx context.Context, option ...*handler.Option) *gdb.Model
@@ -430,6 +436,8 @@ type (
 		IssueClientToken(ctx context.Context, deviceId uint64, hostname string) (token string, err error)
 		// VerifyClientToken 校验设备接入令牌
 		VerifyClientToken(ctx context.Context, deviceId uint64, hostname, token string) (err error)
+		// CreateTerminalSession 创建设备终端会话
+		CreateTerminalSession(ctx context.Context, in *sysin.OpsDeviceTerminalCreateInp) (res *sysin.OpsDeviceTerminalCreateModel, err error)
 	}
 	ISysOpsDeviceGroup interface {
 		// Model 设备分组ORM模型
@@ -486,6 +494,7 @@ var (
 	localSysLoginLog       ISysLoginLog
 	localSysNormalTreeDemo ISysNormalTreeDemo
 	localSysOpsAsset       ISysOpsAsset
+	localSysOpsHardware    ISysOpsHardware
 	localSysOpsDevice      ISysOpsDevice
 	localSysOpsDeviceGroup ISysOpsDeviceGroup
 	localSysOptionTreeDemo ISysOptionTreeDemo
@@ -725,6 +734,17 @@ func SysOpsAsset() ISysOpsAsset {
 
 func RegisterSysOpsAsset(i ISysOpsAsset) {
 	localSysOpsAsset = i
+}
+
+func SysOpsHardware() ISysOpsHardware {
+	if localSysOpsHardware == nil {
+		panic("implement not found for interface ISysOpsHardware, forgot register?")
+	}
+	return localSysOpsHardware
+}
+
+func RegisterSysOpsHardware(i ISysOpsHardware) {
+	localSysOpsHardware = i
 }
 
 func SysOpsDevice() ISysOpsDevice {

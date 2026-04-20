@@ -106,6 +106,7 @@ type OpsDeviceListModel struct {
 	DeviceType string      `json:"deviceType" dc:"设备类型"`
 	OsName     string      `json:"osName"     dc:"操作系统"`
 	Location   string      `json:"location"   dc:"部署位置"`
+	Online     bool        `json:"online"     dc:"在线状态"`
 	Status     int         `json:"status"     dc:"状态"`
 	CreatedAt  *gtime.Time `json:"createdAt"  dc:"创建时间"`
 }
