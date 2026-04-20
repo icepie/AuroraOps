@@ -53,7 +53,7 @@
   import { BasicTable, TableAction } from '@/components/Table';
   import { List as GroupList } from '@/api/opsDeviceGroup';
   import { Overview, Export } from '@/api/opsHardware';
-  import { columns } from './model';
+  import { columns } from './overview-model';
   import Detail from './detail.vue';
 
   const message = useMessage();

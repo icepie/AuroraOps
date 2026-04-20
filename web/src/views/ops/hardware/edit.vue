@@ -105,7 +105,14 @@
   import { ref, computed } from 'vue';
   import { useDictStore } from '@/store/modules/dict';
   import { Edit, View, MaxSort } from '@/api/opsAsset';
-  import { State, newState, rules, assetTypeOptions, loadOptions, OPS_DEVICE_OPTION_KEY } from './model';
+  import {
+    State,
+    newState,
+    rules,
+    assetTypeOptions,
+    loadOptionsAndDict,
+    OPS_DEVICE_OPTION_KEY,
+  } from './model';
   import { useProjectSettingStore } from '@/store/modules/projectSetting';
   import { useMessage } from 'naive-ui';
   import { adaModalWidth } from '@/utils/hotgo';
@@ -149,7 +156,7 @@
   async function openModal(state: State) {
     showModal.value = true;
     loading.value = true;
-    await loadOptions();
+    await loadOptionsAndDict();
 
     if (!state || state.id < 1) {
       formValue.value = newState(state);
