@@ -6,10 +6,10 @@
     "name": "AuroraOps",
     "email": "opensource@auroraops.local"
   },
-  "homepage": "https://github.com/bufanyun/hotgo",
+  "homepage": "https://github.com/icepie/AuroraOps",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bufanyun/hotgo.git"
+    "url": "https://github.com/icepie/AuroraOps.git"
   },
   "description": "AuroraOps desktop client with embedded Go agent for device binding, long connection, and asset collection.",
   "license": "MIT",

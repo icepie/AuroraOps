@@ -35,7 +35,7 @@
   ],
   "productName": "AuroraOps Client",
   "appId": "org.auroraops.client",
-  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+  "artifactName": "auroraops-client-${version}-${os}-${arch}.${ext}",
   "directories": {
     "output": "build"
   },
