@@ -15,19 +15,27 @@ map_arch() {
   esac
 }
 
+find_existing_file() {
+  for candidate in "$@"; do
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 ARCH_DIR="$(map_arch)"
-BIN_SOURCE=""
-for candidate in \
+BIN_SOURCE="$(find_existing_file \
   "/opt/AuroraOps Client/resources/go-agent/linux/$ARCH_DIR/auroraops-agent" \
+  "/opt/AuroraOps Client/resources/go-agent/linux/amd64/auroraops-agent" \
   "/opt/auroraops-client/resources/go-agent/linux/$ARCH_DIR/auroraops-agent" \
+  "/opt/auroraops-client/resources/go-agent/linux/amd64/auroraops-agent" \
   "/opt/auroraops/resources/go-agent/linux/$ARCH_DIR/auroraops-agent" \
+  "/opt/auroraops/resources/go-agent/linux/amd64/auroraops-agent" \
   "$(find /opt -type f -path "*/resources/go-agent/linux/$ARCH_DIR/auroraops-agent" | head -n 1 || true)" \
-  "$(find /opt -type f -path '*/resources/go-agent/auroraops-agent' | head -n 1 || true)"; do
-  if [[ -n "$candidate" && -f "$candidate" ]]; then
-    BIN_SOURCE="$candidate"
-    break
-  fi
-done
+  "$(find /opt -type f -path '*/resources/go-agent/linux/amd64/auroraops-agent' | head -n 1 || true)" \
+  "$(find /opt -type f -path '*/resources/go-agent/auroraops-agent' | head -n 1 || true)")" || BIN_SOURCE=""
 
 if [[ -z "$BIN_SOURCE" ]]; then
   echo "auroraops-agent resource not found for architecture $ARCH_DIR" >&2
@@ -35,10 +43,18 @@ if [[ -z "$BIN_SOURCE" ]]; then
 fi
 
 RESOURCE_DIR="$(dirname "$BIN_SOURCE")"
-SERVICE_SOURCE="$RESOURCE_DIR/auroraops-agent.service"
+SERVICE_SOURCE="$(find_existing_file \
+  "$RESOURCE_DIR/auroraops-agent.service" \
+  "$(dirname "$RESOURCE_DIR")/auroraops-agent.service" \
+  "$(dirname "$(dirname "$RESOURCE_DIR")")/auroraops-agent.service")" || SERVICE_SOURCE=""
 BIN_TARGET="/opt/auroraops/auroraops-agent"
 CONFIG_TARGET="/etc/auroraops/agent-config.json"
 SERVICE_TARGET="/etc/systemd/system/auroraops-agent.service"
+
+if [[ -z "$SERVICE_SOURCE" ]]; then
+  echo "auroraops-agent service resource not found" >&2
+  exit 1
+fi
 
 install -d /opt/auroraops
 install -d /etc/auroraops
