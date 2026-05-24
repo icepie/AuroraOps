@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=AuroraOps Agent
+Comment=AuroraOps remote desktop and device agent
+Exec=auroraops-agent
+Terminal=false
+Categories=Network;RemoteAccess;

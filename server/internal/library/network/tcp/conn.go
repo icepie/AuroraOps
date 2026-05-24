@@ -7,6 +7,9 @@ package tcp
 
 import (
 	"context"
+	"net"
+	"sync/atomic"
+
 	"github.com/gogf/gf/v2/container/gtype"
 	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/errors/gcode"
@@ -17,8 +20,6 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/grand"
-	"net"
-	"sync/atomic"
 )
 
 // AuthMeta 认证元数据
@@ -49,6 +50,9 @@ type Conn struct {
 var idCounter int64
 
 func NewConn(conn *gtcp.Conn, logger *glog.Logger, msgParser *MsgParser) *Conn {
+	if tcp, ok := conn.Conn.(*net.TCPConn); ok {
+		_ = tcp.SetNoDelay(true)
+	}
 	tcpConn := new(Conn)
 	tcpConn.CID = atomic.AddInt64(&idCounter, 1)
 	tcpConn.Conn = conn
@@ -65,7 +69,7 @@ func NewConn(conn *gtcp.Conn, logger *glog.Logger, msgParser *MsgParser) *Conn {
 			if b == nil {
 				break
 			}
-			if err := conn.SendPkg(b); err != nil {
+			if err := conn.SendPkg(b, gtcp.PkgOption{HeaderSize: 4}); err != nil {
 				logger.Errorf(gctx.New(), "SendPkg err:%+v", err)
 				break
 			}
@@ -76,7 +80,7 @@ func NewConn(conn *gtcp.Conn, logger *glog.Logger, msgParser *MsgParser) *Conn {
 
 func (c *Conn) Run() error {
 	for {
-		data, err := c.Conn.RecvPkg()
+		data, err := c.Conn.RecvPkg(gtcp.PkgOption{HeaderSize: 4})
 		if err != nil {
 			return gerror.NewCodef(gcode.CodeInvalidRequest, "read packet err:%+v conn closed", err)
 		}
@@ -118,9 +122,20 @@ func (c *Conn) LocalAddr() net.Addr {
 
 // Write
 func (c *Conn) Write(b []byte) {
-	if !c.closeFlag.Val() {
-		c.writeChan <- b
+	if c.closeFlag.Val() {
+		return
 	}
+	defer func() {
+		_ = recover()
+	}()
+	c.writeChan <- b
+}
+
+func (c *Conn) IsClosed() bool {
+	if c == nil || c.closeFlag == nil {
+		return true
+	}
+	return c.closeFlag.Val()
 }
 
 // Send 发送消息
@@ -131,6 +146,9 @@ func (c *Conn) Send(ctx context.Context, data interface{}) error {
 	b, err := c.msgParser.Decoding(ctx, data, "")
 	if err != nil {
 		return err
+	}
+	if c.IsClosed() {
+		return gerror.New("conn is closed")
 	}
 	c.Write(b)
 	return nil

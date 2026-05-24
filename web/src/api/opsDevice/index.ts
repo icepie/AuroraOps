@@ -61,3 +61,11 @@ export function CreateTerminal(params) {
     params,
   });
 }
+
+export function CreateDesktop(params) {
+  return http.request({
+    url: '/opsDevice/desktop/create',
+    method: 'POST',
+    params,
+  });
+}

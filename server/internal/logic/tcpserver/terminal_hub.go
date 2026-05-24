@@ -6,6 +6,7 @@ import (
 
 type terminalClient struct {
 	send chan []byte
+	once sync.Once
 }
 
 type terminalHub struct {
@@ -48,7 +49,9 @@ func (h *terminalHub) remove(sessionID string, client *terminalClient) {
 		}
 	}
 	h.mu.Unlock()
-	close(client.send)
+	client.once.Do(func() {
+		close(client.send)
+	})
 }
 
 func (h *terminalHub) broadcast(sessionID string, payload []byte) {
@@ -69,6 +72,8 @@ func (h *terminalHub) close(sessionID string) {
 	delete(h.clients, sessionID)
 	h.mu.Unlock()
 	for client := range clients {
-		close(client.send)
+		client.once.Do(func() {
+			close(client.send)
+		})
 	}
 }

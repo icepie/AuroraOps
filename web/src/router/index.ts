@@ -56,6 +56,29 @@ export const OpsTerminalRoute: RouteRecordRaw = {
       meta: {
         title: '远程终端',
         hidden: true,
+        noKeepAlive: true,
+      },
+    },
+  ],
+};
+
+export const OpsDesktopRoute: RouteRecordRaw = {
+  path: '/ops/device/desktop',
+  name: 'ops_device_desktop_root',
+  component: Layout,
+  meta: {
+    title: '远程桌面',
+    hidden: true,
+  },
+  children: [
+    {
+      path: '/ops/device/desktop',
+      name: 'ops_device_desktop_index',
+      component: () => import('@/views/ops/device/desktop.vue'),
+      meta: {
+        title: '远程桌面',
+        hidden: true,
+        noKeepAlive: true,
       },
     },
   ],
@@ -65,7 +88,7 @@ export const OpsTerminalRoute: RouteRecordRaw = {
 export const asyncRoutes = [...routeModuleList];
 
 //普通路由 无需验证权限
-export const constantRouter: any[] = [LoginRoute, RootRoute, RedirectRoute, OpsTerminalRoute];
+export const constantRouter: any[] = [LoginRoute, RootRoute, RedirectRoute, OpsTerminalRoute, OpsDesktopRoute];
 
 const router = createRouter({
   history: createWebHashHistory(''),

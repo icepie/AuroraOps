@@ -14,6 +14,7 @@ import (
 )
 
 const terminalSessionTTL = 15 * time.Minute
+const terminalSessionReuseWindow = 30 * time.Second
 
 type terminalSession struct {
 	ID        string
@@ -35,14 +36,25 @@ func newTerminalManager() *terminalManager {
 }
 
 func (m *terminalManager) create(deviceID uint64, userID int64) *terminalSession {
+	now := time.Now()
+	m.mu.Lock()
+	for _, session := range m.sessions {
+		if session.DeviceID == deviceID &&
+			session.CreatedBy == userID &&
+			now.Before(session.ExpiresAt) &&
+			now.Sub(session.CreatedAt) <= terminalSessionReuseWindow {
+			session.ExpiresAt = now.Add(terminalSessionTTL)
+			m.mu.Unlock()
+			return session
+		}
+	}
 	session := &terminalSession{
 		ID:        guid.S(),
 		DeviceID:  deviceID,
 		CreatedBy: userID,
-		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(terminalSessionTTL),
+		CreatedAt: now,
+		ExpiresAt: now.Add(terminalSessionTTL),
 	}
-	m.mu.Lock()
 	m.sessions[session.ID] = session
 	m.mu.Unlock()
 	return session

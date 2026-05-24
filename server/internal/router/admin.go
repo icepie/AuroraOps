@@ -37,6 +37,30 @@ func Admin(ctx context.Context, group *ghttp.RouterGroup) {
 			}
 			sys.OpsDevice.TerminalWS(r)
 		})
+		group.GET("/opsDevice/desktop/ws", func(r *ghttp.Request) {
+			if err := service.Middleware().DeliverUserContext(r); err != nil {
+				response.JsonExit(r, 401, err.Error())
+				return
+			}
+			sys.OpsDevice.DesktopWS(r)
+		})
+		group.ALL("/opsDevice/weylus/*any", func(r *ghttp.Request) {
+			if err := service.Middleware().DeliverUserContext(r); err != nil {
+				response.JsonExit(r, 401, err.Error())
+				return
+			}
+			sys.OpsDevice.WeylusProxy(r)
+		})
+		group.ALL("/opsDevice/weylusLocal/*any", func(r *ghttp.Request) {
+			if err := service.Middleware().DeliverUserContext(r); err != nil {
+				response.JsonExit(r, 401, err.Error())
+				return
+			}
+			sys.OpsDevice.WeylusLocalProxy(r)
+		})
+		group.GET("/opsDevice/weylusTunnel/ws", func(r *ghttp.Request) {
+			sys.OpsDevice.WeylusTunnelWS(r)
+		})
 		group.Middleware(service.Middleware().AdminAuth)
 		group.Bind(
 			common.Console,   // 控制台

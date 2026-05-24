@@ -137,3 +137,37 @@ type DeviceTerminalClosedReq struct {
 	SessionId string `json:"sessionId" description:"终端会话ID"`
 	Message   string `json:"message"   description:"关闭原因"`
 }
+
+type DeviceDesktopOpenReq struct {
+	SessionId string `json:"sessionId" description:"桌面会话ID"`
+}
+
+type DeviceDesktopTextReq struct {
+	SessionId string `json:"sessionId" description:"桌面会话ID"`
+	Payload   string `json:"payload"   description:"文本消息"`
+}
+
+type DeviceDesktopBinaryReq struct {
+	SessionId string `json:"sessionId" description:"桌面会话ID"`
+	Payload   string `json:"payload"   description:"base64二进制消息"`
+}
+
+type DeviceDesktopCloseReq struct {
+	SessionId string `json:"sessionId" description:"桌面会话ID"`
+	Message   string `json:"message"   description:"关闭原因"`
+}
+
+type DeviceDesktopTextOutputReq struct {
+	SessionId string `json:"sessionId" description:"桌面会话ID"`
+	Payload   string `json:"payload"   description:"文本消息"`
+}
+
+type DeviceDesktopBinaryOutputReq struct {
+	SessionId string `json:"sessionId" description:"桌面会话ID"`
+	Payload   string `json:"payload"   description:"base64二进制消息"`
+}
+
+type DeviceDesktopClosedReq struct {
+	SessionId string `json:"sessionId" description:"桌面会话ID"`
+	Message   string `json:"message"   description:"关闭原因"`
+}

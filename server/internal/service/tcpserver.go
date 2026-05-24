@@ -52,6 +52,18 @@ type (
 		SendTerminalClose(ctx context.Context, sessionId, message string) (err error)
 		// SubscribeTerminal 订阅终端输出
 		SubscribeTerminal(sessionId string) (ch <-chan []byte, cancel func(), err error)
+		// CreateDesktopSession 创建设备远程桌面会话
+		CreateDesktopSession(ctx context.Context, deviceId uint64, userId int64) (sessionId string, err error)
+		// SendDesktopOpen 打开远程桌面
+		SendDesktopOpen(ctx context.Context, sessionId string) (err error)
+		// SendDesktopText 发送远程桌面文本消息
+		SendDesktopText(ctx context.Context, sessionId, payload string) (err error)
+		// SendDesktopBinary 发送远程桌面二进制消息
+		SendDesktopBinary(ctx context.Context, sessionId string, payload []byte) (err error)
+		// SendDesktopClose 关闭远程桌面
+		SendDesktopClose(ctx context.Context, sessionId, message string) (err error)
+		// SubscribeDesktop 订阅远程桌面输出
+		SubscribeDesktop(sessionId string) (ch <-chan []byte, cancel func(), err error)
 	}
 )
 

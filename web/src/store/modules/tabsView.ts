@@ -45,6 +45,15 @@ export const useTabsViewStore = defineStore({
       }
       return true;
     },
+    updateTabTitle(fullPath: string, title: string): boolean {
+      const tab = this.tabsList.find((item) => item.fullPath == fullPath);
+      if (!tab) return false;
+      tab.meta = {
+        ...(tab.meta || {}),
+        title,
+      };
+      return true;
+    },
     closeLeftTabs(route) {
       // 关闭左侧
       const index = this.tabsList.findIndex((item) => item.fullPath == route.fullPath);

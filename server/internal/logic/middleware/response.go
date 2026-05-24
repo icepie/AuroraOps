@@ -10,6 +10,7 @@ import (
 	"hotgo/internal/library/response"
 	"hotgo/utility/charset"
 	"hotgo/utility/simple"
+	"strings"
 
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -21,6 +22,10 @@ import (
 // ResponseHandler HTTP响应预处理
 func (s *sMiddleware) ResponseHandler(r *ghttp.Request) {
 	r.Middleware.Next()
+
+	if isRawProxyResponse(r.URL.Path) {
+		return
+	}
 
 	// 错误状态码接管
 	switch r.Response.Status {
@@ -50,6 +55,10 @@ func (s *sMiddleware) ResponseHandler(r *ghttp.Request) {
 	default:
 		responseJson(r)
 	}
+}
+
+func isRawProxyResponse(path string) bool {
+	return path == "/admin/opsDevice/weylus" || strings.HasPrefix(path, "/admin/opsDevice/weylus/")
 }
 
 // responseHtml html模板响应

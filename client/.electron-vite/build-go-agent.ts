@@ -1,5 +1,5 @@
 import { mkdirSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { spawn } from 'child_process'
 import minimist from 'minimist'
 
@@ -11,8 +11,8 @@ type PlatformTarget = {
 }
 
 const root = join(__dirname, '..')
-const goRoot = join(root, 'go-client')
-const binRoot = join(goRoot, 'bin')
+const newClientRoot = resolve(root, '..', 'new-client')
+const binRoot = join(root, 'go-client', 'bin')
 const argv = minimist(process.argv.slice(2))
 const targetArg = String(argv.target || '').trim().toLowerCase()
 const archArg = String(argv.arch || '').trim().toLowerCase()
@@ -58,35 +58,39 @@ const filteredTargets = targets.filter((target) => {
 })
 
 async function buildTarget(target: PlatformTarget) {
+  if (target.os !== normalizeDevPlatform(process.platform)) {
+    throw new Error(`new-client Rust build only supports the host platform for now: requested ${target.os}, host ${process.platform}`)
+  }
   mkdirSync(join(target.output, '..'), { recursive: true })
-  await runGoBuild(target)
+  await runCargoBuild(target)
 }
 
-function runGoBuild(target: PlatformTarget) {
+function runCargoBuild(target: PlatformTarget) {
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      'go',
-      ['build', '-o', target.output, './...'],
-      {
-        cwd: goRoot,
-        env: {
-          ...process.env,
-          GOOS: target.os,
-          GOARCH: target.arch,
-          CGO_ENABLED: '0',
-        },
-        stdio: 'inherit',
-      },
-    )
+    const child = spawn('cargo', ['build', '--release', '--features', 'ffmpeg-system', '--bin', 'auroraops-agent'], {
+      cwd: newClientRoot,
+      env: process.env,
+      stdio: 'inherit',
+    })
 
     child.on('exit', (code) => {
       if (code === 0) {
-        resolve()
-        return
+        copyBuiltBinary(target).then(resolve, reject)
+      } else {
+        reject(new Error(`cargo build failed for ${target.os}/${target.arch}`))
       }
-      reject(new Error(`go build failed for ${target.os}/${target.arch}`))
     })
   })
+}
+
+async function copyBuiltBinary(target: PlatformTarget) {
+  const { copyFile, chmod } = await import('fs/promises')
+  const builtName = process.platform === 'win32' ? 'auroraops-agent.exe' : 'auroraops-agent'
+  const builtPath = join(newClientRoot, 'target', 'release', builtName)
+  await copyFile(builtPath, target.output)
+  if (target.os !== 'windows') {
+    await chmod(target.output, 0o755)
+  }
 }
 
 Promise.all(filteredTargets.map(buildTarget)).catch((error) => {

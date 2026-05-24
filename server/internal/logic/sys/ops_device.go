@@ -279,6 +279,33 @@ func (s *sSysOpsDevice) CreateTerminalSession(ctx context.Context, in *sysin.Ops
 	return
 }
 
+func (s *sSysOpsDevice) CreateDesktopSession(ctx context.Context, in *sysin.OpsDeviceDesktopCreateInp) (res *sysin.OpsDeviceDesktopCreateModel, err error) {
+	device := new(entity.OpsDevice)
+	if err = dao.OpsDevice.Ctx(ctx).WherePri(in.DeviceId).Scan(device); err != nil {
+		return nil, gerror.Wrap(err, "获取运维设备信息失败，请稍后重试！")
+	}
+	if device.Id == 0 {
+		return nil, gerror.New("设备不存在")
+	}
+	if !s.isDeviceOnline(in.DeviceId) {
+		return nil, gerror.New("设备离线，无法发起远程桌面")
+	}
+
+	userID := contexts.GetUserId(ctx)
+	sessionID, createErr := service.TCPServer().CreateDesktopSession(ctx, in.DeviceId, userID)
+	if createErr != nil {
+		return nil, gerror.New(createErr.Error())
+	}
+
+	res = &sysin.OpsDeviceDesktopCreateModel{
+		SessionId:  sessionID,
+		WsPath:     fmt.Sprintf("/admin/opsDevice/desktop/ws?sessionId=%s", url.QueryEscape(sessionID)),
+		PagePath:   fmt.Sprintf("/admin/#/ops/device/desktop?sessionId=%s&deviceId=%d&name=%s", url.QueryEscape(sessionID), in.DeviceId, url.QueryEscape(device.Name)),
+		WeylusPath: fmt.Sprintf("/admin/opsDevice/weylus/?deviceId=%d&authorization=", in.DeviceId),
+	}
+	return
+}
+
 func (s *sSysOpsDevice) isDeviceOnline(deviceID uint64) bool {
 	_, ok := s.getOnlineDeviceIDs()[deviceID]
 	return ok

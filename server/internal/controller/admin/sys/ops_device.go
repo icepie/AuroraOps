@@ -1,12 +1,20 @@
 package sys
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"hotgo/api/admin/opsdevice"
 	"hotgo/internal/model/input/sysin"
 	"hotgo/internal/service"
+	"io"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gorilla/websocket"
@@ -24,6 +32,68 @@ var terminalUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
+}
+
+var desktopUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024 * 1024,
+	WriteBufferSize: 1024 * 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+type wsFrame struct {
+	messageType int
+	payload     []byte
+}
+
+const (
+	terminalWriteWait      = 10 * time.Second
+	desktopWriteWait       = 10 * time.Second
+	desktopTextQueueSize   = 32
+	desktopVideoQueueSize  = 8
+	weylusProxyPrefix      = "/admin/opsDevice/weylus"
+	weylusLocalProxyPrefix = "/admin/opsDevice/weylusLocal"
+	weylusLocalBase        = "http://127.0.0.1:1701"
+)
+
+var weylusLocalProxy = newWeylusProxy(weylusLocalProxyPrefix)
+
+func newWeylusProxy(proxyPrefix string) *httputil.ReverseProxy {
+	target, _ := url.Parse(weylusLocalBase)
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		req.Host = target.Host
+		req.Header.Set("X-Forwarded-Host", req.Host)
+	}
+	proxy.ModifyResponse = func(res *http.Response) error {
+		contentType := res.Header.Get("Content-Type")
+		if !strings.Contains(contentType, "text/html") &&
+			!strings.Contains(contentType, "javascript") &&
+			!strings.HasSuffix(res.Request.URL.Path, "/lib.js") {
+			return nil
+		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		_ = res.Body.Close()
+		if strings.Contains(contentType, "text/html") {
+			body = bytes.ReplaceAll(body, []byte(`href="style.css"`), []byte(fmt.Sprintf(`href="%s/style.css"`, proxyPrefix)))
+			body = bytes.ReplaceAll(body, []byte(`src="lib.js"`), []byte(fmt.Sprintf(`src="%s/lib.js"`, proxyPrefix)))
+		} else {
+			body = bytes.ReplaceAll(body, []byte(`"/ws"`), []byte(fmt.Sprintf(`"%s/ws"`, proxyPrefix)))
+		}
+		res.Body = io.NopCloser(bytes.NewReader(body))
+		res.ContentLength = int64(len(body))
+		res.Header.Del("Content-Length")
+		return nil
+	}
+	return proxy
 }
 
 func (c *cOpsDevice) List(ctx context.Context, req *opsdevice.ListReq) (res *opsdevice.ListRes, err error) {
@@ -97,6 +167,47 @@ func (c *cOpsDevice) TerminalCreate(ctx context.Context, req *opsdevice.Terminal
 	return
 }
 
+func (c *cOpsDevice) DesktopCreate(ctx context.Context, req *opsdevice.DesktopCreateReq) (res *opsdevice.DesktopCreateRes, err error) {
+	data, err := service.SysOpsDevice().CreateDesktopSession(ctx, &req.OpsDeviceDesktopCreateInp)
+	if err != nil {
+		return
+	}
+	res = new(opsdevice.DesktopCreateRes)
+	res.OpsDeviceDesktopCreateModel = data
+	return
+}
+
+func (c *cOpsDevice) WeylusProxy(r *ghttp.Request) {
+	deviceID := r.Get("deviceId").Uint64()
+	if deviceID == 0 {
+		r.Response.WriteStatusExit(http.StatusBadRequest, "deviceId is required")
+		return
+	}
+	if tunnel := getWeylusTunnel(deviceID); tunnel != nil {
+		proxyWeylusViaTunnel(r, tunnel)
+		return
+	}
+
+	r.Response.WriteStatusExit(http.StatusBadGateway, "device weylus tunnel is not connected")
+}
+
+func (c *cOpsDevice) WeylusLocalProxy(r *ghttp.Request) {
+	proxyRequest := r.Request.Clone(r.Context())
+	proxyRequest.URL.Path = strings.TrimPrefix(proxyRequest.URL.Path, weylusLocalProxyPrefix)
+	if proxyRequest.URL.Path == "" {
+		proxyRequest.URL.Path = "/"
+	}
+	proxyRequest.URL.RawPath = ""
+	proxyRequest.Host = "127.0.0.1:1701"
+	proxyRequest.Header.Set("Host", "127.0.0.1:1701")
+	weylusLocalProxy.ServeHTTP(r.Response.Writer, proxyRequest)
+	r.Exit()
+}
+
+func IsWeylusPublicAsset(path string) bool {
+	return path == weylusProxyPrefix+"/style.css" || path == weylusProxyPrefix+"/lib.js"
+}
+
 func (c *cOpsDevice) TerminalWS(r *ghttp.Request) {
 	sessionID := r.Get("sessionId").String()
 	if sessionID == "" {
@@ -117,16 +228,37 @@ func (c *cOpsDevice) TerminalWS(r *ghttp.Request) {
 	}
 	defer conn.Close()
 
+	ctx, cancelCtx := context.WithCancel(r.Context())
+	defer cancelCtx()
+	writeDone := make(chan struct{})
 	go func() {
+		defer close(writeDone)
 		for payload := range ch {
+			_ = conn.SetWriteDeadline(time.Now().Add(terminalWriteWait))
 			if writeErr := conn.WriteMessage(websocket.TextMessage, payload); writeErr != nil {
 				return
 			}
 		}
 	}()
 
-	ctx := r.Context()
-	_ = service.TCPServer().SendTerminalOpen(ctx, sessionID, 120, 32, "")
+	terminalOpened := false
+	terminalClosedByUser := false
+	openTerminal := func(cols, rows uint32, shell string) {
+		if terminalOpened {
+			if cols > 0 && rows > 0 {
+				_ = service.TCPServer().SendTerminalResize(ctx, sessionID, cols, rows)
+			}
+			return
+		}
+		if cols == 0 {
+			cols = 120
+		}
+		if rows == 0 {
+			rows = 32
+		}
+		terminalOpened = true
+		_ = service.TCPServer().SendTerminalOpen(ctx, sessionID, cols, rows, shell)
+	}
 
 	for {
 		_, message, readErr := conn.ReadMessage()
@@ -139,22 +271,204 @@ func (c *cOpsDevice) TerminalWS(r *ghttp.Request) {
 			Input string `json:"input"`
 			Cols  uint32 `json:"cols"`
 			Rows  uint32 `json:"rows"`
+			Shell string `json:"shell"`
 		}
 		if err = json.Unmarshal(message, &payload); err != nil {
 			continue
 		}
 
 		switch payload.Type {
+		case "open":
+			openTerminal(payload.Cols, payload.Rows, payload.Shell)
 		case "input":
+			if !terminalOpened {
+				openTerminal(payload.Cols, payload.Rows, payload.Shell)
+			}
 			if payload.Input != "" {
 				_ = service.TCPServer().SendTerminalInput(ctx, sessionID, payload.Input)
 			}
 		case "resize":
-			_ = service.TCPServer().SendTerminalResize(ctx, sessionID, payload.Cols, payload.Rows)
+			openTerminal(payload.Cols, payload.Rows, payload.Shell)
 		case "close":
-			_ = service.TCPServer().SendTerminalClose(ctx, sessionID, "terminal closed by user")
+			terminalClosedByUser = true
 		}
 	}
 
-	_ = service.TCPServer().SendTerminalClose(ctx, sessionID, "terminal disconnected")
+	if terminalClosedByUser {
+		_ = service.TCPServer().SendTerminalClose(ctx, sessionID, "terminal closed by user")
+	}
+	cancelCtx()
+	cancel()
+	_ = conn.Close()
+	<-writeDone
+}
+
+func (c *cOpsDevice) DesktopWS(r *ghttp.Request) {
+	sessionID := r.Get("sessionId").String()
+	if sessionID == "" {
+		r.Response.WriteStatusExit(http.StatusBadRequest, "sessionId is required")
+		return
+	}
+
+	ch, cancel, err := service.TCPServer().SubscribeDesktop(sessionID)
+	if err != nil {
+		r.Response.WriteStatusExit(http.StatusBadRequest, err.Error())
+		return
+	}
+	defer cancel()
+
+	conn, err := desktopUpgrader.Upgrade(r.Response.Writer, r.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	ctx, cancelCtx := context.WithCancel(r.Context())
+	defer cancelCtx()
+	textCh := make(chan wsFrame, desktopTextQueueSize)
+	videoCh := make(chan wsFrame, desktopVideoQueueSize)
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+		writeFrame := func(frame wsFrame) bool {
+			_ = conn.SetWriteDeadline(time.Now().Add(desktopWriteWait))
+			if writeErr := conn.WriteMessage(frame.messageType, frame.payload); writeErr != nil {
+				cancelCtx()
+				_ = conn.Close()
+				return false
+			}
+			return true
+		}
+
+		for {
+			select {
+			case frame, ok := <-textCh:
+				if !ok {
+					return
+				}
+				if !writeFrame(frame) {
+					return
+				}
+				continue
+			default:
+			}
+
+			select {
+			case frame, ok := <-textCh:
+				if !ok {
+					return
+				}
+				if !writeFrame(frame) {
+					return
+				}
+			case frame := <-videoCh:
+				if !writeFrame(frame) {
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	enqueueReliable := func(frame wsFrame) bool {
+		select {
+		case textCh <- frame:
+			return true
+		case <-ctx.Done():
+			return false
+		case <-time.After(2 * time.Second):
+			return false
+		}
+	}
+
+	enqueueVideo := func(frame wsFrame) bool {
+		select {
+		case videoCh <- frame:
+			return true
+		default:
+			select {
+			case <-videoCh:
+			default:
+			}
+			select {
+			case videoCh <- frame:
+				return true
+			default:
+				return false
+			}
+		}
+	}
+
+	go func() {
+		defer cancelCtx()
+		defer close(textCh)
+		for {
+			var payload []byte
+			select {
+			case <-ctx.Done():
+				return
+			case next, ok := <-ch:
+				if !ok {
+					return
+				}
+				payload = next
+			}
+			var frame struct {
+				Type    string `json:"type"`
+				Payload string `json:"payload"`
+				Message string `json:"message"`
+			}
+			if unmarshalErr := json.Unmarshal(payload, &frame); unmarshalErr != nil {
+				continue
+			}
+			switch frame.Type {
+			case "text":
+				if !enqueueReliable(wsFrame{messageType: websocket.TextMessage, payload: []byte(frame.Payload)}) {
+					return
+				}
+			case "closed":
+				if !enqueueReliable(wsFrame{messageType: websocket.TextMessage, payload: payload}) {
+					return
+				}
+			case "binary":
+				data, decodeErr := base64.StdEncoding.DecodeString(frame.Payload)
+				if decodeErr != nil {
+					continue
+				}
+				if !enqueueVideo(wsFrame{messageType: websocket.BinaryMessage, payload: data}) {
+					return
+				}
+			}
+		}
+	}()
+
+	_ = service.TCPServer().SendDesktopOpen(ctx, sessionID)
+
+	for {
+		select {
+		case <-ctx.Done():
+			_ = service.TCPServer().SendDesktopClose(ctx, sessionID, "desktop disconnected")
+			<-writeDone
+			return
+		default:
+		}
+		messageType, message, readErr := conn.ReadMessage()
+		if readErr != nil {
+			break
+		}
+		switch messageType {
+		case websocket.TextMessage:
+			_ = service.TCPServer().SendDesktopText(ctx, sessionID, string(message))
+		case websocket.BinaryMessage:
+			_ = service.TCPServer().SendDesktopBinary(ctx, sessionID, message)
+		case websocket.CloseMessage:
+			_ = service.TCPServer().SendDesktopClose(ctx, sessionID, "desktop closed by user")
+			return
+		}
+	}
+
+	_ = service.TCPServer().SendDesktopClose(ctx, sessionID, "desktop disconnected")
+	cancelCtx()
+	<-writeDone
 }

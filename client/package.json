@@ -11,7 +11,7 @@
     "type": "git",
     "url": "https://github.com/icepie/AuroraOps.git"
   },
-  "description": "AuroraOps desktop client with embedded Go agent for device binding, long connection, and asset collection.",
+  "description": "AuroraOps desktop client with embedded Rust agent for device binding, terminal access, remote desktop control, and asset collection.",
   "license": "MIT",
   "scripts": {
     "dev:agent": "tsx .electron-vite/build-go-agent.ts --target dev --arch x64",

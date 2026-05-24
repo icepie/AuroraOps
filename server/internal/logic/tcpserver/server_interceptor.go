@@ -22,10 +22,13 @@ var noLoginRouter = map[string]struct{}{
 
 // 免验证路由
 var noVerifyRouter = map[string]struct{}{
-	"ServerHeartbeatReq":      {}, // 心跳
-	"DeviceHeartbeatReq":      {}, // 设备心跳
-	"DeviceTerminalOutputReq": {},
-	"DeviceTerminalClosedReq": {},
+	"ServerHeartbeatReq":           {}, // 心跳
+	"DeviceHeartbeatReq":           {}, // 设备心跳
+	"DeviceTerminalOutputReq":      {},
+	"DeviceTerminalClosedReq":      {},
+	"DeviceDesktopTextOutputReq":   {},
+	"DeviceDesktopBinaryOutputReq": {},
+	"DeviceDesktopClosedReq":       {},
 }
 
 func (s *sTCPServer) isNoLoginRouter(router string) bool {

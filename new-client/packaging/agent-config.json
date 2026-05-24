@@ -1,0 +1,7 @@
+{
+  "serverHost": "127.0.0.1:8000",
+  "deviceName": "linux-node-01",
+  "httpBase": "http://127.0.0.1:8000",
+  "bindAddress": "127.0.0.1",
+  "webPort": 1701
+}

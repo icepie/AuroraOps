@@ -1,0 +1,32 @@
+[package]
+name = "auroraops-agent-service"
+version = "0.11.4"
+edition = "2021"
+description = "AuroraOps service agent"
+
+[features]
+default = ["agent-service-lite"]
+agent-service-lite = []
+
+[dependencies]
+base64 = "=0.22.1"
+bytes = "=1.7.1"
+clap = { version = "=4.5.18", features = ["derive"] }
+http-body-util = "=0.1.2"
+hyper = { version = "=1.4.1", features = ["server", "http1"] }
+hyper-util = { version = "=0.1.8", features = ["tokio"] }
+libc = "0.2"
+reqwest = { version = "=0.12.8", features = ["blocking", "json"], default-features = false }
+serde = { version = "^1.0", features = ["derive"] }
+serde_json = "^1.0"
+signal-hook = "=0.3.17"
+tokio = { version = "=1.40.0", features = ["macros", "rt-multi-thread", "sync", "net"] }
+tracing = "^0.1"
+tracing-subscriber = { version = "=0.3.18", features = ["ansi", "json"], default-features = false }
+tungstenite = "=0.24.0"
+url = "=2.5.2"
+
+[profile.release]
+lto = true
+opt-level = 2
+strip = true

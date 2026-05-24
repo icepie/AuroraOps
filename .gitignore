@@ -13,3 +13,11 @@ client/.vite/
 .gocache/
 client/.codex
 web/.npmrc
+.run/
+logs/
+storage/
+new-client/.git/
+new-client/target/
+new-client/agent-service-lite/target/
+new-client/dist/
+new-client/deps/x264/

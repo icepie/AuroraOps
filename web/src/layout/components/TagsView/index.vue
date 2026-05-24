@@ -39,7 +39,7 @@
                 @click.stop="goPage(element)"
                 @contextmenu="handleContextMenu($event, element)"
               >
-                <span>{{ element.meta.title }}</span>
+                <span>{{ getTabTitle(element) }}</span>
                 <n-icon size="14" @click.stop="closeTabItem(element)" v-if="!element.meta.affix">
                   <CloseOutlined />
                 </n-icon>
@@ -170,6 +170,19 @@
         return { fullPath, hash, meta, name, params, path, query };
       };
 
+      const getDeviceRouteTitle = (route): string => {
+        const baseTitle = route?.meta?.title || '';
+        const deviceName = String(route?.query?.name || route?.query?.deviceId || '').trim();
+        if (!deviceName) return baseTitle;
+        if (route?.path === '/ops/device/terminal') return `远程终端 - ${deviceName}`;
+        if (route?.path === '/ops/device/desktop') return `远程桌面 - ${deviceName}`;
+        return baseTitle;
+      };
+
+      const getTabTitle = (route): string => {
+        return getDeviceRouteTitle(route) || route?.meta?.title || '';
+      };
+
       const isMixMenuNoneSub = computed(() => {
         const mixMenu = settingStore.menuSetting.mixMenu;
         const navMode = unref(getNavMode);
@@ -296,7 +309,18 @@
         (to) => {
           if (whiteList.includes(route.name as string)) return;
           state.activeKey = to;
-          tabsViewStore.addTabs(getSimpleRoute(route));
+          const simpleRoute = getSimpleRoute(route);
+          const tabTitle = getDeviceRouteTitle(simpleRoute);
+          if (tabTitle) {
+            simpleRoute.meta = {
+              ...(simpleRoute.meta || {}),
+              title: tabTitle,
+            };
+          }
+          tabsViewStore.addTabs(simpleRoute);
+          if (tabTitle) {
+            tabsViewStore.updateTabTitle(simpleRoute.fullPath, tabTitle);
+          }
           updateNavScroll(true);
         },
         { immediate: true }
@@ -524,6 +548,7 @@
         getChangeStyle,
         TabsMenuOptions,
         closeHandleSelect,
+        getTabTitle,
         scrollNext,
         scrollPrev,
         handleContextMenu,

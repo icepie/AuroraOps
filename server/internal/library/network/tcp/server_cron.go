@@ -36,6 +36,9 @@ func (server *Server) startCron() {
 			defer server.mutexConns.Unlock()
 
 			for _, client := range server.clients {
+				if client == nil || client.IsClosed() {
+					continue
+				}
 				if client.Heartbeat < gtime.Timestamp()-HeartbeatTimeout {
 					client.Conn.Close()
 					server.logger.Debugf(server.ctx, "client heartbeat timeout, close conn. auth:%+v", client.Auth)
@@ -55,7 +58,7 @@ func (server *Server) startCron() {
 			defer server.mutexConns.Unlock()
 
 			for _, client := range server.clients {
-				if client.Auth == nil {
+				if client == nil || client.IsClosed() || client.Auth == nil || client.Auth.EndAt == nil {
 					continue
 				}
 				if client.Auth.EndAt.Before(gtime.Now()) {

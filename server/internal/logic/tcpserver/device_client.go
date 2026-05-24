@@ -14,13 +14,19 @@ func (s *sTCPServer) getDeviceClients(deviceID uint64) []*tcp.Conn {
 	}
 	clients := s.serv.GetAppIdClients(fmt.Sprintf("device:%d", deviceID))
 	if len(clients) > 0 {
-		return clients
+		online := make([]*tcp.Conn, 0, len(clients))
+		for _, client := range clients {
+			if client != nil && !client.IsClosed() {
+				online = append(online, client)
+			}
+		}
+		return online
 	}
 
 	groupClients := s.serv.GetGroupClients("device")
 	matched := make([]*tcp.Conn, 0, len(groupClients))
 	for _, client := range groupClients {
-		if client == nil || client.Auth == nil || client.Auth.Extra == nil {
+		if client == nil || client.IsClosed() || client.Auth == nil || client.Auth.Extra == nil {
 			continue
 		}
 		if gconv.Uint64(client.Auth.Extra["deviceId"]) == deviceID {

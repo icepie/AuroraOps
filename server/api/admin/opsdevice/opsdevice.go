@@ -71,3 +71,12 @@ type TerminalCreateReq struct {
 type TerminalCreateRes struct {
 	*sysin.OpsDeviceTerminalCreateModel
 }
+
+type DesktopCreateReq struct {
+	g.Meta `path:"/opsDevice/desktop/create" method:"post" tags:"运维设备" summary:"创建设备远程桌面会话"`
+	sysin.OpsDeviceDesktopCreateInp
+}
+
+type DesktopCreateRes struct {
+	*sysin.OpsDeviceDesktopCreateModel
+}

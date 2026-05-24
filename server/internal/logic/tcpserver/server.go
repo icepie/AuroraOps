@@ -17,6 +17,8 @@ type sTCPServer struct {
 	serv        *tcp.Server
 	terminals   *terminalManager
 	terminalHub *terminalHub
+	desktops    *desktopManager
+	desktopHub  *desktopHub
 }
 
 func init() {
@@ -27,6 +29,8 @@ func newTCPServer() *sTCPServer {
 	return &sTCPServer{
 		terminals:   newTerminalManager(),
 		terminalHub: newTerminalHub(),
+		desktops:    newDesktopManager(),
+		desktopHub:  newDesktopHub(),
 	}
 }
 
@@ -53,6 +57,9 @@ func (s *sTCPServer) Start(ctx context.Context) {
 			s.onDeviceHeartbeat, // 设备心跳
 			s.onDeviceTerminalOutput,
 			s.onDeviceTerminalClosed,
+			s.onDeviceDesktopTextOutput,
+			s.onDeviceDesktopBinaryOutput,
+			s.onDeviceDesktopClosed,
 			s.OnAuthSummary,  // 获取授权信息
 			s.OnExampleHello, // 一个tcp请求例子
 		)
@@ -66,6 +73,7 @@ func (s *sTCPServer) Start(ctx context.Context) {
 		s.serv.RegisterInterceptor(s.DefaultInterceptor, s.PreFilterInterceptor)
 
 		go s.terminals.cleanupLoop(ctx)
+		go s.desktops.cleanupLoop(ctx)
 
 		// 服务监听
 		if err := s.serv.Listen(); err != nil {

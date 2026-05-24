@@ -144,7 +144,6 @@
             :row-key="(row) => row.id"
             :actionColumn="actionColumn"
             :scroll-x="scrollX"
-            :resizeHeightOffset="-10000"
             :checked-row-keys="checkedIds"
             @update:checked-row-keys="handleOnCheckedRow"
           >
@@ -191,7 +190,7 @@
   import { BasicForm, useForm } from '@/components/Form/index';
   import { usePermission } from '@/hooks/web/usePermission';
   import { useDictStore } from '@/store/modules/dict';
-  import { List, Delete, Status, CreateTerminal } from '@/api/opsDevice';
+  import { List, Delete, Status, CreateTerminal, CreateDesktop } from '@/api/opsDevice';
   import { Delete as DeleteGroup, List as GroupList } from '@/api/opsDeviceGroup';
   import {
     PlusOutlined,
@@ -200,6 +199,7 @@
     EditOutlined,
     EllipsisOutlined,
     CodeOutlined,
+    DesktopOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
   } from '@vicons/antd';
@@ -252,6 +252,27 @@
                 },
               ),
             default: () => '终端',
+          },
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            quaternary: true,
+            type: record.online === true ? 'primary' : 'default',
+            class: 'device-action-cell__desktop',
+            onClick: handleDesktop.bind(null, record),
+          },
+          {
+            icon: () =>
+              h(
+                NIcon,
+                { size: 14 },
+                {
+                  default: () => h(DesktopOutlined),
+                },
+              ),
+            default: () => '桌面',
           },
         ),
         options.length
@@ -470,6 +491,26 @@
     });
   }
 
+  async function handleDesktop(record: Recordable) {
+    if (!record.online) {
+      message.warning('设备已离线');
+      return;
+    }
+    const res = await CreateDesktop({ deviceId: record.id });
+    if (!res?.sessionId) {
+      message.error('创建远程桌面失败');
+      return;
+    }
+    await router.push({
+      name: 'ops_device_desktop_index',
+      query: {
+        sessionId: res.sessionId,
+        deviceId: record.id,
+        name: record.name || '',
+      },
+    });
+  }
+
   function handleDelete(record: Recordable) {
     dialog.warning({
       title: '警告',
@@ -552,6 +593,8 @@
 
 <style lang="less" scoped>
   .device-page {
+    min-height: calc(100vh - 132px);
+
     :deep(.n-card) {
       border-radius: 18px;
     }
@@ -561,7 +604,8 @@
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr);
     gap: 12px;
-    align-items: start;
+    align-items: stretch;
+    min-height: calc(100vh - 132px);
     transition: grid-template-columns 0.2s ease;
   }
 
@@ -572,10 +616,11 @@
   .device-layout__aside,
   .device-layout__main {
     min-width: 0;
+    min-height: 0;
   }
 
   .group-panel {
-    min-height: 100%;
+    height: 100%;
     border: 1px solid rgba(148, 163, 184, 0.12);
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.03);
     background: #ffffff;
@@ -686,9 +731,30 @@
   }
 
   .device-table-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     border: 1px solid rgba(148, 163, 184, 0.1);
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.03);
     background: #ffffff;
+
+    :deep(.n-card__content) {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    :deep(.s-table) {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    :deep(.n-data-table) {
+      flex: 1;
+      min-height: 0;
+    }
   }
 
   .table-header {
@@ -754,7 +820,8 @@
     gap: 4px;
   }
 
-  .device-action-cell__terminal {
+  .device-action-cell__terminal,
+  .device-action-cell__desktop {
     padding-left: 8px;
     padding-right: 8px;
     border-radius: 10px;

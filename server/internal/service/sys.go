@@ -438,6 +438,8 @@ type (
 		VerifyClientToken(ctx context.Context, deviceId uint64, hostname, token string) (err error)
 		// CreateTerminalSession 创建设备终端会话
 		CreateTerminalSession(ctx context.Context, in *sysin.OpsDeviceTerminalCreateInp) (res *sysin.OpsDeviceTerminalCreateModel, err error)
+		// CreateDesktopSession 创建设备远程桌面会话
+		CreateDesktopSession(ctx context.Context, in *sysin.OpsDeviceDesktopCreateInp) (res *sysin.OpsDeviceDesktopCreateModel, err error)
 	}
 	ISysOpsDeviceGroup interface {
 		// Model 设备分组ORM模型
