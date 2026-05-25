@@ -13,6 +13,7 @@ fn main() {
 
     bindgen::Builder::default()
         .header("fastfetch/wrapper.h")
+        .clang_arg("-D_GNU_SOURCE")
         .clang_arg(format!("-I{}", pkg.join("fastfetch/vendor/src").display()))
         .clang_arg(format!("-I{}", out.join("build/vendor").display()))
         .layout_tests(false)

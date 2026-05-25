@@ -255,7 +255,7 @@ function(fastfetch_load_text FILENAME OUTVAR)
     set(${OUTVAR} "${TEMP}" PARENT_SCOPE)
 endfunction(fastfetch_load_text)
 
-find_package(Python)
+find_package(Python 3 COMPONENTS Interpreter)
 if(Python_FOUND)
     message(STATUS "Minifying 'help.json'")
     execute_process(COMMAND ${Python_EXECUTABLE} -c "import json,sys;json.dump(json.load(sys.stdin),sys.stdout,separators=(',',':'))"
