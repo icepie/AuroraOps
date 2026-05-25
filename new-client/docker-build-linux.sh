@@ -99,17 +99,16 @@ target_config() {
       ;;
     kylin-v10|centos8|nfs-v4)
       BASE_IMAGE="rockylinux:8"
-      # Has GStreamer 1.16 in AppStream; enable pipewire
       FEATURES="pipewire,vaapi"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM="epel-release"
       ;;
     centos7)
       BASE_IMAGE="centos:7"
-      # No pipewire/gstreamer (too old); X11-only capture
+      # No pipewire/vaapi; X11-only, no remote desktop features
       FEATURES=""
       EXTRA_PKGS_DEB=""
-      EXTRA_PKGS_RPM="epel-release"
+      EXTRA_PKGS_RPM=""
       ;;
     *)
       echo "Unknown target: $1" >&2; exit 2 ;;

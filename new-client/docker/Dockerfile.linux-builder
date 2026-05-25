@@ -55,7 +55,7 @@ RUN set -eux; \
         libx11-dev libxtst-dev libxext-dev libxrandr-dev libxfixes-dev libxcomposite-dev libxi-dev \
         libxinerama-dev libxcursor-dev libxkbcommon-dev libwayland-dev \
         libxcb1-dev libxcb-dri3-dev libxau-dev libxdmcp-dev x11proto-dev xtrans-dev \
-        libdrm-dev \
+        libdrm-dev libgl1-mesa-dev \
         libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev liborc-0.4-dev \
         libunwind-dev libdw-dev libelf-dev liblzma-dev zlib1g-dev \
         libfontconfig1-dev libpango1.0-dev libcairo2-dev \
@@ -65,12 +65,12 @@ RUN set -eux; \
       rm -rf /var/lib/apt/lists/*; \
     elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then \
       pm="$(command -v dnf || command -v yum)"; \
-      # CentOS 7 EOL: switch to vault + EPEL archive + devtoolset for newer GCC
+      # CentOS 7 EOL: switch to vault + EPEL archive + devtoolset (GCC 11)
       if [ "${ID:-}" = "centos" ] && [ "${VERSION_ID:-}" = "7" ]; then \
         sed -i -E 's|^mirrorlist=|#mirrorlist=|; s|^#?baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' /etc/yum.repos.d/CentOS-*.repo; \
-        "$pm" install -y epel-release centos-release-scl || true; \
-        sed -i -E 's|^mirrorlist=|#mirrorlist=|; s|^#?baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true; \
+        "$pm" install -y epel-release || true; \
         sed -i -E 's|^metalink=|#metalink=|; s|^#?baseurl=https?://download.fedoraproject.org/pub/epel|baseurl=http://archives.fedoraproject.org/pub/archive/epel|' /etc/yum.repos.d/epel*.repo 2>/dev/null || true; \
+        printf '[centos-sclo-rh]\nname=CentOS-7 SCLo rh\nbaseurl=http://vault.centos.org/centos/7/sclo/x86_64/rh/\ngpgcheck=0\nenabled=1\n' > /etc/yum.repos.d/CentOS-SCLo-rh.repo; \
         "$pm" install -y devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-binutils || true; \
       fi; \
       # CentOS 8 EOL: switch to vault
@@ -91,7 +91,7 @@ RUN set -eux; \
         libX11-devel libXtst-devel libXext-devel libXrandr-devel libXfixes-devel libXcomposite-devel libXi-devel \
         libXinerama-devel libXcursor-devel libxkbcommon-devel wayland-devel \
         libxcb-devel xorg-x11-proto-devel \
-        libdrm-devel \
+        libdrm-devel mesa-libGL-devel \
         glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel orc-devel \
         elfutils-devel xz-devel zlib-devel \
         fontconfig-devel pango-devel cairo-devel; \
