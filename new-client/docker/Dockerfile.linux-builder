@@ -23,6 +23,7 @@ ENV BUILD_MODE=release
 ENV FEATURES=${FEATURES}
 ENV TARGET_ID=${TARGET_ID}
 ENV CARGO_BUILD_JOBS=0
+ENV PKG_CONFIG_PATH=/usr/lib64/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
 
 # -------- package manager bootstrap (EOL mirrors + base deps) --------
 RUN set -eux; \
@@ -64,11 +65,13 @@ RUN set -eux; \
       rm -rf /var/lib/apt/lists/*; \
     elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then \
       pm="$(command -v dnf || command -v yum)"; \
-      # CentOS 7 EOL: switch to vault + EPEL archive
+      # CentOS 7 EOL: switch to vault + EPEL archive + devtoolset for newer GCC
       if [ "${ID:-}" = "centos" ] && [ "${VERSION_ID:-}" = "7" ]; then \
         sed -i -E 's|^mirrorlist=|#mirrorlist=|; s|^#?baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' /etc/yum.repos.d/CentOS-*.repo; \
-        "$pm" install -y epel-release || true; \
+        "$pm" install -y epel-release centos-release-scl || true; \
+        sed -i -E 's|^mirrorlist=|#mirrorlist=|; s|^#?baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' /etc/yum.repos.d/CentOS-SCLo-*.repo 2>/dev/null || true; \
         sed -i -E 's|^metalink=|#metalink=|; s|^#?baseurl=https?://download.fedoraproject.org/pub/epel|baseurl=http://archives.fedoraproject.org/pub/archive/epel|' /etc/yum.repos.d/epel*.repo 2>/dev/null || true; \
+        "$pm" install -y devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-binutils || true; \
       fi; \
       # CentOS 8 EOL: switch to vault
       if [ "${ID:-}" = "centos" ] && [ "${VERSION_ID%%.*}" = "8" ]; then \
@@ -152,6 +155,7 @@ WORKDIR /work/new-client
 COPY . /work/new-client
 
 CMD ["bash", "-lc", "set -euxo pipefail; \
+  if [ -f /opt/rh/devtoolset-11/enable ]; then source /opt/rh/devtoolset-11/enable; fi; \
   jobs=\"${CARGO_BUILD_JOBS}\"; if [ \"$jobs\" = 0 ]; then jobs=$(nproc); fi; export CARGO_BUILD_JOBS=\"$jobs\"; \
   feat_args=\"--no-default-features\"; if [ -n \"${FEATURES}\" ]; then feat_args=\"--no-default-features --features ${FEATURES}\"; fi; \
   cargo build --release ${feat_args} --bin auroraops-agent; \
