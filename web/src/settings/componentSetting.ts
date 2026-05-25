@@ -13,9 +13,9 @@ export default {
       itemCountField: 'totalCount',
     },
     //默认分页数量
-    defaultPageSize: 10,
+    defaultPageSize: 20,
     //可切换每页数量集合
-    pageSizes: [10, 15, 20, 30, 50, 100],
+    pageSizes: [20, 30, 50, 100, 200],
   },
   upload: {
     //考虑接口规范不同

@@ -30,14 +30,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 64px;
-    line-height: 64px;
+    height: @header-height;
+    line-height: @header-height;
     overflow: hidden;
     white-space: nowrap;
 
     img {
       width: auto;
-      height: 30px;
+      height: 26px;
       border-radius: 20px;
     }
 

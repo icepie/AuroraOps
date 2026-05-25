@@ -6,8 +6,17 @@
         <span class="desktop-state" :class="stateClass">{{ statusText }}</span>
       </div>
       <n-space align="center" :size="10">
-        <n-button size="small" @click="reload">刷新</n-button>
-        <n-button size="small" type="primary" @click="openStandalone">新窗口</n-button>
+        <n-button class="desktop-action desktop-action-secondary" size="small" @click="reload">
+          刷新
+        </n-button>
+        <n-button
+          class="desktop-action desktop-action-primary"
+          size="small"
+          type="primary"
+          @click="openStandalone"
+        >
+          新窗口
+        </n-button>
       </n-space>
     </div>
     <iframe
@@ -137,6 +146,34 @@
 
   .desktop-state.is-offline {
     color: #ff6b6b;
+  }
+
+  .desktop-action {
+    min-width: 58px;
+  }
+
+  :deep(.desktop-action-secondary) {
+    --n-text-color: #f6f8fa !important;
+    --n-text-color-hover: #ffffff !important;
+    --n-text-color-pressed: #ffffff !important;
+    --n-border: 1px solid rgba(246, 248, 250, 0.38) !important;
+    --n-border-hover: 1px solid rgba(246, 248, 250, 0.7) !important;
+    --n-border-pressed: 1px solid rgba(246, 248, 250, 0.8) !important;
+    --n-color: rgba(255, 255, 255, 0.08) !important;
+    --n-color-hover: rgba(255, 255, 255, 0.16) !important;
+    --n-color-pressed: rgba(255, 255, 255, 0.2) !important;
+  }
+
+  :deep(.desktop-action-primary) {
+    --n-text-color: #ffffff !important;
+    --n-text-color-hover: #ffffff !important;
+    --n-text-color-pressed: #ffffff !important;
+    --n-color: #2f7cf6 !important;
+    --n-color-hover: #4a8dff !important;
+    --n-color-pressed: #246be0 !important;
+    --n-border: 1px solid #2f7cf6 !important;
+    --n-border-hover: 1px solid #4a8dff !important;
+    --n-border-pressed: 1px solid #246be0 !important;
   }
 
   .desktop-frame {

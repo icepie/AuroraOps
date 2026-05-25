@@ -183,7 +183,7 @@
         useColumns(getProps);
 
       const state = reactive({
-        tableSize: unref(getProps as any).size || 'medium',
+        tableSize: unref(getProps as any).size || 'small',
         isColumnSetting: false,
       });
 
@@ -261,16 +261,16 @@
         const tableEl: any = table?.$el;
         const headEl = tableEl.querySelector('.n-data-table-thead ');
         const { bottomIncludeBody } = getViewportOffset(headEl);
-        const headerH = 64;
+        const headerH = 52;
         let paginationH = 2;
-        let marginH = 24;
+        let marginH = 14;
         if (!isBoolean(unref(pagination))) {
           paginationEl = tableEl.querySelector('.n-data-table__pagination') as HTMLElement;
           if (paginationEl) {
             const offsetHeight = paginationEl.offsetHeight;
             paginationH += offsetHeight || 0;
           } else {
-            paginationH += 28;
+            paginationH += 24;
           }
         }
         let height =
@@ -312,7 +312,7 @@
   .table-toolbar {
     display: flex;
     justify-content: space-between;
-    padding: 0 0 16px 0;
+    padding: 0 0 8px 0;
 
     &-left {
       display: flex;
@@ -324,7 +324,7 @@
         display: flex;
         align-items: center;
         justify-content: flex-start;
-        font-size: 16px;
+        font-size: 14px;
         font-weight: 600;
       }
     }
@@ -335,8 +335,8 @@
       flex: 1;
 
       &-icon {
-        margin-left: 12px;
-        font-size: 16px;
+        margin-left: 8px;
+        font-size: 14px;
         cursor: pointer;
         color: var(--text-color);
 

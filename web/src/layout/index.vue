@@ -108,7 +108,6 @@
     return fixed ? 'absolute' : 'static';
   });
 
-
   const isMixMenuNoneSub = computed(() => {
     const mixMenu = settingStore.menuSetting.mixMenu;
     // const currentRoute = useRoute();
@@ -255,13 +254,13 @@
   }
 
   .layout-content-main {
-    margin: 0 10px 10px;
+    margin: 0 8px 8px;
     position: relative;
-    padding-top: 64px;
+    padding-top: @header-height;
   }
 
   .layout-content-main-fix {
-    padding-top: 64px;
+    padding-top: @header-height;
   }
 
   .fluid-header {
@@ -269,7 +268,7 @@
   }
 
   .main-view-fix {
-    padding-top: 44px;
+    padding-top: 36px;
   }
 
   .noMultiTabs {

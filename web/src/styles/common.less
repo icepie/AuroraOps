@@ -5,11 +5,18 @@ html {
 }
 
 body {
-  font-family: Helvetica Neue, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei,
-    '\5FAE\8F6F\96C5\9ED1', Arial, sans-serif;
-  line-height: 1.5;
+  font-family:
+    Helvetica Neue,
+    Helvetica,
+    PingFang SC,
+    Hiragino Sans GB,
+    Microsoft YaHei,
+    '\5FAE\8F6F\96C5\9ED1',
+    Arial,
+    sans-serif;
+  line-height: 1.42;
   color: #515a6e;
-  font-size: 14px;
+  font-size: 13px;
   background-color: #f7f7f7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -81,7 +88,9 @@ a:hover {
 /* router view transition */
 .zoom-fade-enter-active,
 .zoom-fade-leave-active {
-  transition: transform 0.35s, opacity 0.28s ease-in-out;
+  transition:
+    transform 0.35s,
+    opacity 0.28s ease-in-out;
 }
 
 .zoom-fade-enter-from {
@@ -104,15 +113,24 @@ body .n-icon {
 }
 
 body .proCard {
-  border-radius: 12px;
-  margin-top: 12px;
+  border-radius: 8px;
+  margin-top: 8px;
 
   .n-card__content {
-    padding: 16px;
+    padding: 10px 12px;
 
     &:first-child {
-      padding-top: 16px;
+      padding-top: 10px;
     }
+  }
+
+  .n-card-header {
+    padding: 10px 12px;
+  }
+
+  .n-card-header__main {
+    font-size: 14px;
+    font-weight: 600;
   }
 }
 
@@ -130,5 +148,36 @@ body .n-modal {
 //}
 
 .n-layout-page-header {
-  margin: 8px 0;
+  margin: 6px 0;
+}
+
+body .n-form-item {
+  --n-feedback-height: 18px;
+  --n-label-height: 22px;
+}
+
+body .n-form-item .n-form-item-feedback-wrapper {
+  min-height: 18px;
+}
+
+body .n-data-table {
+  --n-font-size: 13px;
+  --n-th-padding-small: 6px 8px;
+  --n-td-padding-small: 5px 8px;
+  --n-th-padding-medium: 7px 9px;
+  --n-td-padding-medium: 6px 9px;
+}
+
+body .n-data-table .n-data-table__pagination {
+  margin-top: 8px;
+}
+
+body .n-button {
+  font-size: 13px;
+}
+
+body .n-input,
+body .n-select,
+body .n-date-picker {
+  font-size: 13px;
 }

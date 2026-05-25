@@ -200,8 +200,8 @@
           navMode === 'horizontal' || !isMixMenuNoneSub.value
             ? '0px'
             : collapsed
-            ? `${minMenuWidth}px`
-            : `${menuWidth}px`;
+              ? `${minMenuWidth}px`
+              : `${menuWidth}px`;
 
         if (getIsMobile.value) {
           return {
@@ -565,12 +565,12 @@
 <style lang="less" scoped>
   .tabs-view {
     width: 100%;
-    padding: 6px 0;
+    padding: 4px 0;
     display: flex;
     transition: all 0.2s ease-in-out;
 
     &-main {
-      height: 32px;
+      height: 28px;
       display: flex;
       max-width: 100%;
       min-width: 100%;
@@ -584,18 +584,18 @@
 
         .tabs-card-prev,
         .tabs-card-next {
-          width: 32px;
+          width: 28px;
           text-align: center;
           position: absolute;
-          line-height: 32px;
+          line-height: 28px;
           cursor: pointer;
 
           .n-icon {
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 32px;
-            width: 32px;
+            height: 28px;
+            width: 28px;
           }
         }
 
@@ -619,14 +619,15 @@
           &-item {
             background: v-bind(getCardColor);
             color: v-bind(getBaseColor);
-            height: 32px;
-            padding: 6px 16px 4px;
+            height: 28px;
+            padding: 4px 12px 3px;
             border-radius: 3px;
-            margin-right: 6px;
+            margin-right: 5px;
             cursor: pointer;
             display: inline-block;
             position: relative;
             flex: 0 0 auto;
+            font-size: 12px;
 
             span {
               float: left;
@@ -639,8 +640,8 @@
 
             .n-icon {
               height: 22px;
-              width: 21px;
-              margin-right: -6px;
+              width: 18px;
+              margin-right: -5px;
               position: relative;
               vertical-align: middle;
               text-align: center;
@@ -652,6 +653,7 @@
 
               svg {
                 height: 21px;
+                width: 14px;
                 display: inline-block;
               }
             }
@@ -664,16 +666,16 @@
       }
 
       .tabs-card-scrollable {
-        padding: 0 32px;
+        padding: 0 28px;
         overflow: hidden;
       }
     }
 
     .tabs-close {
       min-width: 32px;
-      width: 32px;
-      height: 32px;
-      line-height: 32px;
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
       text-align: center;
       background: var(--color);
       border-radius: 2px;
@@ -701,7 +703,7 @@
   .tabs-view-fix {
     position: fixed;
     z-index: 5;
-    padding: 6px 19px 6px 10px;
+    padding: 4px 17px 4px 8px;
     left: 200px;
   }
 

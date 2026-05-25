@@ -572,8 +572,8 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 64px;
-        line-height: 64px;
+        height: @header-height;
+        line-height: @header-height;
         overflow: hidden;
         white-space: nowrap;
         padding-left: 10px;
@@ -581,13 +581,14 @@
 
         img {
           width: auto;
-          height: 32px;
-          margin-right: 10px;
+          height: 26px;
+          margin-right: 8px;
         }
 
         .title {
           margin-bottom: 0;
           min-width: 132px;
+          font-size: 16px;
         }
       }
 
@@ -612,7 +613,7 @@
       .avatar {
         display: flex;
         align-items: center;
-        height: 64px;
+        height: @header-height;
       }
 
       > * {
@@ -623,7 +624,7 @@
     &-trigger {
       display: inline-block;
       width: 64px;
-      height: 64px;
+      height: @header-height;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s ease-in-out;
@@ -631,8 +632,8 @@
       .n-icon {
         display: flex;
         align-items: center;
-        height: 64px;
-        line-height: 64px;
+        height: @header-height;
+        line-height: @header-height;
       }
 
       &:hover {
@@ -647,7 +648,7 @@
 
     &-trigger-min {
       width: auto;
-      padding: 0 12px;
+      padding: 0 9px;
     }
   }
 

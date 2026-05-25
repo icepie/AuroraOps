@@ -22,7 +22,7 @@ export const basicProps = {
   },
   size: {
     type: String,
-    default: 'medium',
+    default: 'small',
   },
   dataSource: {
     type: [Object],
