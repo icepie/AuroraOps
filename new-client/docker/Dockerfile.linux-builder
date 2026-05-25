@@ -38,7 +38,8 @@ RUN set -eux; \
       fi; \
       # Ubuntu EOL (16.04 xenial) moved to old-releases
       if [ "${ID:-}" = "ubuntu" ] && [ "${VERSION_ID:-}" = "16.04" ]; then \
-        sed -i -E 's|http://(archive|security)\.ubuntu\.com|http://old-releases.ubuntu.com|g' /etc/apt/sources.list; \
+        sed -i 's/http:\/\/archive\.ubuntu\.com/http:\/\/old-releases.ubuntu.com/g' /etc/apt/sources.list; \
+        sed -i 's/http:\/\/security\.ubuntu\.com/http:\/\/old-releases.ubuntu.com/g' /etc/apt/sources.list; \
       fi; \
       apt-get update; \
       apt-get install -y --no-install-recommends \
@@ -51,36 +52,44 @@ RUN set -eux; \
         libxcb1-dev libxau-dev libxdmcp-dev x11proto-dev xtrans-dev \
         libdrm-dev \
         libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev liborc-0.4-dev \
-        libunwind-dev libdw-dev libelf-dev liblzma-dev libzstd-dev zlib1g-dev \
+        libunwind-dev libdw-dev libelf-dev liblzma-dev zlib1g-dev \
         libfontconfig1-dev libpango1.0-dev libcairo2-dev \
-        gstreamer1.0-plugins-base ${EXTRA_PKGS_DEB}; \
+        gstreamer1.0-plugins-base || true; \
+      apt-get install -y --no-install-recommends libzstd-dev || true; \
+      if [ -n "${EXTRA_PKGS_DEB}" ]; then apt-get install -y --no-install-recommends ${EXTRA_PKGS_DEB} || true; fi; \
       rm -rf /var/lib/apt/lists/*; \
     elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then \
       pm="$(command -v dnf || command -v yum)"; \
-      # CentOS 7 EOL: switch to vault
+      # CentOS 7 EOL: switch to vault + EPEL archive
       if [ "${ID:-}" = "centos" ] && [ "${VERSION_ID:-}" = "7" ]; then \
         sed -i -E 's|^mirrorlist=|#mirrorlist=|; s|^#?baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' /etc/yum.repos.d/CentOS-*.repo; \
         "$pm" install -y epel-release || true; \
-        if [ -d /etc/yum.repos.d ]; then \
-          sed -i -E 's|^metalink=|#metalink=|; s|^#?baseurl=https?://download.fedoraproject.org/pub/epel|baseurl=http://archives.fedoraproject.org/pub/archive/epel|' /etc/yum.repos.d/epel*.repo 2>/dev/null || true; \
-        fi; \
+        sed -i -E 's|^metalink=|#metalink=|; s|^#?baseurl=https?://download.fedoraproject.org/pub/epel|baseurl=http://archives.fedoraproject.org/pub/archive/epel|' /etc/yum.repos.d/epel*.repo 2>/dev/null || true; \
       fi; \
       # CentOS 8 EOL: switch to vault
       if [ "${ID:-}" = "centos" ] && [ "${VERSION_ID%%.*}" = "8" ]; then \
         sed -i -E 's|^mirrorlist=|#mirrorlist=|; s|^#?baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' /etc/yum.repos.d/CentOS-*.repo; \
       fi; \
+      # Rocky/Alma 8+: enable EPEL + PowerTools/CRB for extra deps
+      if [ "${ID:-}" = "rocky" ] || [ "${ID:-}" = "almalinux" ]; then \
+        "$pm" install -y epel-release || true; \
+        "$pm" config-manager --set-enabled powertools 2>/dev/null || \
+        "$pm" config-manager --set-enabled crb 2>/dev/null || true; \
+      fi; \
       "$pm" install -y \
         ca-certificates curl git file xz pkgconfig \
-        gcc gcc-c++ make cmake nasm yasm rpm-build \
+        gcc gcc-c++ make cmake rpm-build \
         dbus-devel \
         libX11-devel libXtst-devel libXext-devel libXrandr-devel libXfixes-devel libXcomposite-devel libXi-devel \
         libXinerama-devel libXcursor-devel libxkbcommon-devel wayland-devel \
-        libxcb-devel libXau-devel libXdmcp-devel xorg-x11-proto-devel \
+        libxcb-devel xorg-x11-proto-devel \
         libdrm-devel \
         glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel orc-devel \
-        libunwind-devel elfutils-devel xz-devel libzstd-devel zlib-devel \
-        fontconfig-devel pango-devel cairo-devel \
-        ${EXTRA_PKGS_RPM}; \
+        elfutils-devel xz-devel zlib-devel \
+        fontconfig-devel pango-devel cairo-devel; \
+      # optional packages (may not exist on all repos)
+      "$pm" install -y nasm yasm libXau-devel libXdmcp-devel libunwind-devel libzstd-devel || true; \
+      if [ -n "${EXTRA_PKGS_RPM}" ]; then "$pm" install -y ${EXTRA_PKGS_RPM} || true; fi; \
       "$pm" clean all; \
     else \
       echo "Unsupported base image: no apt-get, dnf or yum found." >&2; \
@@ -100,7 +109,12 @@ RUN set -eux; \
     /tmp/rustup-init -y --profile minimal --default-toolchain stable; \
     rm -f /tmp/rustup-init; \
     mkdir -p /root/.cargo; \
-    printf '[source.crates-io]\nreplace-with = "mirror"\n\n[source.mirror]\nregistry = "%s"\n\n[net]\ngit-fetch-with-cli = true\n' "$CARGO_REGISTRY" > /root/.cargo/config.toml; \
+    case "$CARGO_REGISTRY" in \
+      *index.crates.io*|"") \
+        printf '[net]\ngit-fetch-with-cli = true\n' > /root/.cargo/config.toml ;; \
+      *) \
+        printf '[source.crates-io]\nreplace-with = "mirror"\n\n[source.mirror]\nregistry = "%s"\n\n[net]\ngit-fetch-with-cli = true\n' "$CARGO_REGISTRY" > /root/.cargo/config.toml ;; \
+    esac; \
     rustc --version; cargo --version
 
 WORKDIR /work/new-client
