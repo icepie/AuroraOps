@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_CLIENT="${RUN_CLIENT:-1}"
 RUN_WEB="${RUN_WEB:-1}"
 RUN_SERVER="${RUN_SERVER:-1}"
 RUN_NEW_CLIENT="${RUN_NEW_CLIENT:-1}"
@@ -29,10 +28,6 @@ fi
 
 if [ "${RUN_WEB}" = "1" ]; then
   run "web build" "${ROOT_DIR}/web" pnpm run build
-fi
-
-if [ "${RUN_CLIENT}" = "1" ]; then
-  run "client embedded agent build" "${ROOT_DIR}/client" npm run build:agent -- --target dev --arch x64
 fi
 
 echo

@@ -8,10 +8,7 @@ push.sh
 node_modules/
 .cache/
 .tmp/
-client/dist/
-client/.vite/
 .gocache/
-client/.codex
 web/.npmrc
 .run/
 logs/
