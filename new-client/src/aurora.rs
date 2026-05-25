@@ -195,8 +195,6 @@ struct SaveDesktopConfigPayload {
     #[serde(default = "default_weylus_port")]
     web_port: u16,
     #[serde(default)]
-    access_code: Option<String>,
-    #[serde(default)]
     try_vaapi: bool,
     #[serde(default)]
     try_nvenc: bool,
@@ -393,10 +391,7 @@ impl AgentRuntime {
             } else {
                 payload.web_port
             };
-        cfg.access_code = payload
-            .access_code
-            .map(|code| code.trim().to_string())
-            .filter(|code| !code.is_empty());
+        cfg.access_code = None;
         cfg.try_vaapi = payload.try_vaapi;
         cfg.try_nvenc = payload.try_nvenc;
         cfg.wayland_support = payload.wayland_support;
@@ -829,7 +824,7 @@ fn start_weylus_service(conf: &WeylusConfig, runtime: &AgentRuntime) {
         weylus_conf.bind_address = IpAddr::from([127, 0, 0, 1]);
     }
     weylus_conf.web_port = agent_cfg.web_port;
-    weylus_conf.access_code = agent_cfg.access_code.clone();
+    weylus_conf.access_code = None;
     #[cfg(target_os = "linux")]
     {
         weylus_conf.try_vaapi = agent_cfg.try_vaapi;
@@ -2156,6 +2151,7 @@ fn normalize_config(cfg: &mut AgentConfig) {
     if cfg.bind_address.is_empty() || cfg.bind_address == "0.0.0.0" || cfg.bind_address == "::" {
         cfg.bind_address = default_weylus_bind();
     }
+    cfg.access_code = None;
     if cfg
         .kms_device
         .as_ref()
@@ -2330,7 +2326,6 @@ const INDEX_HTML: &str = r##"<!doctype html>
       <div class="grid">
         <div><label for="bindAddress">绑定地址</label><input id="bindAddress" placeholder="127.0.0.1" /></div>
         <div><label for="webPort">Web 端口</label><input id="webPort" type="number" min="0" max="65535" placeholder="0 表示随机本地端口" /></div>
-        <div><label for="accessCode">访问码</label><input id="accessCode" placeholder="留空则不限制" /></div>
         <div><label for="kmsDevice">KMS 设备</label><input id="kmsDevice" placeholder="/dev/dri/card0" /></div>
       </div>
       <div class="switches" style="margin-top: 14px;">
@@ -2369,7 +2364,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     </section>
   </main>
   <script>
-    const ids = ['serverHost','deviceName','bindAddress','webPort','accessCode','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','controlDisplayManager'];
+    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','controlDisplayManager'];
     const $ = (id) => document.getElementById(id);
     const log = (text) => $('log').textContent = `${new Date().toLocaleTimeString()} ${text}\n` + $('log').textContent;
     async function request(path, options) {
@@ -2388,7 +2383,6 @@ const INDEX_HTML: &str = r##"<!doctype html>
       $('deviceName').value = cfg.deviceName || '';
       $('bindAddress').value = cfg.bindAddress || '127.0.0.1';
       $('webPort').value = cfg.webPort ?? 0;
-      $('accessCode').value = cfg.accessCode || '';
       $('kmsDevice').value = cfg.kmsDevice || '';
       $('waylandSupport').checked = !!cfg.waylandSupport;
       $('kmsSupport').checked = !!cfg.kmsSupport;
@@ -2415,7 +2409,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     }
     async function saveDesktopConfig() {
       await call('/api/desktop-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
-        bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 0), accessCode: $('accessCode').value || null,
+        bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 0),
         kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked,
         tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, controlDisplayManager: $('controlDisplayManager').checked
       }) }, '桌面配置已保存，重启桌面服务后生效');

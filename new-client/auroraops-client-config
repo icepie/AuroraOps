@@ -147,20 +147,19 @@ write_config() {
   local device_name="$2"
   local bind_address="$3"
   local web_port="$4"
-  local access_code="$5"
-  local kms_device="$6"
-  local wayland="$7"
-  local kms="$8"
-  local vaapi="$9"
-  local nvenc="${10}"
-  local dm="${11}"
+  local kms_device="$5"
+  local wayland="$6"
+  local kms="$7"
+  local vaapi="$8"
+  local nvenc="$9"
+  local dm="${10}"
 
   mkdir -p "$(dirname "$CONFIG_PATH")"
-  python3 - "$CONFIG_PATH" "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" "$dm" <<'PY'
+  python3 - "$CONFIG_PATH" "$server_host" "$device_name" "$bind_address" "$web_port" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" "$dm" <<'PY'
 import json
 import sys
 
-path, server_host, device_name, bind_address, web_port, access_code, kms_device, wayland, kms, vaapi, nvenc, dm = sys.argv[1:13]
+path, server_host, device_name, bind_address, web_port, kms_device, wayland, kms, vaapi, nvenc, dm = sys.argv[1:12]
 try:
     with open(path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -175,7 +174,6 @@ cfg.update({
     "httpBase": http_base,
     "bindAddress": bind_address.strip() or "127.0.0.1",
     "webPort": int(web_port or "0"),
-    "accessCode": access_code.strip() or None,
     "kmsDevice": kms_device.strip() or None,
     "waylandSupport": wayland == "true",
     "kmsSupport": kms == "true",
@@ -183,6 +181,7 @@ cfg.update({
     "tryNvenc": nvenc == "true",
     "controlDisplayManager": dm == "true",
 })
+cfg.pop("accessCode", None)
 
 with open(path, "w", encoding="utf-8") as f:
     json.dump(cfg, f, ensure_ascii=False, indent=2)
@@ -213,12 +212,11 @@ restart_service() {
 main() {
   reexec_root "$@"
 
-  local server_host device_name bind_address web_port access_code kms_device switches
+  local server_host device_name bind_address web_port kms_device switches
   server_host="$(ask_text "AuroraOps 客户端" "服务端地址" "$(json_get serverHost "$DEFAULT_SERVER_HOST")")" || exit 1
   device_name="$(ask_text "AuroraOps 客户端" "设备名称" "$(json_get deviceName "$DEFAULT_DEVICE_NAME")")" || exit 1
   bind_address="$(ask_text "AuroraOps 客户端" "远程桌面绑定地址" "$(json_get bindAddress "$DEFAULT_BIND_ADDRESS")")" || exit 1
   web_port="$(ask_text "AuroraOps 客户端" "远程桌面 Web 端口" "$(json_get webPort "$DEFAULT_WEB_PORT")")" || exit 1
-  access_code="$(ask_text "AuroraOps 客户端" "访问码，留空表示不限制" "$(json_get accessCode "")")" || exit 1
   kms_device="$(ask_text "AuroraOps 客户端" "KMS 设备，留空自动选择" "$(json_get kmsDevice "")")" || exit 1
   switches="$(ask_switches "$(json_get waylandSupport false)" "$(json_get kmsSupport false)" "$(json_get tryVaapi false)" "$(json_get tryNvenc false)" "$(json_get controlDisplayManager true)")" || exit 1
 
@@ -229,7 +227,7 @@ main() {
   contains_token "$switches" nvenc && nvenc=true
   contains_token "$switches" dm && dm=true
 
-  write_config "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" "$dm"
+  write_config "$server_host" "$device_name" "$bind_address" "$web_port" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" "$dm"
   echo "配置已写入：$CONFIG_PATH"
 
   if confirm_restart; then
