@@ -3,7 +3,7 @@
 # Targets are mapped onto upstream-compatible base images (same glibc):
 #
 #   ubuntu2004  ubuntu:20.04        glibc 2.31  → Ubuntu ≥20.04          (.deb, X11 only)
-#   ubuntu2204  ubuntu:22.04        glibc 2.35  → Ubuntu ≥22.04          (.deb, Wayland + static VA-API)
+#   ubuntu2204  ubuntu:22.04        glibc 2.35  → Ubuntu ≥22.04          (.deb, Wayland)
 #   uos-v20     debian:11           glibc 2.31  → 统信 UOS V20 桌面       (.deb)
 #   kylin-v10   rockylinux:8        glibc 2.28  → 麒麟 V10 SP1 (server)   (.rpm)
 #   centos7     centos:7            glibc 2.17  → CentOS 7 系列           (.rpm, no Wayland)
@@ -12,8 +12,6 @@
 #
 # Targets without GStreamer ≥1.16 (ubuntu2004, centos7) build without the
 # 'pipewire' feature — Wayland screen capture is disabled, X11 still works.
-# Targets with VA-API support link libva statically so older host libva
-# versions do not fail process startup before runtime fallback can run.
 # All targets build for both linux/amd64 and linux/arm64 unless --arch is given.
 set -euo pipefail
 
@@ -87,27 +85,27 @@ target_config() {
       ;;
     ubuntu2204)
       BASE_IMAGE="ubuntu:22.04"
-      # Full Wayland + X11 support; VA-API is tried at runtime and falls back.
-      FEATURES="pipewire,va-static"
+      # Full Wayland + X11 support.
+      FEATURES="pipewire"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
     uos-v20)
       BASE_IMAGE="debian:11"
-      # GStreamer 1.18 available; static libva avoids host libva ABI drift.
-      FEATURES="pipewire,va-static"
+      # GStreamer 1.18 available.
+      FEATURES="pipewire"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
     kylin-v10|centos8|nfs-v4)
       BASE_IMAGE="rockylinux:8"
-      FEATURES="pipewire,va-static"
+      FEATURES="pipewire"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM="epel-release"
       ;;
     centos7)
       BASE_IMAGE="centos:7"
-      # No pipewire/vaapi; X11-only, no remote desktop features
+      # No pipewire; X11-only for maximum compatibility.
       FEATURES=""
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""

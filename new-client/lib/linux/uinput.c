@@ -25,11 +25,39 @@
 #define REL_HWHEEL_HI_RES	0x0c
 #endif
 
+#if defined(UI_DEV_SETUP) && defined(UI_ABS_SETUP)
+#define HAS_UINPUT_SETUP_IOCTL 1
+#else
+#define HAS_UINPUT_SETUP_IOCTL 0
+#endif
+
+#if !HAS_UINPUT_SETUP_IOCTL
+struct legacy_abs_setup
+{
+	int code;
+	int minimum;
+	int maximum;
+	int resolution;
+};
+
+static struct uinput_user_dev legacy_uidev;
+static struct legacy_abs_setup legacy_abs[ABS_CNT];
+
+static void reset_legacy_uidev(void)
+{
+	memset(&legacy_uidev, 0, sizeof(legacy_uidev));
+	memset(legacy_abs, 0, sizeof(legacy_abs));
+	for (int i = 0; i < ABS_CNT; ++i)
+		legacy_abs[i].code = -1;
+}
+#endif
+
 void setup_abs(int fd, int code, int minimum, int maximum, int resolution, Error* err)
 {
 	if (ioctl(fd, UI_SET_ABSBIT, code) < 0)
 		ERROR(err, 1, "error: ioctl UI_SET_ABSBIT, code %#x", code);
 
+#if HAS_UINPUT_SETUP_IOCTL
 	struct uinput_abs_setup abs_setup;
 	memset(&abs_setup, 0, sizeof(abs_setup));
 	abs_setup.code = code;
@@ -42,11 +70,20 @@ void setup_abs(int fd, int code, int minimum, int maximum, int resolution, Error
 	abs_setup.absinfo.resolution = resolution;
 	if (ioctl(fd, UI_ABS_SETUP, &abs_setup) < 0)
 		ERROR(err, 1, "error: UI_ABS_SETUP, code: %#x", code);
+#else
+	if (code < 0 || code >= ABS_CNT)
+		ERROR(err, 1, "error: invalid ABS code %#x", code);
+	legacy_abs[code].code = code;
+	legacy_abs[code].minimum = minimum;
+	legacy_abs[code].maximum = maximum;
+	legacy_abs[code].resolution = resolution;
+#endif
 }
 
 void setup(int fd, const char* name, Error* err)
 {
 
+#if HAS_UINPUT_SETUP_IOCTL
 	struct uinput_setup setup;
 	memset(&setup, 0, sizeof(setup));
 	strncpy(setup.name, name, UINPUT_MAX_NAME_SIZE - 1);
@@ -57,6 +94,24 @@ void setup(int fd, const char* name, Error* err)
 	setup.ff_effects_max = 0;
 	if (ioctl(fd, UI_DEV_SETUP, &setup) < 0)
 		ERROR(err, 1, "error: UI_DEV_SETUP");
+#else
+	strncpy(legacy_uidev.name, name, UINPUT_MAX_NAME_SIZE - 1);
+	legacy_uidev.id.bustype = BUS_VIRTUAL;
+	legacy_uidev.id.vendor = 0x1701;
+	legacy_uidev.id.product = 0x1701;
+	legacy_uidev.id.version = 0x0001;
+	for (int i = 0; i < ABS_CNT; ++i)
+	{
+		if (legacy_abs[i].code < 0)
+			continue;
+		legacy_uidev.absmin[i] = legacy_abs[i].minimum;
+		legacy_uidev.absmax[i] = legacy_abs[i].maximum;
+		legacy_uidev.absfuzz[i] = 0;
+		legacy_uidev.absflat[i] = 0;
+	}
+	if (write(fd, &legacy_uidev, sizeof(legacy_uidev)) != sizeof(legacy_uidev))
+		ERROR(err, 1, "error: write uinput_user_dev");
+#endif
 }
 
 void init_keyboard(int fd, const char* name, Error* err)
@@ -257,6 +312,9 @@ int init_uinput_keyboard(const char* name, Error* err)
 		fill_error(err, 101, "error: failed to open /dev/uinput");
 	else
 	{
+#if !HAS_UINPUT_SETUP_IOCTL
+		reset_legacy_uidev();
+#endif
 		init_keyboard(device, name, err);
 	}
 	return device;
@@ -270,6 +328,9 @@ int init_uinput_stylus(const char* name, Error* err)
 		fill_error(err, 101, "error: failed to open /dev/uinput");
 	else
 	{
+#if !HAS_UINPUT_SETUP_IOCTL
+		reset_legacy_uidev();
+#endif
 		init_stylus(device, name, err);
 	}
 	return device;
@@ -283,6 +344,9 @@ int init_uinput_mouse(const char* name, Error* err)
 		fill_error(err, 101, "error: failed to open /dev/uinput");
 	else
 	{
+#if !HAS_UINPUT_SETUP_IOCTL
+		reset_legacy_uidev();
+#endif
 		init_mouse(device, name, err);
 	}
 	return device;
@@ -296,6 +360,9 @@ int init_uinput_touch(const char* name, Error* err)
 		fill_error(err, 101, "error: failed to open /dev/uinput");
 	else
 	{
+#if !HAS_UINPUT_SETUP_IOCTL
+		reset_legacy_uidev();
+#endif
 		init_touch(device, name, err);
 	}
 	return device;

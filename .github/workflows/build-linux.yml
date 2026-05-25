@@ -157,7 +157,7 @@ jobs:
             - `arm64` = aarch64
 
             VA-API:
-            Ubuntu 22.04, UOS V20, Kylin V10, CentOS 8/Rocky/Alma 8, and NFS V4 builds include statically linked libva. The agent tries VA-API at runtime and falls back to software encoding if the host driver or device is unavailable. Ubuntu 20.04 and CentOS 7 compatibility builds are X11-only and do not include VA-API.
+            This release does not bundle VA-API. Supported Linux targets use PipeWire for screen capture where available and fall back to software encoding.
 
             Install the package that matches your operating system:
 
