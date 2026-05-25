@@ -1,0 +1,14 @@
+[package]
+name = "fastfetch-sys"
+version = "2.43.0"
+edition = "2024"
+description = "A neofetch like system information tool"
+license = "MIT"
+documentation = "https://docs.rs/fastfetch-sys"
+repository = "https://github.com/balthild/fastfetch-sys"
+
+[dependencies]
+
+[build-dependencies]
+bindgen = "0.71.1"
+cmake = "0.1.54"

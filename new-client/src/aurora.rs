@@ -1,10 +1,16 @@
 use std::collections::HashMap;
 use std::error::Error;
+#[cfg(target_os = "linux")]
+use std::ffi::CStr;
 use std::fs;
 use std::io::{Read, Write};
+#[cfg(target_os = "linux")]
+use std::mem;
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener, TcpStream, UdpSocket};
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
+#[cfg(target_os = "linux")]
+use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
 #[cfg(not(unix))]
 use std::process::{Child, Command, Stdio};
@@ -24,6 +30,8 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+#[cfg(target_os = "linux")]
+use libc::free;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::net::TcpListener;
@@ -2086,6 +2094,829 @@ fn collect_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
 
     #[cfg(target_os = "linux")]
     {
+        let (detected, detected_diagnostics) = collect_fastfetch_assets();
+        assets.extend(detected);
+        diagnostics.extend(detected_diagnostics);
+
+        ensure_linux_fallback_assets(&mut assets, &mut diagnostics);
+    }
+
+    (assets, diagnostics)
+}
+
+#[cfg(target_os = "linux")]
+fn collect_fastfetch_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
+    let mut collector = FastfetchCollector {
+        assets: Vec::new(),
+        diagnostics: Vec::new(),
+    };
+    collector.collect_board();
+    collector.collect_bios();
+    collector.collect_cpu();
+    collector.collect_memory();
+    collector.collect_gpus();
+    collector.collect_network();
+    collector.collect_disks();
+    (collector.assets, collector.diagnostics)
+}
+
+// fastfetch-sys links the native detection library, but its wrapper header does
+// not expose these detection result structures to bindgen.
+#[cfg(target_os = "linux")]
+#[repr(C)]
+struct FastfetchCpuCore {
+    freq: u32,
+    count: u32,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct FastfetchCpuResult {
+    name: fastfetch_sys::FFstrbuf,
+    vendor: fastfetch_sys::FFstrbuf,
+    packages: u16,
+    coresPhysical: u16,
+    coresLogical: u16,
+    coresOnline: u16,
+    frequencyBase: u32,
+    frequencyMax: u32,
+    coreTypes: [FastfetchCpuCore; 16],
+    temperature: f64,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+struct FastfetchBoardResult {
+    name: fastfetch_sys::FFstrbuf,
+    vendor: fastfetch_sys::FFstrbuf,
+    version: fastfetch_sys::FFstrbuf,
+    serial: fastfetch_sys::FFstrbuf,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+struct FastfetchBiosResult {
+    date: fastfetch_sys::FFstrbuf,
+    release: fastfetch_sys::FFstrbuf,
+    vendor: fastfetch_sys::FFstrbuf,
+    version: fastfetch_sys::FFstrbuf,
+    kind: fastfetch_sys::FFstrbuf,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct FastfetchPhysicalMemoryResult {
+    size: u64,
+    maxSpeed: u32,
+    runningSpeed: u32,
+    kind: fastfetch_sys::FFstrbuf,
+    formFactor: fastfetch_sys::FFstrbuf,
+    locator: fastfetch_sys::FFstrbuf,
+    partNumber: fastfetch_sys::FFstrbuf,
+    vendor: fastfetch_sys::FFstrbuf,
+    serial: fastfetch_sys::FFstrbuf,
+    ecc: bool,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+struct FastfetchGpuMemory {
+    total: u64,
+    used: u64,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct FastfetchGpuResult {
+    index: u32,
+    kind: fastfetch_sys::FFGPUType,
+    vendor: fastfetch_sys::FFstrbuf,
+    name: fastfetch_sys::FFstrbuf,
+    driver: fastfetch_sys::FFstrbuf,
+    platformApi: fastfetch_sys::FFstrbuf,
+    memoryType: fastfetch_sys::FFstrbuf,
+    temperature: f64,
+    coreUsage: f64,
+    coreCount: i32,
+    frequency: u32,
+    dedicated: FastfetchGpuMemory,
+    shared: FastfetchGpuMemory,
+    deviceId: u64,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct FastfetchLocalIpResult {
+    name: fastfetch_sys::FFstrbuf,
+    ipv4: fastfetch_sys::FFstrbuf,
+    ipv6: fastfetch_sys::FFstrbuf,
+    mac: fastfetch_sys::FFstrbuf,
+    flags: fastfetch_sys::FFstrbuf,
+    mtu: i32,
+    speed: i32,
+    defaultRoute: bool,
+}
+
+#[cfg(target_os = "linux")]
+type FastfetchPhysicalDiskType = u8;
+#[cfg(target_os = "linux")]
+const FASTFETCH_PHYSICAL_DISK_HDD: FastfetchPhysicalDiskType = 1 << 0;
+#[cfg(target_os = "linux")]
+const FASTFETCH_PHYSICAL_DISK_SSD: FastfetchPhysicalDiskType = 1 << 1;
+#[cfg(target_os = "linux")]
+const FASTFETCH_PHYSICAL_DISK_FIXED: FastfetchPhysicalDiskType = 1 << 2;
+#[cfg(target_os = "linux")]
+const FASTFETCH_PHYSICAL_DISK_REMOVABLE: FastfetchPhysicalDiskType = 1 << 3;
+#[cfg(target_os = "linux")]
+const FASTFETCH_PHYSICAL_DISK_READONLY: FastfetchPhysicalDiskType = 1 << 5;
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct FastfetchPhysicalDiskResult {
+    name: fastfetch_sys::FFstrbuf,
+    interconnect: fastfetch_sys::FFstrbuf,
+    serial: fastfetch_sys::FFstrbuf,
+    devPath: fastfetch_sys::FFstrbuf,
+    revision: fastfetch_sys::FFstrbuf,
+    kind: FastfetchPhysicalDiskType,
+    size: u64,
+    temperature: f64,
+}
+
+#[cfg(target_os = "linux")]
+extern "C" {
+    fn ffDetectBoard(board: *mut FastfetchBoardResult) -> *const c_char;
+    fn ffDetectBios(bios: *mut FastfetchBiosResult) -> *const c_char;
+    fn ffDetectCPU(
+        options: *const fastfetch_sys::FFCPUOptions,
+        cpu: *mut FastfetchCpuResult,
+    ) -> *const c_char;
+    fn ffDetectPhysicalMemory(result: *mut fastfetch_sys::FFlist) -> *const c_char;
+    fn ffDetectGPU(
+        options: *const fastfetch_sys::FFGPUOptions,
+        result: *mut fastfetch_sys::FFlist,
+    ) -> *const c_char;
+    fn ffDetectLocalIps(
+        options: *const fastfetch_sys::FFLocalIpOptions,
+        result: *mut fastfetch_sys::FFlist,
+    ) -> *const c_char;
+    fn ffDetectPhysicalDisk(
+        result: *mut fastfetch_sys::FFlist,
+        options: *mut fastfetch_sys::FFPhysicalDiskOptions,
+    ) -> *const c_char;
+}
+
+#[cfg(target_os = "linux")]
+struct FastfetchCollector {
+    assets: Vec<AssetEntry>,
+    diagnostics: Vec<AssetDiagnostic>,
+}
+
+#[cfg(target_os = "linux")]
+impl FastfetchCollector {
+    fn collect_board(&mut self) {
+        unsafe {
+            let mut board = FastfetchBoard::new();
+            let error = ffDetectBoard(&mut board.raw);
+            if !error.is_null() {
+                self.push_diag("motherboard", false, 0, Some(c_error(error)));
+                return;
+            }
+
+            let name = board.name();
+            if name.is_empty() {
+                self.push_diag(
+                    "motherboard",
+                    false,
+                    0,
+                    Some("no motherboard detected".to_string()),
+                );
+                return;
+            }
+
+            let vendor = board.vendor();
+            let version = board.version();
+            let serial = board.serial();
+            let unique_seed =
+                first_meaningful([serial.as_str(), name.as_str(), version.as_str()]).to_string();
+            self.assets.push(asset_entry(
+                "motherboard",
+                unique_seed.as_str(),
+                name.clone(),
+                vendor,
+                version,
+                serial,
+                String::new(),
+            ));
+            self.push_diag("motherboard", true, 1, None);
+        }
+    }
+
+    fn collect_bios(&mut self) {
+        unsafe {
+            let mut bios = FastfetchBios::new();
+            let error = ffDetectBios(&mut bios.raw);
+            if !error.is_null() {
+                self.push_diag("bios", false, 0, Some(c_error(error)));
+                return;
+            }
+
+            let version = bios.version();
+            let release = bios.release();
+            let bios_type = bios.bios_type();
+            let name = join_non_empty(
+                " ",
+                [bios_type.as_str(), version.as_str(), release.as_str()],
+            );
+            if name.is_empty() {
+                self.push_diag("bios", false, 0, Some("no bios detected".to_string()));
+                return;
+            }
+
+            let date = bios.date();
+            let unique_seed = first_meaningful([
+                version.as_str(),
+                release.as_str(),
+                date.as_str(),
+                name.as_str(),
+            ])
+            .to_string();
+            let specification = join_non_empty(" / ", [release.as_str(), date.as_str()]);
+            self.assets.push(asset_entry(
+                "bios",
+                unique_seed.as_str(),
+                name,
+                bios.vendor(),
+                version,
+                String::new(),
+                specification,
+            ));
+            self.push_diag("bios", true, 1, None);
+        }
+    }
+
+    fn collect_cpu(&mut self) {
+        unsafe {
+            let mut cpu = FastfetchCpu::new();
+            let options = mem::zeroed::<fastfetch_sys::FFCPUOptions>();
+            let error = ffDetectCPU(&options, &mut cpu.raw);
+            if !error.is_null() {
+                self.push_diag("cpu", false, 0, Some(c_error(error)));
+                return;
+            }
+
+            let name = cpu.name();
+            if name.is_empty() && cpu.raw.coresOnline <= 1 {
+                self.push_diag("cpu", false, 0, Some("no cpu detected".to_string()));
+                return;
+            }
+
+            let display_name = if name.is_empty() {
+                "CPU".to_string()
+            } else if cpu.raw.packages > 1 {
+                format!("{} x {}", cpu.raw.packages, name)
+            } else {
+                name.clone()
+            };
+            let specification = cpu_specification(&cpu.raw);
+            let unique_seed =
+                first_meaningful([name.as_str(), display_name.as_str(), specification.as_str()])
+                    .to_string();
+            self.assets.push(asset_entry(
+                "cpu",
+                unique_seed.as_str(),
+                display_name,
+                cpu.vendor(),
+                name,
+                String::new(),
+                specification,
+            ));
+            self.push_diag("cpu", true, 1, None);
+        }
+    }
+
+    fn collect_memory(&mut self) {
+        unsafe {
+            let mut list =
+                FastfetchList::new::<FastfetchPhysicalMemoryResult>(destroy_physical_memory);
+            let error = ffDetectPhysicalMemory(&mut list.raw);
+            if !error.is_null() {
+                self.push_diag("memory", false, 0, Some(c_error(error)));
+                return;
+            }
+
+            for i in 0..list.raw.length {
+                let memory = list.get::<FastfetchPhysicalMemoryResult>(i);
+                if memory.is_null() {
+                    continue;
+                }
+                let memory = &*memory;
+                let size = format_bytes(memory.size);
+                let memory_type = ffstrbuf_to_string(&memory.kind);
+                let locator = ffstrbuf_to_string(&memory.locator);
+                let part_number = ffstrbuf_to_string(&memory.partNumber);
+                let vendor = ffstrbuf_to_string(&memory.vendor);
+                let serial = ffstrbuf_to_string(&memory.serial);
+                let speed = memory_speed(memory.maxSpeed, memory.runningSpeed);
+                let ecc = if memory.ecc { "ECC" } else { "" };
+                let specification = join_non_empty(
+                    " / ",
+                    [
+                        size.as_str(),
+                        memory_type.as_str(),
+                        speed.as_str(),
+                        ecc,
+                        locator.as_str(),
+                    ],
+                );
+                let asset_name = first_non_empty_owned([
+                    join_non_empty(" ", [size.as_str(), memory_type.as_str()]),
+                    "Memory".to_string(),
+                ]);
+                let unique_seed = first_meaningful([
+                    serial.as_str(),
+                    locator.as_str(),
+                    part_number.as_str(),
+                    specification.as_str(),
+                ])
+                .to_string();
+                self.assets.push(asset_entry(
+                    "memory",
+                    unique_seed.as_str(),
+                    asset_name,
+                    vendor,
+                    first_non_empty_owned([part_number, memory_type]),
+                    serial,
+                    specification,
+                ));
+            }
+            self.push_diag(
+                "memory",
+                list.raw.length > 0,
+                list.raw.length as usize,
+                None,
+            );
+        }
+    }
+
+    fn collect_gpus(&mut self) {
+        unsafe {
+            let mut list = FastfetchList::new::<FastfetchGpuResult>(destroy_gpu);
+            let options = mem::zeroed::<fastfetch_sys::FFGPUOptions>();
+            let error = ffDetectGPU(&options, &mut list.raw);
+            if !error.is_null() {
+                self.push_diag("gpu", false, 0, Some(c_error(error)));
+                return;
+            }
+
+            for i in 0..list.raw.length {
+                let gpu = list.get::<FastfetchGpuResult>(i);
+                if gpu.is_null() {
+                    continue;
+                }
+                let gpu = &*gpu;
+                let vendor = ffstrbuf_to_string(&gpu.vendor);
+                let name = ffstrbuf_to_string(&gpu.name);
+                let driver = ffstrbuf_to_string(&gpu.driver);
+                let api = ffstrbuf_to_string(&gpu.platformApi);
+                let memory_type = ffstrbuf_to_string(&gpu.memoryType);
+                let memory = gpu_memory(gpu);
+                let device_id = if gpu.deviceId > 0 {
+                    gpu.deviceId.to_string()
+                } else {
+                    String::new()
+                };
+                let specification = join_non_empty(
+                    " / ",
+                    [
+                        gpu_type(gpu.raw_type()).as_str(),
+                        memory.as_str(),
+                        memory_type.as_str(),
+                        driver.as_str(),
+                        api.as_str(),
+                    ],
+                );
+                let asset_name = first_non_empty_owned([name.clone(), "GPU".to_string()]);
+                let unique_seed =
+                    first_meaningful([device_id.as_str(), name.as_str(), vendor.as_str()])
+                        .to_string();
+                self.assets.push(asset_entry(
+                    "gpu",
+                    unique_seed.as_str(),
+                    asset_name,
+                    vendor,
+                    name,
+                    String::new(),
+                    specification,
+                ));
+            }
+            self.push_diag("gpu", list.raw.length > 0, list.raw.length as usize, None);
+        }
+    }
+
+    fn collect_network(&mut self) {
+        unsafe {
+            let mut list = FastfetchList::new::<FastfetchLocalIpResult>(destroy_local_ip);
+            let mut options = mem::zeroed::<fastfetch_sys::FFLocalIpOptions>();
+            options.showType = (fastfetch_sys::FFLocalIpType_FF_LOCALIP_TYPE_IPV4_BIT
+                | fastfetch_sys::FFLocalIpType_FF_LOCALIP_TYPE_IPV6_BIT
+                | fastfetch_sys::FFLocalIpType_FF_LOCALIP_TYPE_MAC_BIT
+                | fastfetch_sys::FFLocalIpType_FF_LOCALIP_TYPE_MTU_BIT
+                | fastfetch_sys::FFLocalIpType_FF_LOCALIP_TYPE_SPEED_BIT
+                | fastfetch_sys::FFLocalIpType_FF_LOCALIP_TYPE_FLAGS_BIT)
+                as fastfetch_sys::FFLocalIpType;
+            let error = ffDetectLocalIps(&options, &mut list.raw);
+            if !error.is_null() {
+                self.push_diag("network", false, 0, Some(c_error(error)));
+                return;
+            }
+
+            for i in 0..list.raw.length {
+                let nic = list.get::<FastfetchLocalIpResult>(i);
+                if nic.is_null() {
+                    continue;
+                }
+                let nic = &*nic;
+                let name = ffstrbuf_to_string(&nic.name);
+                let mac = ffstrbuf_to_string(&nic.mac);
+                let ipv4 = ffstrbuf_to_string(&nic.ipv4);
+                let ipv6 = ffstrbuf_to_string(&nic.ipv6);
+                let flags = ffstrbuf_to_string(&nic.flags);
+                let speed = if nic.speed > 0 {
+                    format!("{} Mb/s", nic.speed)
+                } else {
+                    String::new()
+                };
+                let mtu = if nic.mtu > 0 {
+                    format!("MTU {}", nic.mtu)
+                } else {
+                    String::new()
+                };
+                let default_route = if nic.defaultRoute {
+                    "default route"
+                } else {
+                    ""
+                };
+                let specification = join_non_empty(
+                    " / ",
+                    [
+                        ipv4.as_str(),
+                        ipv6.as_str(),
+                        mac.as_str(),
+                        speed.as_str(),
+                        mtu.as_str(),
+                        flags.as_str(),
+                        default_route,
+                    ],
+                );
+                let unique_seed =
+                    first_meaningful([mac.as_str(), name.as_str(), ipv4.as_str(), ipv6.as_str()])
+                        .to_string();
+                self.assets.push(asset_entry(
+                    "network",
+                    unique_seed.as_str(),
+                    first_non_empty_owned([name, "Network Interface".to_string()]),
+                    String::new(),
+                    String::new(),
+                    mac,
+                    specification,
+                ));
+            }
+            self.push_diag(
+                "network",
+                list.raw.length > 0,
+                list.raw.length as usize,
+                None,
+            );
+        }
+    }
+
+    fn collect_disks(&mut self) {
+        unsafe {
+            let mut list = FastfetchList::new::<FastfetchPhysicalDiskResult>(destroy_physical_disk);
+            let mut options = mem::zeroed::<fastfetch_sys::FFPhysicalDiskOptions>();
+            let error = ffDetectPhysicalDisk(&mut list.raw, &mut options);
+            if !error.is_null() {
+                self.push_diag("disk", false, 0, Some(c_error(error)));
+                return;
+            }
+
+            for i in 0..list.raw.length {
+                let disk = list.get::<FastfetchPhysicalDiskResult>(i);
+                if disk.is_null() {
+                    continue;
+                }
+                let disk = &*disk;
+                let name = ffstrbuf_to_string(&disk.name);
+                let interconnect = ffstrbuf_to_string(&disk.interconnect);
+                let serial = ffstrbuf_to_string(&disk.serial);
+                let dev_path = ffstrbuf_to_string(&disk.devPath);
+                let revision = ffstrbuf_to_string(&disk.revision);
+                let size = format_bytes(disk.size);
+                let disk_type = physical_disk_type(disk.raw_type());
+                let specification = join_non_empty(
+                    " / ",
+                    [
+                        size.as_str(),
+                        disk_type.as_str(),
+                        interconnect.as_str(),
+                        revision.as_str(),
+                        dev_path.as_str(),
+                    ],
+                );
+                let unique_seed =
+                    first_meaningful([serial.as_str(), dev_path.as_str(), name.as_str()])
+                        .to_string();
+                self.assets.push(asset_entry(
+                    "disk",
+                    unique_seed.as_str(),
+                    first_non_empty_owned([name.clone(), dev_path.clone(), "Disk".to_string()]),
+                    String::new(),
+                    name,
+                    serial,
+                    specification,
+                ));
+            }
+            self.push_diag("disk", list.raw.length > 0, list.raw.length as usize, None);
+        }
+    }
+
+    fn push_diag(&mut self, name: &str, ok: bool, count: usize, message: Option<String>) {
+        self.diagnostics.push(AssetDiagnostic {
+            name: name.to_string(),
+            ok,
+            count,
+            message,
+        });
+    }
+}
+
+#[cfg(target_os = "linux")]
+struct FastfetchCpu {
+    raw: FastfetchCpuResult,
+}
+
+#[cfg(target_os = "linux")]
+impl FastfetchCpu {
+    unsafe fn new() -> Self {
+        let mut raw = mem::zeroed::<FastfetchCpuResult>();
+        init_strbuf(&mut raw.name);
+        init_strbuf(&mut raw.vendor);
+        raw.temperature = f64::NAN;
+        Self { raw }
+    }
+
+    fn name(&self) -> String {
+        ffstrbuf_to_string(&self.raw.name)
+    }
+
+    fn vendor(&self) -> String {
+        ffstrbuf_to_string(&self.raw.vendor)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for FastfetchCpu {
+    fn drop(&mut self) {
+        unsafe {
+            destroy_strbuf(&mut self.raw.name);
+            destroy_strbuf(&mut self.raw.vendor);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+struct FastfetchBoard {
+    raw: FastfetchBoardResult,
+}
+
+#[cfg(target_os = "linux")]
+impl FastfetchBoard {
+    unsafe fn new() -> Self {
+        let mut raw = mem::zeroed::<FastfetchBoardResult>();
+        init_strbuf(&mut raw.name);
+        init_strbuf(&mut raw.vendor);
+        init_strbuf(&mut raw.version);
+        init_strbuf(&mut raw.serial);
+        Self { raw }
+    }
+
+    fn name(&self) -> String {
+        ffstrbuf_to_string(&self.raw.name)
+    }
+
+    fn vendor(&self) -> String {
+        ffstrbuf_to_string(&self.raw.vendor)
+    }
+
+    fn version(&self) -> String {
+        ffstrbuf_to_string(&self.raw.version)
+    }
+
+    fn serial(&self) -> String {
+        ffstrbuf_to_string(&self.raw.serial)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for FastfetchBoard {
+    fn drop(&mut self) {
+        unsafe {
+            destroy_strbuf(&mut self.raw.name);
+            destroy_strbuf(&mut self.raw.vendor);
+            destroy_strbuf(&mut self.raw.version);
+            destroy_strbuf(&mut self.raw.serial);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+struct FastfetchBios {
+    raw: FastfetchBiosResult,
+}
+
+#[cfg(target_os = "linux")]
+impl FastfetchBios {
+    unsafe fn new() -> Self {
+        let mut raw = mem::zeroed::<FastfetchBiosResult>();
+        init_strbuf(&mut raw.date);
+        init_strbuf(&mut raw.release);
+        init_strbuf(&mut raw.vendor);
+        init_strbuf(&mut raw.version);
+        init_strbuf(&mut raw.kind);
+        Self { raw }
+    }
+
+    fn date(&self) -> String {
+        ffstrbuf_to_string(&self.raw.date)
+    }
+
+    fn release(&self) -> String {
+        ffstrbuf_to_string(&self.raw.release)
+    }
+
+    fn vendor(&self) -> String {
+        ffstrbuf_to_string(&self.raw.vendor)
+    }
+
+    fn version(&self) -> String {
+        ffstrbuf_to_string(&self.raw.version)
+    }
+
+    fn bios_type(&self) -> String {
+        ffstrbuf_to_string(&self.raw.kind)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for FastfetchBios {
+    fn drop(&mut self) {
+        unsafe {
+            destroy_strbuf(&mut self.raw.date);
+            destroy_strbuf(&mut self.raw.release);
+            destroy_strbuf(&mut self.raw.vendor);
+            destroy_strbuf(&mut self.raw.version);
+            destroy_strbuf(&mut self.raw.kind);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+struct FastfetchList {
+    raw: fastfetch_sys::FFlist,
+    destroy_item: Option<unsafe fn(*mut u8)>,
+}
+
+#[cfg(target_os = "linux")]
+impl FastfetchList {
+    unsafe fn new<T>(destroy_item: unsafe fn(*mut u8)) -> Self {
+        let mut raw = mem::zeroed::<fastfetch_sys::FFlist>();
+        raw.elementSize = mem::size_of::<T>() as u32;
+        Self {
+            raw,
+            destroy_item: Some(destroy_item),
+        }
+    }
+
+    unsafe fn get<T>(&self, index: u32) -> *const T {
+        self.raw
+            .data
+            .add(index as usize * self.raw.elementSize as usize) as *const T
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for FastfetchList {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.raw.data.is_null() {
+                if let Some(destroy_item) = self.destroy_item {
+                    for index in 0..self.raw.length {
+                        destroy_item(
+                            self.raw
+                                .data
+                                .add(index as usize * self.raw.elementSize as usize),
+                        );
+                    }
+                }
+                free(self.raw.data.cast());
+                self.raw.data = ptr::null_mut();
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn init_strbuf(value: &mut fastfetch_sys::FFstrbuf) {
+    fastfetch_sys::ffStrbufInitA(value, 0);
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn destroy_strbuf(value: &mut fastfetch_sys::FFstrbuf) {
+    if value.allocated != 0 && !value.chars.is_null() {
+        free(value.chars.cast());
+    }
+    value.allocated = 0;
+    value.length = 0;
+    value.chars = ptr::null_mut();
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn destroy_physical_memory(item: *mut u8) {
+    let item = item.cast::<FastfetchPhysicalMemoryResult>();
+    destroy_strbuf(&mut (*item).kind);
+    destroy_strbuf(&mut (*item).formFactor);
+    destroy_strbuf(&mut (*item).locator);
+    destroy_strbuf(&mut (*item).partNumber);
+    destroy_strbuf(&mut (*item).vendor);
+    destroy_strbuf(&mut (*item).serial);
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn destroy_gpu(item: *mut u8) {
+    let item = item.cast::<FastfetchGpuResult>();
+    destroy_strbuf(&mut (*item).vendor);
+    destroy_strbuf(&mut (*item).name);
+    destroy_strbuf(&mut (*item).driver);
+    destroy_strbuf(&mut (*item).platformApi);
+    destroy_strbuf(&mut (*item).memoryType);
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn destroy_local_ip(item: *mut u8) {
+    let item = item.cast::<FastfetchLocalIpResult>();
+    destroy_strbuf(&mut (*item).name);
+    destroy_strbuf(&mut (*item).ipv4);
+    destroy_strbuf(&mut (*item).ipv6);
+    destroy_strbuf(&mut (*item).mac);
+    destroy_strbuf(&mut (*item).flags);
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn destroy_physical_disk(item: *mut u8) {
+    let item = item.cast::<FastfetchPhysicalDiskResult>();
+    destroy_strbuf(&mut (*item).name);
+    destroy_strbuf(&mut (*item).interconnect);
+    destroy_strbuf(&mut (*item).serial);
+    destroy_strbuf(&mut (*item).devPath);
+    destroy_strbuf(&mut (*item).revision);
+}
+
+#[cfg(target_os = "linux")]
+trait FastfetchGpuExt {
+    fn raw_type(&self) -> fastfetch_sys::FFGPUType;
+}
+
+#[cfg(target_os = "linux")]
+impl FastfetchGpuExt for FastfetchGpuResult {
+    fn raw_type(&self) -> fastfetch_sys::FFGPUType {
+        self.kind
+    }
+}
+
+#[cfg(target_os = "linux")]
+trait FastfetchDiskExt {
+    fn raw_type(&self) -> FastfetchPhysicalDiskType;
+}
+
+#[cfg(target_os = "linux")]
+impl FastfetchDiskExt for FastfetchPhysicalDiskResult {
+    fn raw_type(&self) -> FastfetchPhysicalDiskType {
+        self.kind
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn ensure_linux_fallback_assets(
+    assets: &mut Vec<AssetEntry>,
+    diagnostics: &mut Vec<AssetDiagnostic>,
+) {
+    if !assets.iter().any(|item| item.asset_type == "cpu") {
         if let Ok(cpuinfo) = fs::read_to_string("/proc/cpuinfo") {
             let model = cpuinfo
                 .lines()
@@ -2093,43 +2924,45 @@ fn collect_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
                     line.strip_prefix("model name")
                         .and_then(|v| v.split(':').nth(1))
                 })
+                .or_else(|| {
+                    cpuinfo.lines().find_map(|line| {
+                        line.strip_prefix("Hardware")
+                            .and_then(|v| v.split(':').nth(1))
+                    })
+                })
                 .map(str::trim)
                 .unwrap_or("CPU");
-            assets.push(AssetEntry {
-                asset_type: "cpu".to_string(),
-                unique_key: sanitize(model),
-                asset_name: model.to_string(),
-                brand: String::new(),
-                model: model.to_string(),
-                serial_no: String::new(),
-                specification: String::new(),
-                source: "auroraops-agent".to_string(),
-                sync_hash: String::new(),
-                remark: "auto:agent".to_string(),
-            });
+            assets.push(asset_entry(
+                "cpu",
+                model,
+                model.to_string(),
+                String::new(),
+                model.to_string(),
+                String::new(),
+                "fallback:/proc/cpuinfo".to_string(),
+            ));
             diagnostics.push(AssetDiagnostic {
-                name: "cpu".to_string(),
+                name: "cpu-fallback".to_string(),
                 ok: true,
                 count: 1,
                 message: None,
             });
         }
+    }
+    if !assets.iter().any(|item| item.asset_type == "memory") {
         if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
             if let Some(total) = meminfo.lines().find(|line| line.starts_with("MemTotal:")) {
-                assets.push(AssetEntry {
-                    asset_type: "memory".to_string(),
-                    unique_key: sanitize(total),
-                    asset_name: "System Memory".to_string(),
-                    brand: String::new(),
-                    model: "RAM".to_string(),
-                    serial_no: String::new(),
-                    specification: total.to_string(),
-                    source: "auroraops-agent".to_string(),
-                    sync_hash: String::new(),
-                    remark: "auto:agent".to_string(),
-                });
+                assets.push(asset_entry(
+                    "memory",
+                    total,
+                    "System Memory".to_string(),
+                    String::new(),
+                    "RAM".to_string(),
+                    String::new(),
+                    total.to_string(),
+                ));
                 diagnostics.push(AssetDiagnostic {
-                    name: "memory".to_string(),
+                    name: "memory-fallback".to_string(),
                     ok: true,
                     count: 1,
                     message: None,
@@ -2137,8 +2970,211 @@ fn collect_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
             }
         }
     }
+}
 
-    (assets, diagnostics)
+#[cfg(target_os = "linux")]
+fn asset_entry(
+    asset_type: &str,
+    unique_seed: &str,
+    asset_name: String,
+    brand: String,
+    model: String,
+    serial_no: String,
+    specification: String,
+) -> AssetEntry {
+    let unique_key = if serial_no.trim().is_empty() {
+        sanitize(first_meaningful([
+            unique_seed,
+            asset_name.as_str(),
+            model.as_str(),
+            specification.as_str(),
+        ]))
+    } else {
+        sanitize(serial_no.as_str())
+    };
+    AssetEntry {
+        asset_type: asset_type.to_string(),
+        unique_key: if unique_key.is_empty() {
+            sanitize(&format!(
+                "{asset_type}-{asset_name}-{model}-{specification}"
+            ))
+        } else {
+            unique_key
+        },
+        asset_name,
+        brand,
+        model,
+        serial_no,
+        specification,
+        source: "fastfetch-sys".to_string(),
+        sync_hash: String::new(),
+        remark: "auto:fastfetch-sys".to_string(),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn ffstrbuf_to_string(value: &fastfetch_sys::FFstrbuf) -> String {
+    if value.chars.is_null() || value.length == 0 {
+        return String::new();
+    }
+    unsafe {
+        let bytes = std::slice::from_raw_parts(value.chars as *const u8, value.length as usize);
+        String::from_utf8_lossy(bytes).trim().to_string()
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn c_error(error: *const std::os::raw::c_char) -> String {
+    if error.is_null() {
+        String::new()
+    } else {
+        unsafe { CStr::from_ptr(error).to_string_lossy().into_owned() }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn cpu_specification(cpu: &FastfetchCpuResult) -> String {
+    let cores = if cpu.coresPhysical > 0 || cpu.coresLogical > 0 || cpu.coresOnline > 0 {
+        let packages = format_count(cpu.packages as u32, "package");
+        let physical = format_count(cpu.coresPhysical as u32, "physical cores");
+        let logical = format_count(cpu.coresLogical as u32, "logical cores");
+        let online = format_count(cpu.coresOnline as u32, "online cores");
+        join_non_empty(
+            " / ",
+            [
+                packages.as_str(),
+                physical.as_str(),
+                logical.as_str(),
+                online.as_str(),
+            ],
+        )
+    } else {
+        String::new()
+    };
+    let frequency = match (cpu.frequencyBase, cpu.frequencyMax) {
+        (base, max) if base > 0 && max > 0 && base != max => {
+            format!("base {} MHz / max {} MHz", base, max)
+        }
+        (_, max) if max > 0 => format!("max {} MHz", max),
+        (base, _) if base > 0 => format!("base {} MHz", base),
+        _ => String::new(),
+    };
+    join_non_empty(" / ", [cores.as_str(), frequency.as_str()])
+}
+
+#[cfg(target_os = "linux")]
+fn format_count(count: u32, label: &str) -> String {
+    if count == 0 {
+        String::new()
+    } else {
+        format!("{count} {label}")
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn memory_speed(max_speed: u32, running_speed: u32) -> String {
+    match (max_speed, running_speed) {
+        (max, running) if max > 0 && running > 0 && max != running => {
+            format!("{max} MT/s, running {running} MT/s")
+        }
+        (max, _) if max > 0 => format!("{max} MT/s"),
+        (_, running) if running > 0 => format!("{running} MT/s"),
+        _ => String::new(),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn gpu_type(value: fastfetch_sys::FFGPUType) -> String {
+    match value {
+        fastfetch_sys::FFGPUType_FF_GPU_TYPE_INTEGRATED => "Integrated".to_string(),
+        fastfetch_sys::FFGPUType_FF_GPU_TYPE_DISCRETE => "Discrete".to_string(),
+        fastfetch_sys::FFGPUType_FF_GPU_TYPE_UNKNOWN => "Unknown".to_string(),
+        _ => String::new(),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn gpu_memory(gpu: &FastfetchGpuResult) -> String {
+    if gpu.dedicated.total != u64::MAX && gpu.dedicated.total > 0 {
+        return format!("VRAM {}", format_bytes(gpu.dedicated.total));
+    }
+    if gpu.shared.total != u64::MAX && gpu.shared.total > 0 {
+        return format!("shared {}", format_bytes(gpu.shared.total));
+    }
+    String::new()
+}
+
+#[cfg(target_os = "linux")]
+fn physical_disk_type(value: FastfetchPhysicalDiskType) -> String {
+    let raw = value as u32;
+    let mut parts = Vec::new();
+    if raw & FASTFETCH_PHYSICAL_DISK_SSD as u32 != 0 {
+        parts.push("SSD");
+    } else if raw & FASTFETCH_PHYSICAL_DISK_HDD as u32 != 0 {
+        parts.push("HDD");
+    }
+    if raw & FASTFETCH_PHYSICAL_DISK_REMOVABLE as u32 != 0 {
+        parts.push("removable");
+    } else if raw & FASTFETCH_PHYSICAL_DISK_FIXED as u32 != 0 {
+        parts.push("fixed");
+    }
+    if raw & FASTFETCH_PHYSICAL_DISK_READONLY as u32 != 0 {
+        parts.push("readonly");
+    }
+    parts.join(" ")
+}
+
+#[cfg(target_os = "linux")]
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    if bytes == 0 {
+        return String::new();
+    }
+    let mut value = bytes as f64;
+    let mut unit = 0usize;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 || value >= 100.0 {
+        format!("{value:.0} {}", UNITS[unit])
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn first_meaningful<const N: usize>(values: [&str; N]) -> &str {
+    values
+        .into_iter()
+        .find(|value| {
+            let value = value.trim();
+            !value.is_empty()
+                && !matches!(
+                    value.to_ascii_lowercase().as_str(),
+                    "unknown" | "none" | "default string" | "to be filled by o.e.m."
+                )
+        })
+        .unwrap_or("")
+        .trim()
+}
+
+#[cfg(target_os = "linux")]
+fn first_non_empty_owned<const N: usize>(values: [String; N]) -> String {
+    values
+        .into_iter()
+        .find(|value| !value.trim().is_empty())
+        .unwrap_or_default()
+}
+
+#[cfg(target_os = "linux")]
+fn join_non_empty<const N: usize>(separator: &str, values: [&str; N]) -> String {
+    values
+        .into_iter()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(separator)
 }
 
 fn normalize_config(cfg: &mut AgentConfig) {

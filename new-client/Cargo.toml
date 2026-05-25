@@ -58,6 +58,7 @@ dbus = "^0.9"
 drm = "0.14"
 drm-ffi = "0.9"
 drm-fourcc = "2.2"
+fastfetch-sys = { path = "vendor/fastfetch-sys" }
 gstreamer = { version = "^0.24", optional = true }
 gstreamer-app = { version = "^0.24", features = ["v1_16"], optional = true }
 gstreamer-video = { version = "^0.24", optional = true }

@@ -26,7 +26,7 @@
 
 ### 步骤 0: 信创 / 主流 Linux 多目标矩阵编译（推荐）
 
-`docker-build-linux.sh` 用 4 档基础镜像（按 glibc 同源映射）覆盖你列的全部目标，每个目标都同时出 `amd64` + `arm64` 两份产物：
+`docker-build-linux.sh` 用 4 档基础镜像（按 glibc 同源映射）覆盖你列的全部目标。CI 会在对应原生 runner 上分别出 `amd64` + `arm64` 产物，本地默认只编当前机器架构：
 
 | --target    | 基础镜像          | glibc | 覆盖的真实系统                                |
 |-------------|-------------------|-------|-----------------------------------------------|
@@ -39,14 +39,17 @@
 
 ```bash
 cd new-client
-# 全部 6 个目标 × 2 架构 = 12 份产物
+# 全部目标 × 当前机器架构
 ./docker-build-linux.sh
 
-# 只编 UOS V20 + 麒麟 V10，amd64 + arm64
-./docker-build-linux.sh --target uos-v20,kylin-v10
+# 只编 UOS V20 + 麒麟 V10/V11 桌面
+./docker-build-linux.sh --target uos-v20,kylin-v10-v11
 
 # 只编 amd64
 ./docker-build-linux.sh --arch amd64
+
+# 确实需要在非 arm64 主机上模拟编 arm64 时，显式开启 QEMU
+./docker-build-linux.sh --arch arm64 --use-qemu
 
 # 走代理
 ./docker-build-linux.sh --proxy http://127.0.0.1:12333
@@ -55,7 +58,7 @@ cd new-client
 产物位置：`new-client/dist/linux-matrix/<target>-<arch>/`，每个目录里包含
 `auroraops-agent`、对应的 `.deb` 或 `.rpm`、以及 `auroraops-agent.ldd.txt`。
 
-> 跨架构编译（在 amd64 主机编 arm64）会用 `tonistiigi/binfmt` 自动安装 QEMU。
+> 默认不使用 QEMU。GitHub Actions 的 arm64 构建使用 `ubuntu-22.04-arm` 原生 runner；本地只有显式传 `--use-qemu` 时才会安装 `tonistiigi/binfmt`。
 > CI 已配置在 `.github/workflows/build-linux.yml`，push / PR / 手动触发都会跑全矩阵。
 
 ### 步骤1: UOS V10 / Kylin V10 Docker编译（旧脚本）

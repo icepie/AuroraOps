@@ -57,7 +57,7 @@ RUN set -eux; \
       }; \
       retry_apt_install \
         ca-certificates curl git file xz-utils pkg-config \
-        build-essential gcc g++ make cmake nasm yasm \
+        build-essential gcc g++ clang libclang-dev make cmake nasm yasm \
         autoconf automake libtool \
         dpkg-dev fakeroot rpm \
         libdbus-1-dev \
@@ -106,7 +106,7 @@ RUN set -eux; \
       fi; \
       "$pm" install -y \
         ca-certificates curl git file xz pkgconfig \
-        gcc gcc-c++ make cmake rpm-build \
+        gcc gcc-c++ clang clang-devel make cmake rpm-build \
         autoconf automake libtool \
         dbus-devel \
         libX11-devel libXtst-devel libXext-devel libXrandr-devel libXfixes-devel libXcomposite-devel libXi-devel \

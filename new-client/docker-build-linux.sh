@@ -12,10 +12,18 @@
 #
 # Targets without GStreamer ≥1.16 (ubuntu2004, centos7) build without the
 # 'pipewire' feature — Wayland screen capture is disabled, X11 still works.
-# All targets build for both linux/amd64 and linux/arm64 unless --arch is given.
+# By default this builds the current native architecture only. CI runs amd64
+# and arm64 on matching native runners. Use --use-qemu to allow local cross-arch
+# emulation explicitly.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOST_UNAME="$(uname -m)"
+case "$HOST_UNAME" in
+  x86_64|amd64) DEFAULT_ARCHES="amd64" ;;
+  aarch64|arm64) DEFAULT_ARCHES="arm64" ;;
+  *) DEFAULT_ARCHES="amd64" ;;
+esac
 DOCKERFILE="docker/Dockerfile.linux-builder"
 OUTPUT_DIR="${OUTPUT_DIR:-dist/linux-matrix}"
 CARGO_REGISTRY="${CARGO_REGISTRY:-sparse+https://index.crates.io/}"
@@ -26,7 +34,8 @@ NETWORK_MODE="${NETWORK_MODE:-host}"
 PROXY_URL="${PROXY_URL:-}"
 NO_CACHE="${NO_CACHE:-0}"
 TARGETS_INPUT="${TARGETS:-all}"
-ARCHES_INPUT="${ARCHES:-amd64,arm64}"
+ARCHES_INPUT="${ARCHES:-$DEFAULT_ARCHES}"
+USE_QEMU="${USE_QEMU:-0}"
 
 ALL_TARGETS=(ubuntu2004 ubuntu2204 uos-v20 kylin-v10-v11 nfschina-desktop centos7 centos8)
 
@@ -38,11 +47,12 @@ Options:
   --target LIST   Comma-separated targets, or "all".
                   Choices: ubuntu2004, ubuntu2204, uos-v20, kylin-v10-v11, nfschina-desktop, centos7, centos8, all
                   Default: all
-  --arch LIST     Comma-separated archs. Choices: amd64, arm64. Default: amd64,arm64
+  --arch LIST     Comma-separated archs. Choices: amd64, arm64. Default: current host arch
   --output DIR    Output directory. Default: dist/linux-matrix
   --proxy URL     http/https/all proxy passed to docker build & run
   --network MODE  Docker network mode for build & run. Default: host
   --no-cache      Pass --no-cache to docker build
+  --use-qemu      Allow cross-arch emulation via binfmt/QEMU when host != target
   -h, --help      Show this help
 
 Artifacts land in: <output>/<target>-<arch>/{auroraops-agent, *.deb|*.rpm, *.ldd.txt}
@@ -57,6 +67,7 @@ while [ "$#" -gt 0 ]; do
     --proxy) PROXY_URL="$2"; shift 2 ;;
     --network) NETWORK_MODE="$2"; shift 2 ;;
     --no-cache) NO_CACHE=1; shift ;;
+    --use-qemu) USE_QEMU=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -130,13 +141,30 @@ arch_to_platform() {
   esac
 }
 
-# Cross-arch: ensure binfmt is set up when host != target
-ensure_binfmt() {
+host_arch="$HOST_UNAME"
+platform_to_arch() {
+  case "$1" in
+    linux/amd64) echo "x86_64" ;;
+    linux/arm64) echo "aarch64" ;;
+    *) echo "Unknown platform: $1" >&2; exit 2 ;;
+  esac
+}
+
+ensure_arch_support() {
   local platform="$1"
-  if [ "$platform" = "linux/amd64" ] && [ "$(uname -m)" != "x86_64" ]; then
+  local target_arch
+  target_arch="$(platform_to_arch "$platform")"
+  if [ "$host_arch" = "$target_arch" ]; then
+    return 0
+  fi
+  if [ "$USE_QEMU" != 1 ]; then
+    echo "Cross-arch build disabled: host=$host_arch target=$target_arch. Re-run with --use-qemu to allow emulation." >&2
+    exit 3
+  fi
+  if [ "$platform" = "linux/amd64" ]; then
     docker run --privileged --rm tonistiigi/binfmt --install amd64 >/dev/null 2>&1 || true
   fi
-  if [ "$platform" = "linux/arm64" ] && [ "$(uname -m)" != "aarch64" ]; then
+  if [ "$platform" = "linux/arm64" ]; then
     docker run --privileged --rm tonistiigi/binfmt --install arm64 >/dev/null 2>&1 || true
   fi
 }
@@ -156,7 +184,7 @@ for target in "${TARGETS[@]}"; do
     echo " target=$target  arch=$arch  base=$BASE_IMAGE  features='${FEATURES}'"
     echo "============================================================"
 
-    ensure_binfmt "$platform"
+    ensure_arch_support "$platform"
 
     build_args=(
       --platform "$platform"
