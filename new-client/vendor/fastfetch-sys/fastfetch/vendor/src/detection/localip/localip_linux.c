@@ -15,7 +15,15 @@
 #ifdef __linux__
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
-#include <linux/if.h>
+#ifndef IFF_LOWER_UP
+#define IFF_LOWER_UP (1 << 16)
+#endif
+#ifndef IFF_DORMANT
+#define IFF_DORMANT (1 << 17)
+#endif
+#ifndef IFF_ECHO
+#define IFF_ECHO (1 << 18)
+#endif
 #endif
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__APPLE__) || defined(__NetBSD__) || defined(__HAIKU__)
