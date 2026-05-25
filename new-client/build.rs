@@ -109,7 +109,9 @@ fn main() {
     println!("cargo:rerun-if-changed=lib/encode_video.c");
     let mut cc_video = cc::Build::new();
     cc_video.file("lib/encode_video.c");
-    cc_video.include(dist_dir.join("include"));
+    if env::var("CARGO_FEATURE_FFMPEG_SYSTEM").is_err() {
+        cc_video.include(dist_dir.join("include"));
+    }
     if ["linux", "windows"].contains(&target_os.as_str()) {
         cc_video.define("HAS_NVENC", None);
     }
