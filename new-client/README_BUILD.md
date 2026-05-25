@@ -24,7 +24,69 @@
 
 ## 🚀 立即开始使用
 
-### 步骤1: Docker编译（推荐）
+### 步骤 0: 信创 / 主流 Linux 多目标矩阵编译（推荐）
+
+`docker-build-linux.sh` 用 4 档基础镜像（按 glibc 同源映射）覆盖你列的全部目标，每个目标都同时出 `amd64` + `arm64` 两份产物：
+
+| --target    | 基础镜像          | glibc | 覆盖的真实系统                                |
+|-------------|-------------------|-------|-----------------------------------------------|
+| ubuntu1604  | `ubuntu:16.04`    | 2.23  | Ubuntu 16.04 及以上                            |
+| uos-v20     | `debian:10`       | 2.28  | 统信 UOS V20（兆芯 / 海光 / 鲲鹏 / 飞腾 / 海思）|
+| kylin-v10   | `rockylinux:8`    | 2.28  | 麒麟 V10 SP1（兆芯 / 海光 / 鲲鹏 / 飞腾 / 海思）|
+| centos7     | `centos:7` (vault)| 2.17  | CentOS 7 系列                                  |
+| centos8     | `rockylinux:8`    | 2.28  | CentOS / Rocky / Alma 8 及以上                  |
+| nfs-v4      | `rockylinux:8`    | 2.28  | 中科方德 V4                                    |
+
+```bash
+cd new-client
+# 全部 6 个目标 × 2 架构 = 12 份产物
+./docker-build-linux.sh
+
+# 只编 UOS V20 + 麒麟 V10，amd64 + arm64
+./docker-build-linux.sh --target uos-v20,kylin-v10
+
+# 只编 amd64
+./docker-build-linux.sh --arch amd64
+
+# 走代理
+./docker-build-linux.sh --proxy http://127.0.0.1:12333
+```
+
+产物位置：`new-client/dist/linux-matrix/<target>-<arch>/`，每个目录里包含
+`auroraops-agent`、对应的 `.deb` 或 `.rpm`、以及 `auroraops-agent.ldd.txt`。
+
+> 跨架构编译（在 amd64 主机编 arm64）会用 `tonistiigi/binfmt` 自动安装 QEMU。
+> CI 已配置在 `.github/workflows/build-linux.yml`，push / PR / 手动触发都会跑全矩阵。
+
+### 步骤1: UOS V10 / Kylin V10 Docker编译（旧脚本）
+
+如果目标是统信/UOS V10、麒麟 V10，优先使用这个兼容构建入口。它默认使用 `macrosan/kylin:v10-sp3-2403`，产物会更贴近 V10 系统：
+
+```bash
+cd new-client
+./docker-build-uos-v10.sh
+```
+
+产物位置：
+
+```text
+new-client/dist/uos-v10/auroraops-agent
+new-client/dist/uos-v10/auroraops-agent_<version>-<release>_<arch>.deb
+new-client/dist/uos-v10/auroraops-agent.ldd.txt
+```
+
+常用参数：
+
+```bash
+./docker-build-uos-v10.sh --platform linux/amd64
+./docker-build-uos-v10.sh --no-cache
+./docker-build-uos-v10.sh --proxy http://127.0.0.1:12333
+./docker-build-uos-v10.sh --base debian:buster
+```
+
+说明：远程桌面依赖 X11、DBus、GStreamer、FFmpeg 等宿主桌面库，这些库不适合完全静态链接。Docker 构建主要解决 glibc 和编译环境兼容问题，目标机器仍需要对应运行库。
+
+### 步骤1b: 通用Docker编译
 
 ```bash
 # 使用你的代理编译

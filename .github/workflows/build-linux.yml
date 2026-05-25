@@ -1,0 +1,108 @@
+name: build-linux-matrix
+
+on:
+  push:
+    branches: [main, v2.0]
+    paths:
+      - 'new-client/**'
+      - '.github/workflows/build-linux.yml'
+  pull_request:
+    paths:
+      - 'new-client/**'
+      - '.github/workflows/build-linux.yml'
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Comma list: ubuntu1604,uos-v20,kylin-v10,centos7,centos8,nfs-v4 or all'
+        default: 'all'
+      arches:
+        description: 'Comma list: amd64,arm64'
+        default: 'amd64,arm64'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }} / ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ubuntu1604, uos-v20, kylin-v10, centos7, centos8, nfs-v4]
+        arch:   [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for cross-arch)
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Filter dispatch inputs
+        id: filter
+        run: |
+          set -e
+          want_t="${{ github.event.inputs.targets }}"
+          want_a="${{ github.event.inputs.arches }}"
+          t="${{ matrix.target }}"
+          a="${{ matrix.arch }}"
+          run=1
+          if [ -n "$want_t" ] && [ "$want_t" != "all" ]; then
+            case ",$want_t," in *",$t,"*) ;; *) run=0;; esac
+          fi
+          if [ -n "$want_a" ] && [ "$want_a" != "all" ]; then
+            case ",$want_a," in *",$a,"*) ;; *) run=0;; esac
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        if: steps.filter.outputs.run == '1'
+        working-directory: new-client
+        env:
+          RUSTUP_DIST_SERVER: https://static.rust-lang.org
+          RUSTUP_UPDATE_ROOT: https://static.rust-lang.org/rustup
+          CARGO_REGISTRY: sparse+https://index.crates.io/
+        run: |
+          ./docker-build-linux.sh \
+            --target "${{ matrix.target }}" \
+            --arch   "${{ matrix.arch }}" \
+            --output "dist/linux-matrix"
+
+      - name: Stage release files
+        if: steps.filter.outputs.run == '1' && github.event_name != 'pull_request'
+        id: stage
+        working-directory: new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}
+        run: |
+          set -eux
+          prefix="auroraops-agent-${{ matrix.target }}-${{ matrix.arch }}"
+          # rename binary so multiple targets can coexist in one release
+          if [ -f auroraops-agent ]; then
+            mv auroraops-agent "${prefix}"
+          fi
+          # leave .deb / .rpm with their native names; they already encode arch
+          ls -la
+          echo "dir=$(pwd)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to dev rolling release
+        if: steps.filter.outputs.run == '1' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev
+          name: Dev rolling build
+          prerelease: true
+          body: |
+            Rolling pre-release with the latest Linux matrix builds.
+            Commit: ${{ github.sha }}
+            Updated: ${{ github.event.head_commit.timestamp }}
+          files: |
+            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/auroraops-agent-${{ matrix.target }}-${{ matrix.arch }}
+            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/*.deb
+            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/*.rpm
+            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/*.ldd.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

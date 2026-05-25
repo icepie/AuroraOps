@@ -1,0 +1,9 @@
+target/
+agent-service-lite/target/
+dist/
+.git/
+.github/
+deps/x264/
+docker/archive.tar.gz
+www/static/ts/
+*.log

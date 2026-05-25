@@ -1,0 +1,100 @@
+ARG BASE_IMAGE=macrosan/kylin:v10-sp3-2403
+FROM ${BASE_IMAGE}
+
+ARG APT_SOURCE_URL=http://archive.debian.org/debian
+ARG APT_SECURITY_URL=http://archive.debian.org/debian-security
+ARG RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+ARG RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+ARG CARGO_REGISTRY=sparse+https://mirrors.ustc.edu.cn/crates.io-index/
+ARG http_proxy
+ARG https_proxy
+ARG all_proxy
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG ALL_PROXY
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV RUSTUP_DIST_SERVER=${RUSTUP_DIST_SERVER}
+ENV RUSTUP_UPDATE_ROOT=${RUSTUP_UPDATE_ROOT}
+ENV PATH=/root/.cargo/bin:${PATH}
+ENV BUILD_MODE=release
+ENV FEATURES=ffmpeg-system
+ENV FLTK_MODE=source
+ENV CARGO_BUILD_JOBS=0
+
+RUN set -eux; \
+    if command -v apt-get >/dev/null 2>&1; then \
+      if grep -qi 'debian.*buster' /etc/os-release 2>/dev/null; then \
+        printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99archive; \
+        printf 'deb %s buster main contrib non-free\n' "$APT_SOURCE_URL" > /etc/apt/sources.list; \
+        printf 'deb %s buster-updates main contrib non-free\n' "$APT_SOURCE_URL" >> /etc/apt/sources.list; \
+        printf 'deb %s buster/updates main contrib non-free\n' "$APT_SECURITY_URL" >> /etc/apt/sources.list; \
+      fi; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends \
+        ca-certificates curl git file xz-utils pkg-config \
+        build-essential gcc g++ make cmake nasm yasm \
+        dpkg-dev fakeroot \
+        libdbus-1-dev \
+        libx11-dev libxtst-dev libxext-dev libxrandr-dev libxfixes-dev libxcomposite-dev libxi-dev \
+        libxinerama-dev libxcursor-dev libxkbcommon-dev libwayland-dev \
+        libxcb1-dev libxcb-dri3-dev libx11-xcb-dev libxau-dev libxdmcp-dev x11proto-dev xtrans-dev \
+        libdrm-dev \
+        libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev liborc-0.4-dev \
+        libavformat-dev libavfilter-dev libavcodec-dev libavutil-dev libavdevice-dev libswscale-dev libswresample-dev libx264-dev \
+        libunwind-dev libdw-dev libelf-dev liblzma-dev libzstd-dev zlib1g-dev \
+        libfontconfig1-dev libpango1.0-dev libcairo2-dev \
+        gstreamer1.0-plugins-base; \
+      rm -rf /var/lib/apt/lists/*; \
+    elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then \
+      pm="$(command -v dnf || command -v yum)"; \
+      "$pm" install -y \
+        ca-certificates curl git file xz pkgconfig \
+        gcc gcc-c++ make cmake nasm yasm rpm-build \
+        dbus-devel \
+        libX11-devel libXtst-devel libXext-devel libXrandr-devel libXfixes-devel libXcomposite-devel libXi-devel \
+        libXinerama-devel libXcursor-devel libxkbcommon-devel wayland-devel \
+        libxcb-devel libXau-devel libXdmcp-devel xorg-x11-proto-devel \
+        libdrm-devel \
+        glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel orc-devel \
+        ffmpeg-devel x264-devel \
+        libunwind-devel elfutils-devel xz-devel libzstd-devel zlib-devel \
+        fontconfig-devel pango-devel cairo-devel || \
+      "$pm" install -y \
+        ca-certificates curl git file xz pkgconfig \
+        gcc gcc-c++ make cmake nasm yasm rpm-build \
+        dbus-devel \
+        libX11-devel libXtst-devel libXext-devel libXrandr-devel libXfixes-devel libXcomposite-devel libXi-devel \
+        libXinerama-devel libXcursor-devel libxkbcommon-devel wayland-devel \
+        libxcb-devel libXau-devel libXdmcp-devel xorg-x11-proto-devel \
+        libdrm-devel \
+        glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel orc-devel \
+        libunwind-devel elfutils-devel xz-devel libzstd-devel zlib-devel \
+        fontconfig-devel pango-devel cairo-devel; \
+      "$pm" clean all; \
+    else \
+      echo "Unsupported base image: no apt-get, dnf or yum found." >&2; \
+      exit 1; \
+    fi
+
+RUN set -eux; \
+    if command -v dpkg >/dev/null 2>&1; then arch="$(dpkg --print-architecture)"; else arch="$(uname -m)"; fi; \
+    case "$arch" in \
+      amd64|x86_64) rust_arch=x86_64-unknown-linux-gnu ;; \
+      arm64|aarch64) rust_arch=aarch64-unknown-linux-gnu ;; \
+      *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl --proto '=https' --tlsv1.2 -fsSL "${RUSTUP_UPDATE_ROOT}/dist/${rust_arch}/rustup-init" -o /tmp/rustup-init; \
+    chmod +x /tmp/rustup-init; \
+    /tmp/rustup-init -y --profile minimal --default-toolchain stable; \
+    rm -f /tmp/rustup-init; \
+    mkdir -p /root/.cargo; \
+    printf '[source.crates-io]\nreplace-with = "mirror"\n\n[source.mirror]\nregistry = "%s"\n\n[net]\ngit-fetch-with-cli = true\n' "$CARGO_REGISTRY" > /root/.cargo/config.toml; \
+    rustc --version; \
+    cargo --version
+
+WORKDIR /work/new-client
+
+COPY . /work/new-client
+
+CMD ["bash", "-lc", "set -euxo pipefail; jobs=\"${CARGO_BUILD_JOBS}\"; if [ \"$jobs\" = 0 ]; then jobs=$(nproc); fi; export CARGO_BUILD_JOBS=\"$jobs\"; cargo build --release --features ffmpeg-system --bin auroraops-agent; mkdir -p /output; cp -av target/release/auroraops-agent /output/; if command -v dpkg-deb >/dev/null 2>&1; then FEATURES=ffmpeg-system BUILD_MODE=release ./package-linux.sh --skip-build --deb-only; cp -av dist/*.deb /output/; elif command -v rpmbuild >/dev/null 2>&1; then FEATURES=ffmpeg-system BUILD_MODE=release ./package-linux.sh --skip-build --rpm-only; cp -av dist/*.rpm /output/; fi; file /output/auroraops-agent; ldd /output/auroraops-agent | tee /output/auroraops-agent.ldd.txt"]
