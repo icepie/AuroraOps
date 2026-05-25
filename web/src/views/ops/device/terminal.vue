@@ -406,13 +406,21 @@
 
 <style scoped lang="less">
   .terminal-page {
-    min-height: 100vh;
+    height: calc(100vh - 96px);
+    height: calc(100dvh - 96px);
+    min-height: 320px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background: #050607;
     color: #f5f5f5;
   }
 
   .terminal-toolbar {
-    height: 44px;
+    flex: 0 0 44px;
+    box-sizing: border-box;
     padding: 6px 12px;
     display: flex;
     align-items: center;
@@ -443,8 +451,10 @@
   }
 
   .terminal-container {
-    width: 100vw;
-    height: calc(100vh - 44px);
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    box-sizing: border-box;
     padding: 8px;
     overflow: hidden;
   }

@@ -5,13 +5,13 @@
         <span>{{ title }}</span>
         <span class="desktop-state" :class="stateClass">{{ statusText }}</span>
       </div>
-      <n-space align="center" :size="10">
-        <n-button class="desktop-action desktop-action-secondary" size="small" @click="reload">
+      <n-space align="center" :size="8">
+        <n-button class="desktop-action desktop-action-secondary" size="tiny" quaternary @click="reload">
           刷新
         </n-button>
         <n-button
           class="desktop-action desktop-action-primary"
-          size="small"
+          size="tiny"
           type="primary"
           @click="openStandalone"
         >
@@ -19,15 +19,17 @@
         </n-button>
       </n-space>
     </div>
-    <iframe
-      ref="frameRef"
-      class="desktop-frame"
-      :src="weylusUrl"
-      title="AuroraOps 远程桌面"
-      allow="fullscreen; clipboard-read; clipboard-write"
-      @load="handleLoad"
-      @error="handleError"
-    ></iframe>
+    <div class="desktop-frame-wrap">
+      <iframe
+        ref="frameRef"
+        class="desktop-frame"
+        :src="weylusUrl"
+        title="AuroraOps 远程桌面"
+        allow="fullscreen; clipboard-read; clipboard-write"
+        @load="handleLoad"
+        @error="handleError"
+      ></iframe>
+    </div>
   </div>
 </template>
 
@@ -96,16 +98,24 @@
 
 <style scoped lang="less">
   .desktop-page {
-    min-height: 100vh;
+    height: calc(100vh - 96px);
+    height: calc(100dvh - 96px);
+    min-height: 320px;
+    width: 100%;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    border-radius: 0;
     background: #0b0f14;
     color: #f6f8fa;
   }
 
   .desktop-toolbar {
-    min-height: 46px;
-    padding: 6px 14px;
+    flex: 0 0 34px;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 3px 10px 3px 12px;
     display: flex;
     gap: 12px;
     align-items: center;
@@ -118,8 +128,8 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 14px;
+    gap: 8px;
+    font-size: 12px;
     line-height: 1.2;
     white-space: nowrap;
   }
@@ -129,7 +139,7 @@
     align-items: center;
     gap: 6px;
     color: rgba(246, 248, 250, 0.68);
-    font-size: 12px;
+    font-size: 10px;
   }
 
   .desktop-state::before {
@@ -149,7 +159,7 @@
   }
 
   .desktop-action {
-    min-width: 58px;
+    min-width: 48px;
   }
 
   :deep(.desktop-action-secondary) {
@@ -176,21 +186,35 @@
     --n-border-pressed: 1px solid #246be0 !important;
   }
 
-  .desktop-frame {
-    flex: 1;
+  .desktop-frame-wrap {
     width: 100%;
-    min-height: calc(100vh - 46px);
+    min-height: 0;
+    box-sizing: border-box;
+    flex: 1;
+    overflow: hidden;
+    background: #050607;
+  }
+
+  .desktop-frame {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
     border: 0;
     background: #050607;
+    display: block;
   }
 
   @media (max-width: 640px) {
     .desktop-toolbar {
-      min-height: 56px;
+      flex-basis: 40px;
+      padding: 4px 8px;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
-    .desktop-frame {
-      min-height: calc(100vh - 56px);
+    .desktop-title {
+      font-size: 11px;
+      gap: 6px;
     }
   }
 </style>
