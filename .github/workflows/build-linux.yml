@@ -25,25 +25,49 @@ permissions:
 jobs:
   build:
     name: ${{ matrix.target }} / ${{ matrix.arch }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        target: [ubuntu2004, ubuntu2204, uos-v20, kylin-v10-v11, nfschina-desktop, centos7, centos8]
-        arch:   [amd64, arm64]
-        exclude:
+        include:
+          - target: ubuntu2004
+            arch: amd64
+            runner: ubuntu-latest
+          - target: ubuntu2004
+            arch: arm64
+            runner: ubuntu-22.04-arm
+          - target: ubuntu2204
+            arch: amd64
+            runner: ubuntu-latest
+          - target: ubuntu2204
+            arch: arm64
+            runner: ubuntu-22.04-arm
+          - target: uos-v20
+            arch: amd64
+            runner: ubuntu-latest
+          - target: uos-v20
+            arch: arm64
+            runner: ubuntu-22.04-arm
+          - target: kylin-v10-v11
+            arch: amd64
+            runner: ubuntu-latest
+          - target: kylin-v10-v11
+            arch: arm64
+            runner: ubuntu-22.04-arm
+          - target: nfschina-desktop
+            arch: amd64
+            runner: ubuntu-latest
+          - target: nfschina-desktop
+            arch: arm64
+            runner: ubuntu-22.04-arm
           - target: centos7
-            arch: arm64
+            arch: amd64
+            runner: ubuntu-latest
           - target: centos8
-            arch: arm64
+            arch: amd64
+            runner: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU (for cross-arch)
-        if: matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
