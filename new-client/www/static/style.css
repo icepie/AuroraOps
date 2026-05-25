@@ -7,8 +7,8 @@
 }
 @media (prefers-color-scheme: light) {
     :root {
-        --color: #111;
-        --background-color-1: #eee;
+        --color: #17202a;
+        --background-color-1: #f3f6f9;
         --background-color-2: #fff;
     }
 }
@@ -73,16 +73,17 @@ input[type='range']::-webkit-slider-runnable-track, input[type="range"]::-moz-ra
     height: 100%;
 }
 #settings {
-    width: 16em;
+    width: 17.5em;
     display: block;
     position: absolute;
     right: 0;
     top: 0;
     bottom: 0;
     transform: none;
-    padding: 1em;
+    padding: 0.85em 1em;
     font-family: sans-serif;
     transition: transform 0.5s, opacity 0.5s;
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
 }
 #settings.lefty {
     left: 0;
@@ -105,6 +106,7 @@ input[type='range']::-webkit-slider-runnable-track, input[type="range"]::-moz-ra
     padding: 0.2em 0 0.1em 0;
     font-size: 150%;
     text-align:center;
+    cursor: pointer;
 }
 .lefty #handle {
     left: auto;
@@ -115,27 +117,36 @@ input[type='range']::-webkit-slider-runnable-track, input[type="range"]::-moz-ra
     display: none !important;
 }
 #settings h2 {
-    font-size: 1.2em;
-    margin: 0;
+    font-size: 1.05em;
+    margin: 0 0 0.65em;
     text-align: center;
 }
 #settings h3 {
     font-size: 1em;
-    margin-top: 0.2;
+    margin: 0.8em 0 0.25em;
     text-align: center;
 }
 #settings section {
-    margin-bottom: 1em;
+    margin-bottom: 0.8em;
 }
 #settings section label, section button {
     display: block;
-    margin-top: 0.5em;
+    margin-top: 0.42em;
+    line-height: 1.35;
 }
 #settings section.hide, section label.hide, section button.hide, #debug_overlay.hide {
     display: none !important;
 }
 select {
-    width: 15em;
+    width: 100%;
+}
+button {
+    min-height: 26px;
+    border: 1px solid #c5ccd3;
+    border-radius: 4px;
+    background: #fff;
+    color: var(--color);
+    cursor: pointer;
 }
 #displayoptions {
     display: flex;

@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>Weylus</title>
+    <title>AuroraOps 远程桌面</title>
     <link rel="stylesheet" href="style.css">
     <script src="lib.js"></script>
     <script>
@@ -23,63 +23,57 @@
     <div id="settings">
         <div id="handle">⠿</div>
         <div id="settings_scroll">
-            <h2>Settings</h2>
+            <h2>AuroraOps 控制</h2>
             <section>
-                <label for="window">Capture:</label>
+                <label for="window">画面来源</label>
                 <select id="window"></select>
-                <button id="refresh">Refresh List</button>
+                <button id="refresh">刷新列表</button>
             </section>
-            <h3>Video</h3>
+            <h3>视频</h3>
             <section>
-                <label><input type="checkbox" id="enable_video" checked /> <span>Enable Video</span></label>
-                <label><input type="checkbox" id="energysaving" /> <span>Energy Saving (no video, black
-                        screen)</span></label>
-                <label><input type="checkbox" id="stretch" checked /> <span>Stretch Video</span></label>
-                <button id="fullscreen">Toggle Fullscreen</button>
+                <label><input type="checkbox" id="enable_video" checked /> <span>启用视频</span></label>
+                <label><input type="checkbox" id="energysaving" /> <span>节能模式（无视频，黑屏）</span></label>
+                <label><input type="checkbox" id="stretch" checked /> <span>拉伸画面</span></label>
+                <button id="fullscreen">切换全屏</button>
                 <label {{#if (not capture_cursor_enabled)}}class="hide" {{/if}}>
                     <input type="checkbox" id="capture_cursor" />
-                    <span>Capture Cursor</span>
+                    <span>显示光标</span>
                 </label>
-                <label><input type="checkbox" id="aggressive_seeking" checked /> <span>Lower Latency<br>(possibly
-                        choppy)</span></label>
-                <label>Max Video Resolution: <br><input type="range" id="scale_video" min="0.1" max="2" step="0.01"
+                <label><input type="checkbox" id="aggressive_seeking" checked /> <span>低延迟模式<br>（可能卡顿）</span></label>
+                <label>最大视频分辨率<br><input type="range" id="scale_video" min="0.1" max="2" step="0.01"
                         value="1.8" /><output></output></label>
-                <label>Frame Rate: <br><input type="range" id="frame_rate" value="0" /><output>30</output> fps</label>
+                <label>帧率<br><input type="range" id="frame_rate" value="0" /><output>30</output> fps</label>
             </section>
-            <h3>Input</h3>
+            <h3>输入</h3>
             <section>
-                <label><input type="checkbox" id="enable_mouse" checked /> <span>Enable Mouse</span></label>
-                <label><input type="checkbox" id="enable_stylus" checked /> <span>Enable Stylus</span></label>
-                <label><input type="checkbox" id="enable_touch" checked /> <span>Enable Touch</span></label>
+                <label><input type="checkbox" id="enable_mouse" checked /> <span>启用鼠标</span></label>
+                <label><input type="checkbox" id="enable_stylus" checked /> <span>启用手写笔</span></label>
+                <label><input type="checkbox" id="enable_touch" checked /> <span>启用触控</span></label>
                 <label {{#if (not uinput_enabled)}}class="hide" {{/if}}>
                     <input type="checkbox" id="uinput_support" checked />
-                    <span>Enable uinput</span>
+                    <span>启用系统输入</span>
                 </label>
-                <label>Min pressure to generate: <br><input type="range" id="min_pressure" min="0" max="1" step="0.01"
+                <label>最小压感阈值<br><input type="range" id="min_pressure" min="0" max="1" step="0.01"
                         value="0" /></label>
-                <button id="custom_input_areas" {{#if (not enable_custom_input_areas)}}class="hide" {{/if}}>Custom Input
-                    Area</button>
+                <button id="custom_input_areas" {{#if (not enable_custom_input_areas)}}class="hide" {{/if}}>自定义输入区域</button>
                 <label {{#if (not enable_custom_input_areas)}}class="hide" {{/if}}><input type="checkbox"
-                        id="enable_custom_input_areas" /> <span>Enable Custom Input
-                        Area</span></label>
+                        id="enable_custom_input_areas" /> <span>启用自定义输入区域</span></label>
             </section>
             <section {{#if (not uinput_enabled)}}class="hide" {{/if}}>
-                <label><span>Client Name:</span><br><input type="text" id="client_name" /><br><span>Optional, useful to
-                        distinguish multiple devices.</span></label>
+                <label><span>客户端名称</span><br><input type="text" id="client_name" /><br><span>可选，用于区分多个控制端。</span></label>
             </section>
             <section id="displayoptions">
-                <label id="leftylabel"><input type="checkbox" id="lefty" />Swap</label>
-                <label id="vanish">Hide until Reload</label>
+                <label id="leftylabel"><input type="checkbox" id="lefty" />换边</label>
+                <label id="vanish">隐藏到刷新</label>
             </section>
             <section id="stats_section">
-                <label><span>FPS (receiving): </span><output id="fps">0</output></label>
+                <label><span>接收 FPS：</span><output id="fps">0</output></label>
             </section>
             <section id="debug_section">
-                <label><input type="checkbox" id="enable_debug_overlay" /> <span>Debug
-                        Overlay</span></label>
+                <label><input type="checkbox" id="enable_debug_overlay" /> <span>调试信息</span></label>
             </section>
             <section id="log_section" class="hide">
-                <label>Log
+                <label>日志
                     <pre class="log" id="log" />
                 </label>
             </section>
