@@ -1144,7 +1144,7 @@ fn register_device(
         ip: ip.to_string(),
         device_type: "physical".to_string(),
         os_name: std::env::consts::OS.to_string(),
-        location: std::env::consts::ARCH.to_string(),
+        location: String::new(),
     };
     let reg: RegisterResponse = post_json(
         client,

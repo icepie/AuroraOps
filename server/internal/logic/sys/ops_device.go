@@ -324,9 +324,6 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 	}
 
 	location := in.Location
-	if location == "" && in.OsName != "" {
-		location = in.OsName
-	}
 
 	nowText := gtime.Now().Format("Y-m-d H:i:s")
 

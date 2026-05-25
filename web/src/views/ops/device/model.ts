@@ -143,6 +143,15 @@ function getDeviceTypeLabel(value: string) {
   return deviceTypeOptions.find((item) => item.value === value)?.label || value || '-';
 }
 
+function getLocationLabel(value: string) {
+  const text = String(value || '').trim();
+  if (!text) return '-';
+  if (/^(aarch64|arm64|amd64|x86_64|i386|i686)$/i.test(text)) {
+    return `系统架构：${text}`;
+  }
+  return text;
+}
+
 export const columns = [
   {
     title: '设备ID',
@@ -197,6 +206,9 @@ export const columns = [
     key: 'location',
     align: 'left',
     width: 180,
+    render(row: State) {
+      return h('span', {}, getLocationLabel(row.location));
+    },
   },
   {
     title: '在线状态',
