@@ -5,10 +5,10 @@
 #   ubuntu2004  ubuntu:20.04        glibc 2.31  → Ubuntu ≥20.04          (.deb, X11 only)
 #   ubuntu2204  ubuntu:22.04        glibc 2.35  → Ubuntu ≥22.04          (.deb, Wayland)
 #   uos-v20     debian:11           glibc 2.31  → 统信 UOS V20 桌面       (.deb)
-#   kylin-v10   rockylinux:8        glibc 2.28  → 麒麟 V10 SP1 (server)   (.rpm)
+#   kylin-v10-v11 ubuntu:22.04      glibc 2.35  → 麒麟 V10/V11 桌面       (.deb)
+#   nfschina-desktop debian:11      glibc 2.31  → 中科方德桌面            (.deb)
 #   centos7     centos:7            glibc 2.17  → CentOS 7 系列           (.rpm, no Wayland)
-#   centos8     rockylinux:8        glibc 2.28  → CentOS ≥8 / Rocky/Alma  (.rpm)
-#   nfs-v4      rockylinux:8        glibc 2.28  → 中科方德 V4             (.rpm)
+#   centos8     rockylinux:8        glibc 2.28  → CentOS/RHEL ≥8 / Rocky/Alma (.rpm)
 #
 # Targets without GStreamer ≥1.16 (ubuntu2004, centos7) build without the
 # 'pipewire' feature — Wayland screen capture is disabled, X11 still works.
@@ -28,7 +28,7 @@ NO_CACHE="${NO_CACHE:-0}"
 TARGETS_INPUT="${TARGETS:-all}"
 ARCHES_INPUT="${ARCHES:-amd64,arm64}"
 
-ALL_TARGETS=(ubuntu2004 ubuntu2204 uos-v20 kylin-v10 centos7 centos8 nfs-v4)
+ALL_TARGETS=(ubuntu2004 ubuntu2204 uos-v20 kylin-v10-v11 nfschina-desktop centos7 centos8)
 
 usage() {
   cat <<'EOF'
@@ -36,7 +36,7 @@ Usage: ./docker-build-linux.sh [options]
 
 Options:
   --target LIST   Comma-separated targets, or "all".
-                  Choices: ubuntu2004, ubuntu2204, uos-v20, kylin-v10, centos7, centos8, nfs-v4, all
+                  Choices: ubuntu2004, ubuntu2204, uos-v20, kylin-v10-v11, nfschina-desktop, centos7, centos8, all
                   Default: all
   --arch LIST     Comma-separated archs. Choices: amd64, arm64. Default: amd64,arm64
   --output DIR    Output directory. Default: dist/linux-matrix
@@ -90,14 +90,21 @@ target_config() {
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
-    uos-v20)
+    uos-v20|nfschina-desktop)
       BASE_IMAGE="debian:11"
       # GStreamer 1.18 available.
       FEATURES="pipewire"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
-    kylin-v10|centos8|nfs-v4)
+    kylin-v10-v11)
+      BASE_IMAGE="ubuntu:22.04"
+      # Kylin V10/V11 desktop uses deb packages.
+      FEATURES="pipewire"
+      EXTRA_PKGS_DEB=""
+      EXTRA_PKGS_RPM=""
+      ;;
+    centos8)
       BASE_IMAGE="rockylinux:8"
       FEATURES="pipewire"
       EXTRA_PKGS_DEB=""
