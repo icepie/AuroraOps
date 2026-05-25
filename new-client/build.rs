@@ -197,11 +197,14 @@ fn linux() {
     println!("cargo:rerun-if-changed=lib/linux/xcapture.c");
     println!("cargo:rerun-if-changed=lib/linux/xhelper.c");
     println!("cargo:rerun-if-changed=lib/linux/xhelper.h");
+    println!("cargo:rerun-if-changed=lib/linux/kms_egl.c");
+    println!("cargo:rerun-if-changed=lib/linux/kms_egl.h");
 
     cc::Build::new()
         .file("lib/linux/uinput.c")
         .file("lib/linux/xcapture.c")
         .file("lib/linux/xhelper.c")
+        .file("lib/linux/kms_egl.c")
         .compile("linux");
 
     println!("cargo:rustc-link-lib=X11");
@@ -221,6 +224,7 @@ fn linux() {
         println!("cargo:rustc-link-lib={}=va-x11", va_link_kind);
     }
     println!("cargo:rustc-link-lib=drm");
+    println!("cargo:rustc-link-lib=epoxy");
     println!("cargo:rustc-link-lib=xcb-dri3");
     println!("cargo:rustc-link-lib=X11-xcb");
     println!("cargo:rustc-link-lib=xcb");

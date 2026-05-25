@@ -1,4 +1,5 @@
 use crate::capturable::{Capturable, Geometry, Recorder};
+use crate::cerror::CError;
 use crate::video::PixelProvider;
 use std::any::Any;
 
@@ -8,7 +9,7 @@ use drm_fourcc::{DrmFourcc, DrmModifier};
 use linux_raw_sys::ioctl::DMA_BUF_IOCTL_SYNC;
 use rustix::mm::{self, MapFlags, ProtFlags};
 use std::error::Error;
-use std::ffi::c_void;
+use std::ffi::{c_char, c_int, c_void, CString};
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::num::NonZeroU32;
@@ -18,6 +19,31 @@ use tracing::{debug, warn};
 
 fn io_error(message: impl Into<String>) -> io::Error {
     io::Error::other(message.into())
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+struct KmsFrameMetadata {
+    length: u32,
+    fb_width: u32,
+    fb_height: u32,
+    fourcc: u32,
+    modifier: u64,
+    offsets: [u32; 4],
+    pitches: [u32; 4],
+}
+
+extern "C" {
+    fn init_kms_egl(card_path: *const c_char, err: *mut CError) -> *mut c_void;
+    fn destroy_kms_egl(ctx: *mut c_void);
+    fn kms_egl_read_bgra(
+        ctx: *mut c_void,
+        md: *const KmsFrameMetadata,
+        fds: *const c_int,
+        dst: *mut c_char,
+        dst_len: usize,
+        err: *mut CError,
+    );
 }
 
 const IOC_NRBITS: u64 = 8;
@@ -263,6 +289,11 @@ struct CachedBuffer {
     prime_fd: Option<OwnedFd>,
 }
 
+struct KmsFrameInfo {
+    metadata: KmsFrameMetadata,
+    prime_fds: Vec<OwnedFd>,
+}
+
 struct FrameView<'a> {
     fb_handle: framebuffer::Handle,
     width: u32,
@@ -274,6 +305,7 @@ struct FrameView<'a> {
 }
 
 struct KmsFrameSource {
+    device_path: String,
     card: KmsCard,
     crtc_handle: crtc::Handle,
     default_fb: framebuffer::Handle,
@@ -285,6 +317,8 @@ struct KmsFrameSource {
     last_fb_handle: Option<framebuffer::Handle>,
     logged_mapping: bool,
     cache: Vec<CachedBuffer>,
+    egl: Option<*mut c_void>,
+    helper_failed: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -314,6 +348,7 @@ impl KmsFrameSource {
         let force_map_mode = use_prime.is_some();
 
         Ok(Self {
+            device_path: capturable.device_path.clone(),
             card,
             crtc_handle: capturable.crtc_handle,
             default_fb: capturable.fb_handle,
@@ -325,6 +360,8 @@ impl KmsFrameSource {
             last_fb_handle: None,
             logged_mapping: false,
             cache: Vec::new(),
+            egl: None,
+            helper_failed: false,
         })
     }
 
@@ -358,6 +395,101 @@ impl KmsFrameSource {
             pitch: entry.pitch,
             raw,
             prime_fd: entry.prime_fd.as_ref().map(|fd| fd.as_fd().as_raw_fd()),
+        })
+    }
+
+    fn capture_bgra_with_helper(&mut self) -> Result<Option<(Vec<u8>, usize, usize)>, Box<dyn Error>> {
+        if self.helper_failed {
+            return Ok(None);
+        }
+        let fb_handle = self.current_framebuffer()?;
+        let frame = self.frame_info(fb_handle)?;
+        let egl = self.ensure_egl()?;
+        let mut dst = vec![0u8; (frame.metadata.fb_width as usize) * (frame.metadata.fb_height as usize) * 4];
+        let mut err = CError::new();
+        let mut fds = [-1 as c_int; 4];
+        for (idx, fd) in frame.prime_fds.iter().enumerate().take(4) {
+            fds[idx] = fd.as_fd().as_raw_fd();
+        }
+        unsafe {
+            kms_egl_read_bgra(
+                egl,
+                &frame.metadata,
+                fds.as_ptr(),
+                dst.as_mut_ptr().cast(),
+                dst.len(),
+                &mut err,
+            );
+        }
+        if err.is_err() {
+            debug!("KMS EGL helper failed, falling back to legacy mapper: {}", err);
+            self.helper_failed = true;
+            return Ok(None);
+        }
+        Ok(Some((dst, frame.metadata.fb_width as usize, frame.metadata.fb_height as usize)))
+    }
+
+    fn ensure_egl(&mut self) -> Result<*mut c_void, Box<dyn Error>> {
+        if let Some(ctx) = self.egl {
+            return Ok(ctx);
+        }
+        let path = CString::new(self.device_path.clone())?;
+        let mut err = CError::new();
+        let ctx = unsafe { init_kms_egl(path.as_ptr(), &mut err) };
+        if ctx.is_null() || err.is_err() {
+            return Err(Box::new(io_error(format!(
+                "Failed to initialize KMS EGL helper: {}",
+                if err.is_err() {
+                    err.to_string()
+                } else {
+                    "null helper context".to_string()
+                }
+            ))));
+        }
+        self.egl = Some(ctx);
+        Ok(ctx)
+    }
+
+    fn frame_info(&mut self, fb_handle: framebuffer::Handle) -> Result<KmsFrameInfo, Box<dyn Error>> {
+        let info = self
+            .card
+            .get_planar_framebuffer(fb_handle)
+            .map_err(|err| io_error(format!("KMS GET_FB2 failed: {err}")))?;
+        let (fb_width, fb_height) = info.size();
+
+        let mut metadata = KmsFrameMetadata {
+            length: 0,
+            fb_width,
+            fb_height,
+            fourcc: info.pixel_format() as u32,
+            modifier: info.modifier().map(u64::from).unwrap_or(u64::MAX),
+            offsets: [0; 4],
+            pitches: [0; 4],
+        };
+
+        let mut prime_fds: Vec<OwnedFd> = Vec::new();
+        for (idx, handle) in info.buffers().iter().enumerate() {
+            let Some(handle) = handle else { break };
+            if idx >= 4 {
+                break;
+            }
+            let fd = self
+                .card
+                .buffer_to_prime_fd(*handle, drm::RDWR)
+                .map_err(|err| io_error(format!("KMS PRIME export failed: {err}")))?;
+            metadata.offsets[idx] = info.offsets()[idx];
+            metadata.pitches[idx] = info.pitches()[idx];
+            prime_fds.push(fd);
+            metadata.length += 1;
+        }
+        if metadata.length == 0 {
+            return Err(Box::new(io_error(
+                "KMS framebuffer did not expose any dma-buf planes",
+            )));
+        }
+        Ok(KmsFrameInfo {
+            metadata,
+            prime_fds,
         })
     }
 
@@ -764,6 +896,9 @@ impl Drop for KmsFrameSource {
             }
             let _ = drm_ffi::gem::close(self.card.as_fd(), entry.close_handle);
         }
+        if let Some(ctx) = self.egl.take() {
+            unsafe { destroy_kms_egl(ctx) };
+        }
     }
 }
 
@@ -783,10 +918,21 @@ impl KmsRecorder {
             retried_with_prime: false,
         })
     }
+
+    fn capture_helper_frame(&mut self) -> Result<Option<(usize, usize)>, Box<dyn Error>> {
+        let Some((frame, width, height)) = self.frame_source.capture_bgra_with_helper()? else {
+            return Ok(None);
+        };
+        self.converted_frame = frame;
+        Ok(Some((width, height)))
+    }
 }
 
 impl Recorder for KmsRecorder {
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
+        if let Some((width, height)) = self.capture_helper_frame()? {
+            return Ok(PixelProvider::BGR0(width, height, &self.converted_frame));
+        }
         let map_mode_forced = self.frame_source.map_mode_forced();
         let using_prime = self.frame_source.using_prime();
         let mut sample_info = None;
