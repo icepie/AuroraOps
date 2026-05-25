@@ -14,11 +14,11 @@
       ref="frameRef"
       class="desktop-frame"
       :src="weylusUrl"
-      title="Weylus Remote Desktop"
+      title="AuroraOps 远程桌面"
       allow="fullscreen; clipboard-read; clipboard-write"
       @load="handleLoad"
       @error="handleError"
-    />
+    ></iframe>
   </div>
 </template>
 
@@ -40,8 +40,8 @@
   const title = computed(() => (deviceName.value ? `远程桌面 - ${deviceName.value}` : '远程桌面'));
   const statusText = computed(() => {
     if (failed.value) return '连接失败';
-    if (loaded.value) return 'Weylus 已加载';
-    return '正在连接 Weylus';
+    if (loaded.value) return '远程桌面已连接';
+    return '正在连接远程桌面';
   });
   const stateClass = computed(() => ({
     'is-online': loaded.value && !failed.value,
@@ -90,48 +90,59 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #111418;
-    color: #f5f7fa;
+    background: #0b0f14;
+    color: #f6f8fa;
   }
 
   .desktop-toolbar {
-    min-height: 48px;
-    padding: 6px 12px;
+    min-height: 46px;
+    padding: 6px 14px;
     display: flex;
     gap: 12px;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    background: #171c22;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: #111820;
   }
 
   .desktop-title {
     min-width: 0;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 10px;
     font-size: 14px;
-    line-height: 1.25;
+    line-height: 1.2;
     white-space: nowrap;
   }
 
   .desktop-state {
-    color: rgba(245, 247, 250, 0.62);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(246, 248, 250, 0.68);
     font-size: 12px;
   }
 
+  .desktop-state::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
   .desktop-state.is-online {
-    color: #6ee7a8;
+    color: #37d67a;
   }
 
   .desktop-state.is-offline {
-    color: #ff8a8a;
+    color: #ff6b6b;
   }
 
   .desktop-frame {
     flex: 1;
     width: 100%;
-    min-height: calc(100vh - 48px);
+    min-height: calc(100vh - 46px);
     border: 0;
     background: #050607;
   }

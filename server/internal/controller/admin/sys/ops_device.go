@@ -85,6 +85,7 @@ func newWeylusProxy(proxyPrefix string) *httputil.ReverseProxy {
 		if strings.Contains(contentType, "text/html") {
 			body = bytes.ReplaceAll(body, []byte(`href="style.css"`), []byte(fmt.Sprintf(`href="%s/style.css"`, proxyPrefix)))
 			body = bytes.ReplaceAll(body, []byte(`src="lib.js"`), []byte(fmt.Sprintf(`src="%s/lib.js"`, proxyPrefix)))
+			body = rewriteWeylusBranding(body)
 		} else {
 			body = bytes.ReplaceAll(body, []byte(`"/ws"`), []byte(fmt.Sprintf(`"%s/ws"`, proxyPrefix)))
 		}
@@ -94,6 +95,18 @@ func newWeylusProxy(proxyPrefix string) *httputil.ReverseProxy {
 		return nil
 	}
 	return proxy
+}
+
+func rewriteWeylusBranding(body []byte) []byte {
+	replacements := [][2]string{
+		{`<title>Weylus</title>`, `<title>AuroraOps 远程桌面</title>`},
+		{`>Weylus<`, `>AuroraOps 远程桌面<`},
+		{`Weylus`, `AuroraOps 远程桌面`},
+	}
+	for _, item := range replacements {
+		body = bytes.ReplaceAll(body, []byte(item[0]), []byte(item[1]))
+	}
+	return body
 }
 
 func (c *cOpsDevice) List(ctx context.Context, req *opsdevice.ListReq) (res *opsdevice.ListRes, err error) {

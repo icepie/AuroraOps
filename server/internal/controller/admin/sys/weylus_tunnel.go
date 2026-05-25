@@ -440,7 +440,7 @@ func rewriteWeylusBody(contentType, path, rawQuery string, body []byte) []byte {
 	if strings.Contains(contentType, "text/html") {
 		body = bytes.ReplaceAll(body, []byte(`href="style.css"`), []byte(fmt.Sprintf(`href="%s/style.css%s"`, weylusProxyPrefix, querySuffix)))
 		body = bytes.ReplaceAll(body, []byte(`src="lib.js"`), []byte(fmt.Sprintf(`src="%s/lib.js%s"`, weylusProxyPrefix, querySuffix)))
-		return body
+		return rewriteWeylusBranding(body)
 	}
 	if strings.Contains(contentType, "javascript") || strings.HasSuffix(path, "/lib.js") {
 		return bytes.ReplaceAll(body, []byte(`"/ws"`), []byte(fmt.Sprintf(`"%s/ws%s"`, weylusProxyPrefix, querySuffix)))
