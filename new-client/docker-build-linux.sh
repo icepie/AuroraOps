@@ -5,7 +5,7 @@
 #   ubuntu2004  ubuntu:20.04        glibc 2.31  → Ubuntu ≥20.04          (.deb, X11 only)
 #   ubuntu2204  ubuntu:22.04        glibc 2.35  → Ubuntu ≥22.04          (.deb, Wayland)
 #   uos-v20     debian:11           glibc 2.31  → 统信 UOS V20 桌面       (.deb)
-#   kylin-v10-v11 ubuntu:22.04      glibc 2.35  → 麒麟 V10/V11 桌面       (.deb)
+#   kylin-v10-v11 ubuntu:20.04      glibc 2.31  → 麒麟 V10/V11 桌面       (.deb)
 #   nfschina-desktop debian:11      glibc 2.31  → 中科方德桌面            (.deb)
 #   centos7     centos:7            glibc 2.17  → CentOS 7 系列           (.rpm, no Wayland)
 #   centos8     rockylinux:8        glibc 2.28  → CentOS/RHEL ≥8 / Rocky/Alma (.rpm)
@@ -98,8 +98,8 @@ target_config() {
       EXTRA_PKGS_RPM=""
       ;;
     kylin-v10-v11)
-      BASE_IMAGE="ubuntu:22.04"
-      # Kylin V10/V11 desktop uses deb packages.
+      BASE_IMAGE="ubuntu:20.04"
+      # Kylin V10 SP1 desktop is glibc 2.31 with GStreamer 1.16.x.
       FEATURES="pipewire"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
