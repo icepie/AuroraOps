@@ -72,6 +72,16 @@ pub struct AgentConfig {
     pub web_port: u16,
     #[serde(default)]
     pub access_code: Option<String>,
+    #[serde(default)]
+    pub try_vaapi: bool,
+    #[serde(default)]
+    pub try_nvenc: bool,
+    #[serde(default)]
+    pub wayland_support: bool,
+    #[serde(default)]
+    pub kms_support: bool,
+    #[serde(default)]
+    pub kms_device: Option<String>,
 }
 
 fn default_weylus_bind() -> String {
@@ -159,6 +169,27 @@ struct ControlResponse {
 struct SaveConfigPayload {
     server_host: String,
     device_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveDesktopConfigPayload {
+    #[serde(default = "default_weylus_bind")]
+    bind_address: String,
+    #[serde(default = "default_weylus_port")]
+    web_port: u16,
+    #[serde(default)]
+    access_code: Option<String>,
+    #[serde(default)]
+    try_vaapi: bool,
+    #[serde(default)]
+    try_nvenc: bool,
+    #[serde(default)]
+    wayland_support: bool,
+    #[serde(default)]
+    kms_support: bool,
+    #[serde(default)]
+    kms_device: Option<String>,
 }
 
 #[derive(Clone)]
@@ -292,6 +323,50 @@ impl AgentRuntime {
         if changed {
             self.update_status("idle", None, None, Some("config updated".to_string()));
         }
+        Ok(cfg)
+    }
+
+    fn save_desktop_config(
+        &self,
+        payload: SaveDesktopConfigPayload,
+    ) -> Result<AgentConfig, BoxError> {
+        if payload.bind_address.trim().is_empty() {
+            return Err("bindAddress is required".into());
+        }
+        let _: IpAddr = payload
+            .bind_address
+            .trim()
+            .parse()
+            .map_err(|_| "bindAddress must be a valid IP address")?;
+        if payload.web_port == 0 {
+            return Err("webPort must be greater than 0".into());
+        }
+
+        let mut cfg = self.get_config();
+        cfg.bind_address = payload.bind_address.trim().to_string();
+        cfg.web_port = payload.web_port;
+        cfg.access_code = payload
+            .access_code
+            .map(|code| code.trim().to_string())
+            .filter(|code| !code.is_empty());
+        cfg.try_vaapi = payload.try_vaapi;
+        cfg.try_nvenc = payload.try_nvenc;
+        cfg.wayland_support = payload.wayland_support;
+        cfg.kms_support = payload.kms_support;
+        cfg.kms_device = payload
+            .kms_device
+            .map(|device| device.trim().to_string())
+            .filter(|device| !device.is_empty());
+        normalize_config(&mut cfg);
+        self.save_config_file(&cfg)?;
+        self.set_desktop_url(&cfg);
+        *self.inner.config.write().unwrap() = cfg.clone();
+        self.update_status(
+            self.get_status().state,
+            device_id_opt(cfg.device_id),
+            optional_string(&cfg.tcp_address),
+            Some("desktop config saved; restart service to apply".to_string()),
+        );
         Ok(cfg)
     }
 
@@ -551,6 +626,18 @@ fn start_weylus_service(conf: &WeylusConfig, runtime: &AgentRuntime) {
     }
     weylus_conf.web_port = agent_cfg.web_port;
     weylus_conf.access_code = agent_cfg.access_code.clone();
+    #[cfg(target_os = "linux")]
+    {
+        weylus_conf.try_vaapi = agent_cfg.try_vaapi;
+        weylus_conf.try_nvenc = agent_cfg.try_nvenc;
+        weylus_conf.wayland_support = agent_cfg.wayland_support;
+        weylus_conf.kms_support = agent_cfg.kms_support;
+        weylus_conf.kms_device = agent_cfg.kms_device.clone();
+    }
+    #[cfg(all(not(target_os = "linux"), target_os = "windows"))]
+    {
+        weylus_conf.try_nvenc = agent_cfg.try_nvenc;
+    }
     weylus_conf.no_gui = true;
     runtime.set_desktop_url(&agent_cfg);
 
@@ -622,6 +709,72 @@ async fn handle_local_request(
                 ),
             }
         }
+        (Method::POST, "/api/desktop-config") => {
+            let body = req.into_body().collect().await?.to_bytes();
+            match serde_json::from_slice::<SaveDesktopConfigPayload>(&body)
+                .map_err(|err| err.to_string())
+                .and_then(|payload| {
+                    runtime
+                        .save_desktop_config(payload)
+                        .map(|_| ())
+                        .map_err(|err| err.to_string())
+                }) {
+                Ok(()) => json_response(StatusCode::OK, envelope(&runtime, true, None, None, None)),
+                Err(err) => json_response(
+                    StatusCode::BAD_REQUEST,
+                    envelope(&runtime, false, Some(err), None, None),
+                ),
+            }
+        }
+        (Method::POST, "/api/desktop/restart") => match run_systemctl(&["restart"]) {
+            Ok(message) => {
+                runtime.update_status(
+                    runtime.get_status().state,
+                    device_id_opt(runtime.get_config().device_id),
+                    optional_string(&runtime.get_config().tcp_address),
+                    Some(message),
+                );
+                json_response(StatusCode::OK, envelope(&runtime, true, None, None, None))
+            }
+            Err(err) => json_response(
+                StatusCode::BAD_REQUEST,
+                envelope(&runtime, false, Some(err.to_string()), None, None),
+            ),
+        },
+        (Method::GET, "/api/service/status") => {
+            let status = service_status_message();
+            json_response(StatusCode::OK, envelope(&runtime, true, Some(status), None, None))
+        }
+        (Method::POST, "/api/service/enable") => match run_systemctl(&["enable", "--now"]) {
+            Ok(message) => json_response(
+                StatusCode::OK,
+                envelope(&runtime, true, Some(message), None, None),
+            ),
+            Err(err) => json_response(
+                StatusCode::BAD_REQUEST,
+                envelope(&runtime, false, Some(err.to_string()), None, None),
+            ),
+        },
+        (Method::POST, "/api/service/disable") => match run_systemctl(&["disable", "--now"]) {
+            Ok(message) => json_response(
+                StatusCode::OK,
+                envelope(&runtime, true, Some(message), None, None),
+            ),
+            Err(err) => json_response(
+                StatusCode::BAD_REQUEST,
+                envelope(&runtime, false, Some(err.to_string()), None, None),
+            ),
+        },
+        (Method::POST, "/api/service/restart") => match run_systemctl(&["restart"]) {
+            Ok(message) => json_response(
+                StatusCode::OK,
+                envelope(&runtime, true, Some(message), None, None),
+            ),
+            Err(err) => json_response(
+                StatusCode::BAD_REQUEST,
+                envelope(&runtime, false, Some(err.to_string()), None, None),
+            ),
+        },
         (Method::POST, "/api/start") => match runtime.start_connector() {
             Ok(_) => json_response(StatusCode::OK, envelope(&runtime, true, None, None, None)),
             Err(err) => json_response(
@@ -694,6 +847,47 @@ fn text(status: StatusCode, body: &str) -> Response<Full<Bytes>> {
         .header("content-type", "text/plain; charset=utf-8")
         .body(body.to_string().into())
         .unwrap()
+}
+
+fn run_systemctl(args: &[&str]) -> Result<String, BoxError> {
+    let mut command_args = args.to_vec();
+    command_args.push("auroraops-agent.service");
+    let output = std::process::Command::new("systemctl")
+        .args(&command_args)
+        .output()?;
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(if stdout.is_empty() {
+            format!("systemctl {} auroraops-agent.service ok", args.join(" "))
+        } else {
+            stdout
+        })
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if stderr.is_empty() {
+            format!("systemctl {} auroraops-agent.service failed", args.join(" ")).into()
+        } else {
+            stderr.into()
+        })
+    }
+}
+
+fn service_status_message() -> String {
+    let active = std::process::Command::new("systemctl")
+        .args(["is-active", "auroraops-agent.service"])
+        .output()
+        .ok()
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "unknown".to_string());
+    let enabled = std::process::Command::new("systemctl")
+        .args(["is-enabled", "auroraops-agent.service"])
+        .output()
+        .ok()
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "unknown".to_string());
+    format!("active={active}, enabled={enabled}")
 }
 
 #[derive(Serialize)]
@@ -1748,6 +1942,9 @@ fn normalize_config(cfg: &mut AgentConfig) {
     if cfg.web_port == 0 {
         cfg.web_port = DEFAULT_WEYLUS_PORT;
     }
+    if cfg.kms_device.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        cfg.kms_device = None;
+    }
 }
 
 fn normalize_http_base(host: &str) -> String {
@@ -1854,29 +2051,43 @@ const INDEX_HTML: &str = r##"<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AuroraOps Agent</title>
+  <title>AuroraOps 客户端</title>
   <style>
-    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f6f8; color: #17202a; }
-    main { max-width: 920px; margin: 32px auto; padding: 0 20px; }
-    section { background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
-    h1 { font-size: 24px; margin: 0 0 18px; }
+    :root { color-scheme: light; --bg: #f5f7fa; --panel: #fff; --line: #d8dee4; --text: #17202a; --muted: #66717d; --primary: #1768ac; --danger: #b42318; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    main { max-width: 1120px; margin: 24px auto; padding: 0 20px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    h1 { font-size: 24px; margin: 0; }
     h2 { font-size: 16px; margin: 0 0 14px; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-bottom: 14px; }
     label { display: block; font-size: 13px; margin-bottom: 6px; color: #46515c; }
-    input { box-sizing: border-box; width: 100%; height: 38px; border: 1px solid #c6ccd2; border-radius: 6px; padding: 0 10px; font-size: 14px; }
+    input { width: 100%; height: 38px; border: 1px solid #c6ccd2; border-radius: 6px; padding: 0 10px; font-size: 14px; background: #fff; color: var(--text); }
+    input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .switches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .switch { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; gap: 10px; align-items: flex-start; min-height: 76px; }
+    .switch strong { display: block; font-size: 14px; margin-bottom: 4px; }
+    .switch span { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-    button, a.button { border: 1px solid #1f6feb; background: #1f6feb; color: white; border-radius: 6px; height: 36px; padding: 0 14px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
-    button.secondary, a.secondary { background: white; color: #1f6feb; }
+    button, a.button { border: 1px solid var(--primary); background: var(--primary); color: white; border-radius: 6px; min-height: 36px; padding: 0 14px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+    button.secondary, a.secondary { background: white; color: var(--primary); }
+    button.danger { border-color: var(--danger); background: var(--danger); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
     dl { display: grid; grid-template-columns: 150px 1fr; gap: 8px 14px; margin: 0; font-size: 14px; }
-    dt { color: #66717d; }
+    dt { color: var(--muted); }
     dd { margin: 0; overflow-wrap: anywhere; }
-    pre { white-space: pre-wrap; background: #111827; color: #e5e7eb; padding: 12px; border-radius: 6px; min-height: 44px; }
-    @media (max-width: 700px) { .grid, dl { grid-template-columns: 1fr; } }
+    pre { white-space: pre-wrap; background: #111827; color: #e5e7eb; padding: 12px; border-radius: 6px; min-height: 72px; max-height: 180px; overflow: auto; }
+    .pill { display: inline-flex; align-items: center; height: 28px; border-radius: 999px; border: 1px solid var(--line); padding: 0 10px; color: var(--muted); background: #fff; font-size: 13px; }
+    @media (max-width: 800px) { .grid, .switches, dl { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } }
   </style>
 </head>
 <body>
   <main>
-    <h1>AuroraOps Agent</h1>
+    <header>
+      <h1>AuroraOps 客户端</h1>
+      <span id="serviceStatus" class="pill">service: unknown</span>
+    </header>
     <section>
       <h2>连接配置</h2>
       <div class="grid">
@@ -1884,17 +2095,44 @@ const INDEX_HTML: &str = r##"<!doctype html>
         <div><label for="deviceName">设备名称</label><input id="deviceName" placeholder="linux-node-01" /></div>
       </div>
       <div class="actions">
-        <button onclick="saveConfig()">保存配置</button>
+        <button onclick="saveConfig()">保存连接配置</button>
         <button onclick="startAgent()">启动连接</button>
-        <button class="secondary" onclick="stopAgent()">停止</button>
+        <button class="secondary" onclick="stopAgent()">停止连接</button>
         <button class="secondary" onclick="loadStatus()">刷新</button>
-        <a id="desktopLink" class="button secondary" href="#" target="_blank">打开桌面服务</a>
+        <a id="desktopLink" class="button secondary" href="#" target="_blank">打开远程桌面端口</a>
+      </div>
+    </section>
+    <section>
+      <h2>远程桌面</h2>
+      <div class="grid">
+        <div><label for="bindAddress">绑定地址</label><input id="bindAddress" placeholder="127.0.0.1" /></div>
+        <div><label for="webPort">Web 端口</label><input id="webPort" type="number" min="1" max="65535" placeholder="1701" /></div>
+        <div><label for="accessCode">访问码</label><input id="accessCode" placeholder="留空则不限制" /></div>
+        <div><label for="kmsDevice">KMS 设备</label><input id="kmsDevice" placeholder="/dev/dri/card0" /></div>
+      </div>
+      <div class="switches" style="margin-top: 14px;">
+        <label class="switch"><input id="waylandSupport" type="checkbox" /><span><strong>Wayland / PipeWire</strong>启用 Wayland 捕获和自定义输入区域支持。</span></label>
+        <label class="switch"><input id="kmsSupport" type="checkbox" /><span><strong>KMS / DRM</strong>直接通过 DRM/KMS 捕获帧缓冲。</span></label>
+        <label class="switch"><input id="tryVaapi" type="checkbox" /><span><strong>VAAPI</strong>尝试使用 Linux VAAPI 硬件编码。</span></label>
+        <label class="switch"><input id="tryNvenc" type="checkbox" /><span><strong>NVENC</strong>尝试使用 NVIDIA NVENC 硬件编码。</span></label>
+      </div>
+      <div class="actions">
+        <button onclick="saveDesktopConfig()">保存桌面配置</button>
+        <button class="secondary" onclick="restartDesktop()">重启桌面服务</button>
+      </div>
+    </section>
+    <section>
+      <h2>服务管理</h2>
+      <div class="actions" style="margin-top: 0;">
+        <button onclick="enableService()">启用并启动自启服务</button>
+        <button class="secondary" onclick="restartService()">重启 systemd 服务</button>
+        <button class="danger" onclick="disableService()">停止并禁用自启</button>
       </div>
     </section>
     <section>
       <h2>状态</h2>
       <dl>
-        <dt>状态</dt><dd id="state">-</dd>
+        <dt>连接状态</dt><dd id="state">-</dd>
         <dt>设备 ID</dt><dd id="deviceId">-</dd>
         <dt>TCP</dt><dd id="tcpAddress">-</dd>
         <dt>桌面服务</dt><dd id="desktopUrl">-</dd>
@@ -1907,34 +2145,62 @@ const INDEX_HTML: &str = r##"<!doctype html>
     </section>
   </main>
   <script>
-    const log = (text) => document.getElementById('log').textContent = `${new Date().toLocaleTimeString()} ${text}\n` + document.getElementById('log').textContent;
+    const ids = ['serverHost','deviceName','bindAddress','webPort','accessCode','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc'];
+    const $ = (id) => document.getElementById(id);
+    const log = (text) => $('log').textContent = `${new Date().toLocaleTimeString()} ${text}\n` + $('log').textContent;
     async function request(path, options) {
       const response = await fetch(path, options);
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.message || 'request failed');
       return data;
     }
+    function setBusy(busy) {
+      document.querySelectorAll('button').forEach((button) => button.disabled = busy);
+    }
     function render(data) {
       const cfg = data.config || {};
       const status = data.status || {};
-      document.getElementById('serverHost').value = cfg.serverHost || '';
-      document.getElementById('deviceName').value = cfg.deviceName || '';
-      document.getElementById('state').textContent = status.state || '-';
-      document.getElementById('deviceId').textContent = status.deviceId || cfg.deviceId || '-';
-      document.getElementById('tcpAddress').textContent = status.tcpAddress || cfg.tcpAddress || '-';
-      document.getElementById('desktopUrl').textContent = status.desktopUrl || '-';
-      document.getElementById('desktopLink').href = status.desktopUrl || '#';
-      document.getElementById('message').textContent = status.message || '-';
+      $('serverHost').value = cfg.serverHost || '';
+      $('deviceName').value = cfg.deviceName || '';
+      $('bindAddress').value = cfg.bindAddress || '127.0.0.1';
+      $('webPort').value = cfg.webPort || 1701;
+      $('accessCode').value = cfg.accessCode || '';
+      $('kmsDevice').value = cfg.kmsDevice || '';
+      $('waylandSupport').checked = !!cfg.waylandSupport;
+      $('kmsSupport').checked = !!cfg.kmsSupport;
+      $('tryVaapi').checked = !!cfg.tryVaapi;
+      $('tryNvenc').checked = !!cfg.tryNvenc;
+      $('state').textContent = status.state || '-';
+      $('deviceId').textContent = status.deviceId || cfg.deviceId || '-';
+      $('tcpAddress').textContent = status.tcpAddress || cfg.tcpAddress || '-';
+      $('desktopUrl').textContent = status.desktopUrl || '-';
+      $('desktopLink').href = status.desktopUrl || '#';
+      $('message').textContent = data.message || status.message || '-';
+      if (data.message && data.message.startsWith('active=')) $('serviceStatus').textContent = data.message;
     }
-    async function loadStatus() { try { render(await request('/api/status')); } catch (e) { log(e.message); } }
+    async function call(path, options, okText) {
+      setBusy(true);
+      try { const data = await request(path, options); render(data); if (okText) log(okText); return data; }
+      catch (e) { log(e.message); }
+      finally { setBusy(false); }
+    }
+    async function loadStatus() { await call('/api/status'); await call('/api/service/status'); }
     async function saveConfig() {
-      try {
-        render(await request('/api/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ serverHost: serverHost.value, deviceName: deviceName.value }) }));
-        log('配置已保存');
-      } catch (e) { log(e.message); }
+      await call('/api/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ serverHost: $('serverHost').value, deviceName: $('deviceName').value }) }, '连接配置已保存');
     }
-    async function startAgent() { try { render(await request('/api/start', { method: 'POST' })); log('已启动'); } catch (e) { log(e.message); } }
-    async function stopAgent() { try { render(await request('/api/stop', { method: 'POST' })); log('已停止'); } catch (e) { log(e.message); } }
+    async function saveDesktopConfig() {
+      await call('/api/desktop-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 1701), accessCode: $('accessCode').value || null,
+        kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked,
+        tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked
+      }) }, '桌面配置已保存，重启桌面服务后生效');
+    }
+    async function startAgent() { await call('/api/start', { method: 'POST' }, '连接已启动'); }
+    async function stopAgent() { await call('/api/stop', { method: 'POST' }, '连接已停止'); }
+    async function restartDesktop() { await call('/api/desktop/restart', { method: 'POST' }, '桌面服务重启请求已发送'); }
+    async function enableService() { await call('/api/service/enable', { method: 'POST' }, '自启服务已启用'); await loadStatus(); }
+    async function disableService() { await call('/api/service/disable', { method: 'POST' }, '自启服务已禁用'); await loadStatus(); }
+    async function restartService() { await call('/api/service/restart', { method: 'POST' }, 'systemd 服务重启请求已发送'); }
     loadStatus(); setInterval(loadStatus, 5000);
   </script>
 </body>

@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+set -u
+
+CONFIG_PATH="${AURORAOPS_CONFIG:-/etc/auroraops/agent-config.json}"
+SERVICE_NAME="${AURORAOPS_SERVICE_NAME:-auroraops-agent.service}"
+DEFAULT_SERVER_HOST="127.0.0.1:8000"
+DEFAULT_DEVICE_NAME="$(hostname 2>/dev/null || printf 'linux-node-01')"
+DEFAULT_BIND_ADDRESS="127.0.0.1"
+DEFAULT_WEB_PORT="1701"
+PLAIN=0
+
+if [ "${1:-}" = "--plain" ]; then
+  PLAIN=1
+  shift
+fi
+
+need_root() {
+  [ "$(id -u)" -eq 0 ] && return 1
+  if [ -e "$CONFIG_PATH" ]; then
+    [ ! -w "$CONFIG_PATH" ]
+  else
+    [ ! -w "$(dirname "$CONFIG_PATH")" ]
+  fi
+}
+
+reexec_root() {
+  if ! need_root; then
+    return 0
+  fi
+  if command -v pkexec >/dev/null 2>&1; then
+    exec pkexec env AURORAOPS_CONFIG="$CONFIG_PATH" AURORAOPS_SERVICE_NAME="$SERVICE_NAME" "$0" "$@"
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    exec sudo AURORAOPS_CONFIG="$CONFIG_PATH" AURORAOPS_SERVICE_NAME="$SERVICE_NAME" "$0" "$@"
+  fi
+  echo "需要 root 权限写入 $CONFIG_PATH，但未找到 pkexec 或 sudo。" >&2
+  exit 1
+}
+
+json_get() {
+  local key="$1"
+  local default_value="$2"
+  [ -f "$CONFIG_PATH" ] || { printf '%s' "$default_value"; return; }
+  python3 - "$CONFIG_PATH" "$key" "$default_value" <<'PY' 2>/dev/null || printf '%s' "$default_value"
+import json
+import sys
+
+path, key, default = sys.argv[1:4]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        value = json.load(f).get(key, default)
+except Exception:
+    value = default
+if value is None:
+    value = ""
+if isinstance(value, bool):
+    value = "true" if value else "false"
+print(value, end="")
+PY
+}
+
+bool_flag() {
+  case "${1:-false}" in
+    true|1|yes|on|TRUE|YES|ON) printf 'ON' ;;
+    *) printf 'OFF' ;;
+  esac
+}
+
+bool_json() {
+  case "${1:-}" in
+    ON|on|true|1|yes|YES) printf 'true' ;;
+    *) printf 'false' ;;
+  esac
+}
+
+ask_text() {
+  local title="$1"
+  local prompt="$2"
+  local default_value="$3"
+  if [ "$PLAIN" -eq 0 ] && command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "$title" --inputbox "$prompt" 10 72 "$default_value" 3>&1 1>&2 2>&3
+  elif [ "$PLAIN" -eq 0 ] && command -v dialog >/dev/null 2>&1; then
+    dialog --title "$title" --inputbox "$prompt" 10 72 "$default_value" 3>&1 1>&2 2>&3
+  else
+    printf '%s [%s]: ' "$prompt" "$default_value" >&2
+    local value
+    IFS= read -r value
+    printf '%s' "${value:-$default_value}"
+  fi
+}
+
+ask_switches() {
+  local current_wayland="$1"
+  local current_kms="$2"
+  local current_vaapi="$3"
+  local current_nvenc="$4"
+  if [ "$PLAIN" -eq 0 ] && command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "AuroraOps 客户端" --checklist "选择远程桌面能力：" 15 76 4 \
+      wayland "Wayland / PipeWire 支持" "$(bool_flag "$current_wayland")" \
+      kms "KMS / DRM 捕获" "$(bool_flag "$current_kms")" \
+      vaapi "VAAPI 硬件编码" "$(bool_flag "$current_vaapi")" \
+      nvenc "NVENC 硬件编码" "$(bool_flag "$current_nvenc")" \
+      3>&1 1>&2 2>&3
+  elif [ "$PLAIN" -eq 0 ] && command -v dialog >/dev/null 2>&1; then
+    dialog --title "AuroraOps 客户端" --checklist "选择远程桌面能力：" 15 76 4 \
+      wayland "Wayland / PipeWire 支持" "$(bool_flag "$current_wayland")" \
+      kms "KMS / DRM 捕获" "$(bool_flag "$current_kms")" \
+      vaapi "VAAPI 硬件编码" "$(bool_flag "$current_vaapi")" \
+      nvenc "NVENC 硬件编码" "$(bool_flag "$current_nvenc")" \
+      3>&1 1>&2 2>&3
+  else
+    local result=""
+    for item in wayland kms vaapi nvenc; do
+      local current="false"
+      case "$item" in
+        wayland) current="$current_wayland" ;;
+        kms) current="$current_kms" ;;
+        vaapi) current="$current_vaapi" ;;
+        nvenc) current="$current_nvenc" ;;
+      esac
+      local yn_default="n"
+      [ "$(bool_json "$(bool_flag "$current")")" = "true" ] && yn_default="y"
+      printf '启用 %s? [y/N] 当前:%s: ' "$item" "$yn_default" >&2
+      local answer
+      IFS= read -r answer
+      answer="${answer:-$yn_default}"
+      case "$answer" in
+        y|Y|yes|YES) result="$result $item" ;;
+      esac
+    done
+    printf '%s' "$result"
+  fi
+}
+
+contains_token() {
+  local haystack=" $1 "
+  local needle="$2"
+  [[ "$haystack" == *" $needle "* ]] || [[ "$haystack" == *"\"$needle\""* ]]
+}
+
+write_config() {
+  local server_host="$1"
+  local device_name="$2"
+  local bind_address="$3"
+  local web_port="$4"
+  local access_code="$5"
+  local kms_device="$6"
+  local wayland="$7"
+  local kms="$8"
+  local vaapi="$9"
+  local nvenc="${10}"
+
+  mkdir -p "$(dirname "$CONFIG_PATH")"
+  python3 - "$CONFIG_PATH" "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" <<'PY'
+import json
+import sys
+
+path, server_host, device_name, bind_address, web_port, access_code, kms_device, wayland, kms, vaapi, nvenc = sys.argv[1:12]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+except Exception:
+    cfg = {}
+
+server_host = server_host.strip().rstrip("/")
+http_base = server_host if server_host.startswith(("http://", "https://")) else f"http://{server_host}"
+cfg.update({
+    "serverHost": server_host,
+    "deviceName": device_name.strip(),
+    "httpBase": http_base,
+    "bindAddress": bind_address.strip() or "127.0.0.1",
+    "webPort": int(web_port or "1701"),
+    "accessCode": access_code.strip() or None,
+    "kmsDevice": kms_device.strip() or None,
+    "waylandSupport": wayland == "true",
+    "kmsSupport": kms == "true",
+    "tryVaapi": vaapi == "true",
+    "tryNvenc": nvenc == "true",
+})
+
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(cfg, f, ensure_ascii=False, indent=2)
+    f.write("\n")
+PY
+}
+
+confirm_restart() {
+  if [ "$PLAIN" -eq 0 ] && command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "AuroraOps 客户端" --yesno "配置已保存。是否现在重启服务生效？" 9 58
+  elif [ "$PLAIN" -eq 0 ] && command -v dialog >/dev/null 2>&1; then
+    dialog --title "AuroraOps 客户端" --yesno "配置已保存。是否现在重启服务生效？" 9 58
+  else
+    printf '配置已保存。是否现在重启服务生效? [Y/n]: ' >&2
+    local answer
+    IFS= read -r answer
+    case "${answer:-y}" in n|N|no|NO) return 1 ;; *) return 0 ;; esac
+  fi
+}
+
+restart_service() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 || true
+  systemctl restart "$SERVICE_NAME" >/dev/null 2>&1 || systemctl start "$SERVICE_NAME" >/dev/null 2>&1 || true
+}
+
+main() {
+  reexec_root "$@"
+
+  local server_host device_name bind_address web_port access_code kms_device switches
+  server_host="$(ask_text "AuroraOps 客户端" "服务端地址" "$(json_get serverHost "$DEFAULT_SERVER_HOST")")" || exit 1
+  device_name="$(ask_text "AuroraOps 客户端" "设备名称" "$(json_get deviceName "$DEFAULT_DEVICE_NAME")")" || exit 1
+  bind_address="$(ask_text "AuroraOps 客户端" "远程桌面绑定地址" "$(json_get bindAddress "$DEFAULT_BIND_ADDRESS")")" || exit 1
+  web_port="$(ask_text "AuroraOps 客户端" "远程桌面 Web 端口" "$(json_get webPort "$DEFAULT_WEB_PORT")")" || exit 1
+  access_code="$(ask_text "AuroraOps 客户端" "访问码，留空表示不限制" "$(json_get accessCode "")")" || exit 1
+  kms_device="$(ask_text "AuroraOps 客户端" "KMS 设备，留空自动选择" "$(json_get kmsDevice "")")" || exit 1
+  switches="$(ask_switches "$(json_get waylandSupport false)" "$(json_get kmsSupport false)" "$(json_get tryVaapi false)" "$(json_get tryNvenc false)")" || exit 1
+
+  local wayland=false kms=false vaapi=false nvenc=false
+  contains_token "$switches" wayland && wayland=true
+  contains_token "$switches" kms && kms=true
+  contains_token "$switches" vaapi && vaapi=true
+  contains_token "$switches" nvenc && nvenc=true
+
+  write_config "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc"
+  echo "配置已写入：$CONFIG_PATH"
+
+  if confirm_restart; then
+    restart_service
+    echo "服务已重启：$SERVICE_NAME"
+  else
+    echo "服务未重启，稍后可执行：systemctl restart $SERVICE_NAME"
+  fi
+}
+
+main "$@"

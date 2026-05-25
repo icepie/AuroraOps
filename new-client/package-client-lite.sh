@@ -21,9 +21,13 @@ install -d "${STAGE}/DEBIAN"
 install -d "${STAGE}/etc/auroraops"
 install -d "${STAGE}/etc/systemd/system"
 install -d "${STAGE}/opt/auroraops"
+install -d "${STAGE}/usr/share/applications"
 install -d "${DIST_DIR}"
 
 install -m 0755 "${BIN_SOURCE}" "${STAGE}/opt/auroraops/auroraops-agent"
+install -m 0755 "${ROOT_DIR}/auroraops-client-launcher" "${STAGE}/opt/auroraops/auroraops-client-launcher"
+install -m 0755 "${ROOT_DIR}/auroraops-client-config" "${STAGE}/opt/auroraops/auroraops-client-config"
+install -m 0644 "${ROOT_DIR}/auroraops-agent.desktop" "${STAGE}/usr/share/applications/auroraops-agent.desktop"
 
 cat > "${STAGE}/etc/auroraops/agent-config.json" <<'EOF'
 {
@@ -32,7 +36,12 @@ cat > "${STAGE}/etc/auroraops/agent-config.json" <<'EOF'
   "httpBase": "http://192.168.200.124:8000",
   "bindAddress": "0.0.0.0",
   "webPort": 1701,
-  "tcpAddress": "192.168.200.124:8099"
+  "tcpAddress": "192.168.200.124:8099",
+  "tryVaapi": false,
+  "tryNvenc": false,
+  "waylandSupport": false,
+  "kmsSupport": false,
+  "kmsDevice": null
 }
 EOF
 
@@ -61,7 +70,8 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: AuroraOps <opensource@auroraops.local>
-Depends: libc6, libgcc-s1 | libgcc1
+Depends: libc6, libgcc-s1 | libgcc1, systemd, curl, xdg-utils, python3, policykit-1 | polkitd
+Recommends: whiptail | dialog, firefox | chromium | chromium-browser
 Conflicts: auroraops-agent
 Replaces: auroraops-agent
 Description: AuroraOps lightweight service client

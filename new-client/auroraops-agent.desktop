@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=AuroraOps Agent
-Comment=AuroraOps remote desktop and device agent
-Exec=auroraops-agent
+Name=AuroraOps 客户端
+Comment=AuroraOps client and remote desktop service manager
+Exec=/opt/auroraops/auroraops-client-launcher
 Terminal=false
 Categories=Network;RemoteAccess;

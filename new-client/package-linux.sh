@@ -9,8 +9,8 @@ VERSION="${VERSION:-$(awk -F '"' '/^version = / { print $2; exit }' "${ROOT_DIR}
 RELEASE="${RELEASE:-1}"
 BUILD_MODE="${BUILD_MODE:-release}"
 FEATURES="${FEATURES:-ffmpeg-system}"
-DEB_DEPENDS="libc6, libgcc-s1 | libgcc1, libx11-6, libxext6, libxrandr2, libxfixes3, libxcomposite1, libxi6, libxtst6, libxinerama1, libxcursor1, libxkbcommon0, libwayland-client0, libwayland-cursor0, libdbus-1-3, libssl3 | libssl1.1, libglib2.0-0, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libpango-1.0-0, libcairo2, libpangocairo-1.0-0, libavformat62 | libavformat61 | libavformat60 | libavformat59 | libavformat58, libavfilter11 | libavfilter10 | libavfilter9 | libavfilter8 | libavfilter7, libavcodec62 | libavcodec61 | libavcodec60 | libavcodec59 | libavcodec58, libavutil60 | libavutil59 | libavutil58 | libavutil57 | libavutil56, libswscale9 | libswscale8 | libswscale7 | libswscale6 | libswscale5, libswresample6 | libswresample5 | libswresample4 | libswresample3"
-DEB_RECOMMENDS="gstreamer1.0-plugins-base, gstreamer1.0-pipewire, libuinput-tools"
+DEB_DEPENDS="libc6, libgcc-s1 | libgcc1, systemd, curl, xdg-utils, python3, policykit-1 | polkitd, libx11-6, libxext6, libxrandr2, libxfixes3, libxcomposite1, libxi6, libxtst6, libxinerama1, libxcursor1, libxkbcommon0, libwayland-client0, libwayland-cursor0, libdbus-1-3, libssl3 | libssl1.1, libglib2.0-0, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libpango-1.0-0, libcairo2, libpangocairo-1.0-0, libavformat62 | libavformat61 | libavformat60 | libavformat59 | libavformat58, libavfilter11 | libavfilter10 | libavfilter9 | libavfilter8 | libavfilter7, libavcodec62 | libavcodec61 | libavcodec60 | libavcodec59 | libavcodec58, libavutil60 | libavutil59 | libavutil58 | libavutil57 | libavutil56, libswscale9 | libswscale8 | libswscale7 | libswscale6 | libswscale5, libswresample6 | libswresample5 | libswresample4 | libswresample3"
+DEB_RECOMMENDS="gstreamer1.0-plugins-base, gstreamer1.0-pipewire, libuinput-tools, whiptail | dialog, firefox | chromium | chromium-browser"
 RPM_REQUIRES=(
   "systemd"
   "ffmpeg-libs"
@@ -32,6 +32,11 @@ RPM_REQUIRES=(
   "libXcursor"
   "libxkbcommon"
   "wayland"
+  "curl"
+  "xdg-utils"
+  "python3"
+  "newt"
+  "polkit"
 )
 
 usage() {
@@ -115,7 +120,6 @@ if [ ! -x "${BIN_PATH}" ]; then
   echo "Built binary not found: ${BIN_PATH}" >&2
   exit 1
 fi
-
 rm -rf "${WORK_DIR}"
 mkdir -p "${DIST_DIR}" "${WORK_DIR}"
 
@@ -127,6 +131,8 @@ install_common_tree() {
   install -d "${stage}/usr/share/applications"
   install -d "${stage}/usr/share/doc/${PACKAGE_NAME}"
   install -m 0755 "${BIN_PATH}" "${stage}/opt/auroraops/${PACKAGE_NAME}"
+  install -m 0755 "${ROOT_DIR}/auroraops-client-launcher" "${stage}/opt/auroraops/auroraops-client-launcher"
+  install -m 0755 "${ROOT_DIR}/auroraops-client-config" "${stage}/opt/auroraops/auroraops-client-config"
   install -m 0644 "${ROOT_DIR}/auroraops-agent.service" "${stage}/etc/systemd/system/auroraops-agent.service"
   install -m 0644 "${ROOT_DIR}/packaging/agent-config.json" "${stage}/etc/auroraops/agent-config.json"
   install -m 0644 "${ROOT_DIR}/auroraops-agent.desktop" "${stage}/usr/share/applications/auroraops-agent.desktop"
@@ -213,6 +219,8 @@ $(sed 's/^/  /' "${ROOT_DIR}/packaging/rpm/postuninstall.sh")
 %files
 %license /usr/share/doc/${PACKAGE_NAME}/README.md
 /opt/auroraops/${PACKAGE_NAME}
+/opt/auroraops/auroraops-client-launcher
+/opt/auroraops/auroraops-client-config
 /etc/systemd/system/auroraops-agent.service
 /usr/share/applications/auroraops-agent.desktop
 %config(noreplace) /etc/auroraops/agent-config.json

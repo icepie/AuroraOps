@@ -21,9 +21,14 @@ install -d "${STAGE}/DEBIAN"
 install -d "${STAGE}/etc/auroraops"
 install -d "${STAGE}/etc/systemd/system"
 install -d "${STAGE}/usr/local/bin"
+install -d "${STAGE}/opt/auroraops"
+install -d "${STAGE}/usr/share/applications"
 install -d "${DIST_DIR}"
 
 install -m 0755 "${BIN_SOURCE}" "${STAGE}/usr/local/bin/auroraops-agent"
+install -m 0755 "${ROOT_DIR}/auroraops-client-launcher" "${STAGE}/opt/auroraops/auroraops-client-launcher"
+install -m 0755 "${ROOT_DIR}/auroraops-client-config" "${STAGE}/opt/auroraops/auroraops-client-config"
+install -m 0644 "${ROOT_DIR}/auroraops-agent.desktop" "${STAGE}/usr/share/applications/auroraops-agent.desktop"
 
 cat > "${STAGE}/etc/auroraops/agent-config.json" <<'EOF'
 {
@@ -32,7 +37,12 @@ cat > "${STAGE}/etc/auroraops/agent-config.json" <<'EOF'
   "httpBase": "http://192.168.200.124:8000",
   "bindAddress": "0.0.0.0",
   "webPort": 1701,
-  "tcpAddress": "192.168.200.124:8099"
+  "tcpAddress": "192.168.200.124:8099",
+  "tryVaapi": false,
+  "tryNvenc": false,
+  "waylandSupport": false,
+  "kmsSupport": false,
+  "kmsDevice": null
 }
 EOF
 
@@ -61,8 +71,8 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: AuroraOps <opensource@auroraops.local>
-Depends: libc6, libgcc-s1 | libgcc1, libx11-6, libxext6, libxrandr2, libxfixes3, libxcomposite1, libxi6, libxtst6, libxinerama1, libxcursor1, libxkbcommon0, libwayland-client0, libwayland-cursor0, libdbus-1-3, libssl3 | libssl1.1, libglib2.0-0, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libpango-1.0-0, libcairo2, libpangocairo-1.0-0, libavformat62 | libavformat61 | libavformat60 | libavformat59 | libavformat58, libavfilter11 | libavfilter10 | libavfilter9 | libavfilter8 | libavfilter7, libavcodec62 | libavcodec61 | libavcodec60 | libavcodec59 | libavcodec58, libavutil60 | libavutil59 | libavutil58 | libavutil57 | libavutil56, libswscale9 | libswscale8 | libswscale7 | libswscale6 | libswscale5, libswresample6 | libswresample5 | libswresample4 | libswresample3
-Recommends: gstreamer1.0-plugins-base, gstreamer1.0-pipewire, libuinput-tools
+Depends: libc6, libgcc-s1 | libgcc1, systemd, curl, xdg-utils, python3, policykit-1 | polkitd, libx11-6, libxext6, libxrandr2, libxfixes3, libxcomposite1, libxi6, libxtst6, libxinerama1, libxcursor1, libxkbcommon0, libwayland-client0, libwayland-cursor0, libdbus-1-3, libssl3 | libssl1.1, libglib2.0-0, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libpango-1.0-0, libcairo2, libpangocairo-1.0-0, libavformat62 | libavformat61 | libavformat60 | libavformat59 | libavformat58, libavfilter11 | libavfilter10 | libavfilter9 | libavfilter8 | libavfilter7, libavcodec62 | libavcodec61 | libavcodec60 | libavcodec59 | libavcodec58, libavutil60 | libavutil59 | libavutil58 | libavutil57 | libavutil56, libswscale9 | libswscale8 | libswscale7 | libswscale6 | libswscale5, libswresample6 | libswresample5 | libswresample4 | libswresample3
+Recommends: gstreamer1.0-plugins-base, gstreamer1.0-pipewire, libuinput-tools, whiptail | dialog, firefox | chromium | chromium-browser
 Replaces: auroraops-agent, auroraops-client
 Breaks: auroraops-agent
 Description: AuroraOps native remote desktop client

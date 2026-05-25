@@ -96,6 +96,19 @@ RUN set -eux; \
       exit 1; \
     fi
 
+# -------- CMake (need >= 3.28 for fltk-sys) --------
+ARG CMAKE_VERSION=3.31.6
+RUN set -eux; \
+    if command -v dpkg >/dev/null 2>&1; then arch="$(dpkg --print-architecture)"; else arch="$(uname -m)"; fi; \
+    case "$arch" in \
+      amd64|x86_64) cmake_arch=x86_64 ;; \
+      arm64|aarch64) cmake_arch=aarch64 ;; \
+      *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${cmake_arch}.tar.gz" \
+      | tar xz --strip-components=1 -C /usr/local; \
+    cmake --version
+
 # -------- Rust toolchain --------
 RUN set -eux; \
     if command -v dpkg >/dev/null 2>&1; then arch="$(dpkg --print-architecture)"; else arch="$(uname -m)"; fi; \
