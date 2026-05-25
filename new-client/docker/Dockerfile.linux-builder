@@ -53,7 +53,7 @@ RUN set -eux; \
         dpkg-dev fakeroot rpm \
         libdbus-1-dev \
         libx11-dev libxtst-dev libxext-dev libxrandr-dev libxfixes-dev libxcomposite-dev libxi-dev \
-        libxinerama-dev libxcursor-dev libxkbcommon-dev libwayland-dev \
+        libxinerama-dev libxcursor-dev libxkbcommon-dev libwayland-dev libxv-dev \
         libxcb1-dev libxcb-dri3-dev libxau-dev libxdmcp-dev x11proto-dev xtrans-dev \
         libdrm-dev libgl1-mesa-dev \
         libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev liborc-0.4-dev \
@@ -68,9 +68,14 @@ RUN set -eux; \
       # CentOS 7 EOL: switch to vault + EPEL archive + devtoolset (GCC 11)
       if [ "${ID:-}" = "centos" ] && [ "${VERSION_ID:-}" = "7" ]; then \
         sed -i -E 's|^mirrorlist=|#mirrorlist=|; s|^#?baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|' /etc/yum.repos.d/CentOS-*.repo; \
-        "$pm" install -y epel-release || true; \
+        "$pm" install -y epel-release centos-release-scl || true; \
         sed -i -E 's|^metalink=|#metalink=|; s|^#?baseurl=https?://download.fedoraproject.org/pub/epel|baseurl=http://archives.fedoraproject.org/pub/archive/epel|' /etc/yum.repos.d/epel*.repo 2>/dev/null || true; \
-        printf '[centos-sclo-rh]\nname=CentOS-7 SCLo rh\nbaseurl=http://vault.centos.org/centos/7/sclo/x86_64/rh/\ngpgcheck=0\nenabled=1\n' > /etc/yum.repos.d/CentOS-SCLo-rh.repo; \
+        case "$(uname -m)" in \
+          aarch64|arm64) scl_base="https://vault.centos.org/altarch/7.9.2009/sclo/aarch64" ;; \
+          *) scl_base="https://vault.centos.org/7.9.2009/sclo/x86_64" ;; \
+        esac; \
+        printf '[centos-sclo-sclo]\nname=CentOS-7 SCLo sclo\nbaseurl=%s/sclo/\ngpgcheck=0\nenabled=1\n\n[centos-sclo-rh]\nname=CentOS-7 SCLo rh\nbaseurl=%s/rh/\ngpgcheck=0\nenabled=1\n' "$scl_base" "$scl_base" > /etc/yum.repos.d/CentOS-SCLo-vault.repo; \
+        rm -f /etc/yum.repos.d/CentOS-SCLo-scl*.repo; \
         "$pm" install -y devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-binutils || true; \
       fi; \
       # CentOS 8 EOL: switch to vault
@@ -89,9 +94,9 @@ RUN set -eux; \
         autoconf automake libtool \
         dbus-devel \
         libX11-devel libXtst-devel libXext-devel libXrandr-devel libXfixes-devel libXcomposite-devel libXi-devel \
-        libXinerama-devel libXcursor-devel libxkbcommon-devel wayland-devel \
+        libXinerama-devel libXcursor-devel libxkbcommon-devel wayland-devel libXv-devel \
         libxcb-devel xorg-x11-proto-devel \
-        libdrm-devel mesa-libGL-devel \
+        libdrm-devel mesa-libGL-devel libglvnd-devel \
         glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel orc-devel \
         elfutils-devel xz-devel zlib-devel \
         fontconfig-devel pango-devel cairo-devel; \

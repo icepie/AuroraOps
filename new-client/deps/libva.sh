@@ -14,7 +14,7 @@ sed -i -e 's/-lva-\${display}$/-lva-\${display} -ldrm/' pkgconfig/libva-drm.pc.i
     --enable-shared=yes \
     --enable-drm \
     --enable-x11 \
-    --enable-glx \
+    --disable-glx \
     --with-drivers-path="/usr/lib/dri"
 
 make -j$NPROCS
