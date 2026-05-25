@@ -2,7 +2,7 @@
 # Matrix builder for AuroraOps Agent across 信创 / mainstream Linux targets.
 # Targets are mapped onto upstream-compatible base images (same glibc):
 #
-#   ubuntu1804  ubuntu:18.04        glibc 2.27  → Ubuntu ≥18.04          (.deb, no Wayland)
+#   ubuntu2004  ubuntu:20.04        glibc 2.31  → Ubuntu ≥20.04          (.deb, X11 only)
 #   ubuntu2204  ubuntu:22.04        glibc 2.35  → Ubuntu ≥22.04          (.deb, full Wayland)
 #   uos-v20     debian:11           glibc 2.31  → 统信 UOS V20 桌面       (.deb)
 #   kylin-v10   rockylinux:8        glibc 2.28  → 麒麟 V10 SP1 (server)   (.rpm)
@@ -28,7 +28,7 @@ NO_CACHE="${NO_CACHE:-0}"
 TARGETS_INPUT="${TARGETS:-all}"
 ARCHES_INPUT="${ARCHES:-amd64,arm64}"
 
-ALL_TARGETS=(ubuntu1804 ubuntu2204 uos-v20 kylin-v10 centos7 centos8 nfs-v4)
+ALL_TARGETS=(ubuntu2004 ubuntu2204 uos-v20 kylin-v10 centos7 centos8 nfs-v4)
 
 usage() {
   cat <<'EOF'
@@ -36,7 +36,7 @@ Usage: ./docker-build-linux.sh [options]
 
 Options:
   --target LIST   Comma-separated targets, or "all".
-                  Choices: ubuntu1804, ubuntu2204, uos-v20, kylin-v10, centos7, centos8, nfs-v4, all
+                  Choices: ubuntu2004, ubuntu2204, uos-v20, kylin-v10, centos7, centos8, nfs-v4, all
                   Default: all
   --arch LIST     Comma-separated archs. Choices: amd64, arm64. Default: amd64,arm64
   --output DIR    Output directory. Default: dist/linux-matrix
@@ -76,9 +76,9 @@ IFS=',' read -r -a ARCHES <<< "$ARCHES_INPUT"
 # Per-target base image + features + extra packages
 target_config() {
   case "$1" in
-    ubuntu1804)
-      BASE_IMAGE="ubuntu:18.04"
-      # No pipewire/gstreamer (too old); X11-only capture
+    ubuntu2004)
+      BASE_IMAGE="ubuntu:20.04"
+      # No pipewire/gstreamer (1.16 available but keep X11-only for max compat)
       FEATURES=""
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
@@ -86,21 +86,21 @@ target_config() {
     ubuntu2204)
       BASE_IMAGE="ubuntu:22.04"
       # Full Wayland + X11 support
-      FEATURES="pipewire"
+      FEATURES="pipewire,vaapi"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
     uos-v20)
       BASE_IMAGE="debian:11"
       # GStreamer 1.18 available; ffmpeg built from source (system too old)
-      FEATURES="pipewire"
+      FEATURES="pipewire,vaapi"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
     kylin-v10|centos8|nfs-v4)
       BASE_IMAGE="rockylinux:8"
       # Has GStreamer 1.16 in AppStream; enable pipewire
-      FEATURES="pipewire"
+      FEATURES="pipewire,vaapi"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM="epel-release"
       ;;

@@ -35,7 +35,7 @@ RUN set -eux; \
         printf 'deb http://archive.debian.org/debian buster-updates main contrib non-free\n' >> /etc/apt/sources.list; \
         printf 'deb http://archive.debian.org/debian-security buster/updates main contrib non-free\n' >> /etc/apt/sources.list; \
       fi; \
-      # Ubuntu EOL: redirect to old-releases
+      # Ubuntu EOL: redirect to old-releases (20.04 still active, no redirect needed)
       if [ "${ID:-}" = "ubuntu" ]; then \
         case "${VERSION_ID:-}" in \
           16.04|18.04) \
@@ -105,14 +105,10 @@ RUN set -eux; \
     arch="$(uname -m)"; \
     case "$arch" in \
       x86_64) \
-        curl -fsSL "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/linux/nasm-${NASM_VERSION}-0.fc27.x86_64.rpm" -o /tmp/nasm.rpm; \
-        if command -v rpm >/dev/null 2>&1; then \
-          rpm -Uvh --force /tmp/nasm.rpm; \
-        else \
-          apt-get install -y --no-install-recommends alien 2>/dev/null && alien -i /tmp/nasm.rpm || \
-          (cd /tmp && ar x nasm.rpm && tar xf data.tar* -C /usr/local --strip-components=2) || true; \
-        fi; \
-        rm -f /tmp/nasm.rpm ;; \
+        curl -fsSL "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz" -o /tmp/nasm.tar.xz; \
+        cd /tmp && tar xf nasm.tar.xz && cd "nasm-${NASM_VERSION}" && \
+        ./configure --prefix=/usr/local && make -j"$(nproc)" && make install; \
+        rm -rf /tmp/nasm* ;; \
     esac; \
     nasm --version || true
 
