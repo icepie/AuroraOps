@@ -2318,7 +2318,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
         <button onclick="startAgent()">启动连接</button>
         <button class="secondary" onclick="stopAgent()">停止连接</button>
         <button class="secondary" onclick="loadStatus()">刷新</button>
-        <a id="desktopLink" class="button secondary" href="#" target="_blank">打开远程桌面端口</a>
+        <a id="desktopLink" class="button secondary" href="#" target="_blank" hidden>打开远程桌面端口</a>
       </div>
     </section>
     <section>
@@ -2366,6 +2366,8 @@ const INDEX_HTML: &str = r##"<!doctype html>
   <script>
     const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','controlDisplayManager'];
     const $ = (id) => document.getElementById(id);
+    const query = new URLSearchParams(window.location.search);
+    const showDesktopLink = ['1', 'true', 'yes'].includes((query.get('showDesktopLink') || query.get('desktopLink') || query.get('debugDesktop') || '').toLowerCase());
     const log = (text) => $('log').textContent = `${new Date().toLocaleTimeString()} ${text}\n` + $('log').textContent;
     async function request(path, options) {
       const response = await fetch(path, options);
@@ -2394,6 +2396,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       $('tcpAddress').textContent = status.tcpAddress || cfg.tcpAddress || '-';
       $('desktopUrl').textContent = status.desktopUrl || '-';
       $('desktopLink').href = status.desktopUrl || '#';
+      $('desktopLink').hidden = !showDesktopLink;
       $('message').textContent = data.message || status.message || '-';
       if (data.message && data.message.startsWith('active=')) $('serviceStatus').textContent = data.message;
     }
