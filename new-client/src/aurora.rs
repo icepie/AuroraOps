@@ -80,7 +80,7 @@ pub struct AgentConfig {
     pub bind_address: String,
     #[serde(default = "default_weylus_port")]
     pub web_port: u16,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_code: Option<String>,
     #[serde(default)]
     pub try_vaapi: bool,
