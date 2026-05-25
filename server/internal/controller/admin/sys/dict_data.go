@@ -6,10 +6,10 @@
 package sys
 
 import (
+	"auroraops/api/admin/dict"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/dict"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 )
 
 var (

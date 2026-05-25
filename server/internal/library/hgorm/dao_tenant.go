@@ -6,10 +6,10 @@
 package hgorm
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/utility/tree"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/utility/tree"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"

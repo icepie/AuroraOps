@@ -1,18 +1,18 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/do"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/do"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"

@@ -6,10 +6,10 @@
 package middleware
 
 import (
-	"hotgo/internal/consts"
-	"hotgo/internal/library/response"
-	"hotgo/utility/charset"
-	"hotgo/utility/simple"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/response"
+	"auroraops/utility/charset"
+	"auroraops/utility/simple"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gcode"

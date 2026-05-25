@@ -6,15 +6,15 @@
 package common
 
 import (
+	"auroraops/api/admin/common"
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/api/admin/common"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 )
 
 var Ems = new(cEms)

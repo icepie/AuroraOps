@@ -5,7 +5,7 @@
 // @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
 package consts
 
-// VersionApp HotGo版本
+// VersionApp AuroraOps 版本
 const (
 	VersionApp = "2.18.6"
 )

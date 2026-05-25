@@ -5,7 +5,7 @@
 package member
 
 import (
-	"hotgo/api/api/member"
+	"auroraops/api/api/member"
 )
 
 type ControllerV1 struct{}

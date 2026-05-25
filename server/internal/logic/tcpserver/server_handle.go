@@ -6,20 +6,20 @@
 package tcpserver
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/model/do"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
+	"auroraops/utility/encrypt"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/model/do"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
-	"hotgo/utility/encrypt"
 )
 
 // onServerLogin 处理客户端登录

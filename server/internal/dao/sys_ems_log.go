@@ -5,7 +5,7 @@
 package dao
 
 import (
-	"hotgo/internal/dao/internal"
+	"auroraops/internal/dao/internal"
 )
 
 // sysEmsLogDao is the data access object for the table hg_sys_ems_log.

@@ -6,11 +6,11 @@
 package location
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/model/entity"
+	"auroraops/utility/tree"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/model/entity"
-	"hotgo/utility/tree"
 
 	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/database/gdb"

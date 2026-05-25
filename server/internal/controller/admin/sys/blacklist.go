@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/api/admin/blacklist"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/blacklist"
-	"hotgo/internal/service"
 )
 
 var (

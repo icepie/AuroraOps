@@ -6,9 +6,9 @@
 package admin
 
 import (
+	"auroraops/api/admin/order"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/order"
-	"hotgo/internal/service"
 )
 
 var (

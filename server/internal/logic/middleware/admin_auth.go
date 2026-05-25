@@ -6,15 +6,15 @@
 package middleware
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/response"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/response"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 )
 
 // AdminAuth 后台鉴权中间件

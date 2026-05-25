@@ -12,7 +12,7 @@
 
 ### 创建新插件
 
-1、HotGo 后台进入 开发工具->插件管理->找到创建新插件，根据引导进行创建即可。
+1、AuroraOps 后台进入 开发工具->插件管理->找到创建新插件，根据引导进行创建即可。
 
 ```shell
 创建成功后默认情况下会在以下目录中生成插件文件，假设新生成的插件名为：hgexample
@@ -59,7 +59,7 @@ func (m *module) UnInstall(ctx context.Context) (err error) {
 
 ### 开发
 
-完全可以根据HotGo正常的开发流程去开发对应的API、控制器、业务逻辑、插件内的应用
+完全可以根据 AuroraOps正常的开发流程去开发对应的API、控制器、业务逻辑、插件内的应用
 
 ### 调用主模块服务接口
 
@@ -73,7 +73,7 @@ func (m *module) UnInstall(ctx context.Context) (err error) {
 package sysin
 
 import (
-	"hotgo/internal/model/input/sysin"
+	"auroraops/internal/model/input/sysin"
 )
 
 // UpdateConfigInp 更新指定配置
@@ -89,10 +89,10 @@ package sys
 
 import (
 	"context"
-	"hotgo/addons/hgexample/global"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/addons/hgexample/service"
-	isc "hotgo/internal/service"
+	"auroraops/addons/hgexample/global"
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/addons/hgexample/service"
+	isc "auroraops/internal/service"
 )
 
 type sSysConfig struct{}
@@ -136,8 +136,8 @@ package sys
 
 import (
 	"context"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 )
 
 type sSysAddonsConfig struct{}

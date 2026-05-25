@@ -6,9 +6,9 @@
 package service
 
 import (
+	"auroraops/internal/model/input/commonin"
+	"auroraops/internal/model/input/sysin"
 	"context"
-	"hotgo/internal/model/input/commonin"
-	"hotgo/internal/model/input/sysin"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 )

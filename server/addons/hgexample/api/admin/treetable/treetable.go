@@ -6,9 +6,9 @@
 package treetable
 
 import (
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/internal/model/input/form"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/internal/model/input/form"
 )
 
 // ListReq 查询列表

@@ -3,10 +3,10 @@ package pay
 import (
 	"context"
 
-	v1 "hotgo/api/api/pay/v1"
-	"hotgo/internal/consts"
-	"hotgo/internal/model/input/payin"
-	"hotgo/internal/service"
+	v1 "auroraops/api/api/pay/v1"
+	"auroraops/internal/consts"
+	"auroraops/internal/model/input/payin"
+	"auroraops/internal/service"
 
 	"github.com/gogf/gf/v2/frame/g"
 )

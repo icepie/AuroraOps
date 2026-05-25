@@ -7,7 +7,7 @@ package pay
 import (
 	"context"
 
-	"hotgo/api/api/pay/v1"
+	"auroraops/api/api/pay/v1"
 )
 
 type IPayV1 interface {

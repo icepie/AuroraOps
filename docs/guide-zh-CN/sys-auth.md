@@ -12,7 +12,7 @@
 
 #### 为角色添加菜单权限
 
-1、HotGo后台 -> 权限管理 -> 菜单权限 -> 找到添加菜单，按照表单提示添加你的菜单信息。
+1、AuroraOps 后台 -> 权限管理 -> 菜单权限 -> 找到添加菜单，按照表单提示添加你的菜单信息。
 
 2、添加菜单完成后，到 权限管理 -> 角色权限 -> 找到一位已有角色或者添加新角色 -> 在列表右侧操作栏找到菜单权限打开 -> 将第1步中添加的菜单分配给该角色即可。
 
@@ -76,7 +76,7 @@ graph TD
    B -->|没有登录,但API不需要登录| G(验证通过,进入业务)
    B -->|已登录| C(检查用户角色是否拥有API权限<br> server/internal/logic/admin/role.go,方法:Verify) -->|有权限| G(验证通过,进入业务)
    C -->|API无需验证权限| G(验证通过,进入业务流程)
-   C -->|无权限| D(提示无权限) 
+   C -->|无权限| D(提示无权限)
 ```
 
 #### 菜单权限添加或修改后多久生效？
@@ -124,8 +124,8 @@ package main
 
 import (
 	"context"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm/handler"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm/handler"
 )
 
 func test(ctx context.Context)  {
@@ -140,8 +140,8 @@ package main
 
 import (
 	"context"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm/handler"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm/handler"
 )
 
 func test(ctx context.Context)  {

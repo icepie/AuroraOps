@@ -4,7 +4,7 @@
 
 - 平台: windows/linux
 - 软件与版本：golang 1.19, Mysql 5.7 ...
-- 系统版本：hotgo 2.6.2
+- 系统版本：auroraops 2.6.2
 
 #### 你做了什么？
 

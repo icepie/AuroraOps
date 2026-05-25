@@ -6,6 +6,14 @@
 package global
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/cache"
+	"auroraops/internal/library/queue"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/service"
+	"auroraops/utility/charset"
+	"auroraops/utility/simple"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/contrib/trace/jaeger/v2"
@@ -19,14 +27,6 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gmode"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/cache"
-	"hotgo/internal/library/queue"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/service"
-	"hotgo/utility/charset"
-	"hotgo/utility/simple"
-	"hotgo/utility/validate"
 	"runtime"
 	"strings"
 )
@@ -44,7 +44,7 @@ func Init(ctx context.Context) {
 		return
 	}
 
-	fmt.Printf("欢迎使用HotGo！\r\n当前运行环境：%v, 运行根路径为：%v \r\nHotGo版本：v%v, gf版本：%v \n", runtime.GOOS, gfile.Pwd(), consts.VersionApp, gf.VERSION)
+	fmt.Printf("欢迎使用 AuroraOps！\r\n当前运行环境：%v, 运行根路径为：%v \r\nAuroraOps 版本：v%v, gf版本：%v \n", runtime.GOOS, gfile.Pwd(), consts.VersionApp, gf.VERSION)
 
 	// 初始化链路追踪
 	InitTrace(ctx)

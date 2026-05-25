@@ -6,13 +6,13 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
 	"errors"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"

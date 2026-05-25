@@ -7,7 +7,7 @@
 - HTTP接口
 - 其他
 
-> hotgo提供了一个WebSocket服务器，随`HTTP服务`启停。集成了许多常用功能，如JWT身份认证、路由消息处理器、一对一消息/群组消息/广播消息、在线用户管理、心跳保持等，大大简化和规范了WebSocket服务器的开发流程。
+> AuroraOps 提供了一个WebSocket服务器，随`HTTP服务`启停。集成了许多常用功能，如JWT身份认证、路由消息处理器、一对一消息/群组消息/广播消息、在线用户管理、心跳保持等，大大简化和规范了WebSocket服务器的开发流程。
 - [Websocket客户端](sys-websocket-client.md)
 
 ###  一个基本的消息收发例子
@@ -34,7 +34,7 @@ package handler
 import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/websocket"
+	"auroraops/internal/websocket"
 )
 
 var (
@@ -47,7 +47,7 @@ type cIndex struct{}
 func (c *cIndex) TestMessage(client *websocket.Client, req *websocket.WRequest) {
 	g.Log().Infof(client.Context(), "收到客户端测试消息:%v", gjson.New(req).String())
 	// 将收到的消息原样发送给客户端
-	websocket.SendSuccess(client, req.Event, req.Data) 
+	websocket.SendSuccess(client, req.Event, req.Data)
 }
 ```
 
@@ -61,9 +61,9 @@ package router
 import (
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/hgexample/controller/websocket"
-	"hotgo/addons/hgexample/controller/websocket/handler"
-	ws "hotgo/internal/websocket"
+	"auroraops/addons/hgexample/controller/websocket"
+	"auroraops/addons/hgexample/controller/websocket/handler"
+	ws "auroraops/internal/websocket"
 )
 
 // WebSocket ws路由配置
@@ -72,7 +72,7 @@ func WebSocket(ctx context.Context, group *ghttp.RouterGroup) {
 	ws.RegisterMsg(ws.EventHandlers{
 		"admin/addons/hgexample/testMessage": handler.Index.TestMessage, // 测试消息
 	})
-	
+
 	// 这里"admin/addons/hgexample/testMessage"代表的是一个消息处理ID，可以自定义。建议的格式是和HTTP接口格式保持一致，这样还可以便于对用户请求的消息进行权限验证
 	// 客户端连接后，向WebSocket服务器发送event为"admin/addons/hgexample/testMessage"的消息时，会调用TestMessage方法
 }
@@ -93,7 +93,7 @@ func test() {
 
     client := websocket.Manager().GetClient(id)         // 通过连接ID获取客户端连接
     client := websocket.Manager().GetUserClient(userId) // 通过用户ID获取客户端连接，因为用户是可多端登录的，这里返回的是一个切片
-    
+
     websocket.SendSuccess(client, "admin/addons/hgexample/testMessage", "消息内容")           // 向指定客户端发送一条成功的消息
     websocket.SendError(client, "admin/addons/hgexample/testMessage", gerror.New("错误内容")) // 向指定客户端发送一条失败的消息
 
@@ -117,9 +117,9 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/response"
-	"hotgo/utility/simple"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/response"
+	"auroraops/utility/simple"
 )
 
 // WebSocketAuth websocket鉴权中间件

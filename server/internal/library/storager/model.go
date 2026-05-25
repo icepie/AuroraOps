@@ -6,9 +6,9 @@
 package storager
 
 import (
+	"auroraops/internal/model/entity"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/model/entity"
 )
 
 // FileMeta 文件元数据

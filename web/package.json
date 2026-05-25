@@ -1,11 +1,11 @@
 {
-  "name": "hotgo",
+  "name": "auroraops",
   "type": "module",
   "version": "2.18.6",
   "author": {
     "name": "MengShuai",
     "email": "133814250@qq.com",
-    "url": "https://github.com/bufanyun/hotgo"
+    "url": "https://github.com/bufanyun/auroraops"
   },
   "private": true,
   "scripts": {
@@ -146,7 +146,7 @@
     }
   },
   "keywords": [
-    "hotgo",
+    "auroraops",
     "hg",
     "gf",
     "goframe",
@@ -161,13 +161,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bufanyun/hotgo.git"
+    "url": "git+https://github.com/bufanyun/auroraops.git"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/bufanyun/hotgo/issues"
+    "url": "https://github.com/bufanyun/auroraops/issues"
   },
-  "homepage": "https://github.com/bufanyun/hotgo",
+  "homepage": "https://github.com/bufanyun/auroraops",
   "engines": {
     "node": ">=16"
   }

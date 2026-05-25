@@ -7,7 +7,7 @@
 package cmd
 
 import (
-	"hotgo/internal/library/hggen/internal/cmd/genenums"
+	"auroraops/internal/library/hggen/internal/cmd/genenums"
 )
 
 type (

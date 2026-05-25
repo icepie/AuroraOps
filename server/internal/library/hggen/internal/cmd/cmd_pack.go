@@ -16,8 +16,8 @@ import (
 	"github.com/gogf/gf/v2/os/gres"
 	"github.com/gogf/gf/v2/util/gtag"
 
-	"hotgo/internal/library/hggen/internal/utility/allyes"
-	"hotgo/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/utility/allyes"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
 )
 
 var (
@@ -41,7 +41,7 @@ gf pack /var/www/public packed/data.go -n=packed
 `
 	cPackSrcBrief = `source path for packing, which can be multiple source paths.`
 	cPackDstBrief = `
-destination file path for packed file. if extension of the filename is ".go" and "-n" option is given, 
+destination file path for packed file. if extension of the filename is ".go" and "-n" option is given,
 it enables packing SRC to go file, or else it packs SRC into a binary file.
 `
 	cPackNameBrief     = `package name for output go file, it's set as its directory name if no name passed`

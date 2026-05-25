@@ -1,17 +1,17 @@
 // Package router
-// @Link  https://github.com/bufanyun/hotgo
-// @Copyright  Copyright (c) 2024 HotGo CLI
+// @Link  https://github.com/bufanyun/auroraops
+// @Copyright  Copyright (c) 2024  AuroraOps CLI
 // @Author  Ms <133814250@qq.com>
-// @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
+// @License  https://github.com/bufanyun/auroraops/blob/master/LICENSE
 package router
 
 import (
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/@{.name}/controller/home"
-	"hotgo/addons/@{.name}/global"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
+	"auroraops/addons/@{.name}/controller/home"
+	"auroraops/addons/@{.name}/global"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
 )
 
 // Home 前台页面路由

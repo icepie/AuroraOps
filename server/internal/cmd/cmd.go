@@ -6,10 +6,10 @@
 package cmd
 
 import (
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcmd"
-	"hotgo/utility/simple"
 )
 
 var (
@@ -43,9 +43,8 @@ var (
 		>> 修复菜单关系树  [go run main.go up -m=fix -a1=menuTree]
 		---------------------------------------------------------------------------------
 		更多
-       	github地址：https://github.com/bufanyun/hotgo
-		文档地址：https://github.com/bufanyun/hotgo/tree/v2.0/docs/guide-zh-CN	
-		HotGo框架交流1群：190966648
+		项目名称：AuroraOps 运维管理平台
+		服务端命令：auroraops-server
     `,
 	}
 

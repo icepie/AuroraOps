@@ -6,8 +6,8 @@
 package service
 
 import (
+	"auroraops/internal/model"
 	"context"
-	"hotgo/internal/model"
 )
 
 type (

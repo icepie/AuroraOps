@@ -11,7 +11,7 @@ import (
 	"github.com/gogf/gf/v2/text/gregex"
 	"github.com/gogf/gf/v2/text/gstr"
 
-	"hotgo/internal/library/hggen/internal/utility/utils"
+	"auroraops/internal/library/hggen/internal/utility/utils"
 )
 
 func (c CGenCtrl) getApiItemsInSrc(apiModuleFolderPath string) (items []apiItem, err error) {

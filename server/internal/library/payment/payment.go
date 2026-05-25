@@ -6,15 +6,15 @@
 package payment
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/payment/alipay"
+	"auroraops/internal/library/payment/qqpay"
+	"auroraops/internal/library/payment/wxpay"
+	"auroraops/internal/model/input/payin"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/payment/alipay"
-	"hotgo/internal/library/payment/qqpay"
-	"hotgo/internal/library/payment/wxpay"
-	"hotgo/internal/model/input/payin"
-	"hotgo/utility/validate"
 
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/grand"

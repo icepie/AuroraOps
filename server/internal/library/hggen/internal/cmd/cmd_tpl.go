@@ -17,7 +17,7 @@ import (
 	"github.com/gogf/gf/v2/util/gtag"
 	"github.com/gogf/gf/v2/util/gutil"
 
-	"hotgo/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
 )
 
 var (

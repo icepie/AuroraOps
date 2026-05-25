@@ -6,11 +6,11 @@
 package tcp_test
 
 import (
+	"auroraops/internal/library/network/tcp"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/test/gtest"
-	"hotgo/internal/library/network/tcp"
 	"testing"
 	"time"
 )
@@ -62,7 +62,7 @@ func onTestRPCMsg(ctx context.Context, req *TestRPCMsgReq) (res *TestRPCMsgRes, 
 
 func startTCPServer() {
 	serv := tcp.NewServer(&tcp.ServerConfig{
-		Name: "hotgo",
+		Name: "auroraops",
 		Addr: ":8002",
 	})
 

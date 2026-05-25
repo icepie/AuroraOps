@@ -6,9 +6,9 @@
 package handler
 
 import (
+	"auroraops/internal/websocket"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/websocket"
 )
 
 var (

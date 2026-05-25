@@ -1,6 +1,7 @@
 package sys
 
 import (
+	"auroraops/internal/service"
 	"bufio"
 	"bytes"
 	"context"
@@ -8,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hotgo/internal/service"
 	"io"
 	"net/http"
 	"strings"

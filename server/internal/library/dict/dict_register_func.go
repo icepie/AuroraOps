@@ -6,9 +6,9 @@
 package dict
 
 import (
+	"auroraops/internal/model"
 	"context"
 	"fmt"
-	"hotgo/internal/model"
 	"sync"
 )
 

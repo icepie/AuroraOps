@@ -16,8 +16,8 @@ import (
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/util/gtag"
 
-	"hotgo/internal/library/hggen/internal/service"
-	"hotgo/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/service"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
 )
 
 // GF is the management object for `gf` command line tool.

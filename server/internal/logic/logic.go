@@ -5,13 +5,13 @@
 package logic
 
 import (
-	_ "hotgo/internal/logic/admin"
-	_ "hotgo/internal/logic/common"
-	_ "hotgo/internal/logic/hook"
-	_ "hotgo/internal/logic/middleware"
-	_ "hotgo/internal/logic/pay"
-	_ "hotgo/internal/logic/sys"
-	_ "hotgo/internal/logic/tcpclient"
-	_ "hotgo/internal/logic/tcpserver"
-	_ "hotgo/internal/logic/view"
+	_ "auroraops/internal/logic/admin"
+	_ "auroraops/internal/logic/common"
+	_ "auroraops/internal/logic/hook"
+	_ "auroraops/internal/logic/middleware"
+	_ "auroraops/internal/logic/pay"
+	_ "auroraops/internal/logic/sys"
+	_ "auroraops/internal/logic/tcpclient"
+	_ "auroraops/internal/logic/tcpserver"
+	_ "auroraops/internal/logic/view"
 )

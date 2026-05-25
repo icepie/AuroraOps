@@ -5,7 +5,7 @@
 // @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
 package global
 
-import "hotgo/internal/library/addons"
+import "auroraops/internal/library/addons"
 
 var (
 	skeleton *addons.Skeleton // 插件架子

@@ -6,12 +6,12 @@
 package handler_test
 
 import (
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/input/form"
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/os/gctx"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/input/form"
 	"testing"
 )
 

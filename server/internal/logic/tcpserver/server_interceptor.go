@@ -6,12 +6,12 @@
 package tcpserver
 
 import (
+	"auroraops/internal/library/network/tcp"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/library/network/tcp"
-	"hotgo/utility/validate"
 )
 
 // 免登录路由

@@ -8,9 +8,9 @@ package lock_test
 import (
 	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
 
+	"auroraops/internal/library/hgrds/lock"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/internal/library/hgrds/lock"
 	"runtime"
 	"sync"
 	"testing"

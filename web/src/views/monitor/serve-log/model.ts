@@ -79,7 +79,7 @@ export const columns = [
           },
           { default: () => '链路ID', icon: renderIcon(HelpCircleOutline) }
         ),
-        'hotgo默认支持链路追踪，如果是web请求产生的日志则还可以关联对应的访问日志'
+        'AuroraOps 默认支持链路追踪，如果是web请求产生的日志则还可以关联对应的访问日志'
       );
     },
     key: 'traceId',

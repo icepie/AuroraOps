@@ -6,10 +6,10 @@
 package service
 
 import (
+	"auroraops/addons/hgexample/model"
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/internal/library/hgorm/handler"
 	"context"
-	"hotgo/addons/hgexample/model"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/internal/library/hgorm/handler"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )

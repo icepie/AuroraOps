@@ -6,11 +6,11 @@
 package adminin
 
 import (
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
 )
 
 // MenuEditInp 修改/新增菜单

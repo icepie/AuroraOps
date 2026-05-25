@@ -1,11 +1,11 @@
 ## 生成关联表CURD
 
 ### 热编译启动
-- 推荐使用热编译方式启动HotGo，这样生成完成页面自动刷新即可看到新生成内容，无需手动重启
+- 推荐使用热编译方式启动 AuroraOps，这样生成完成页面自动刷新即可看到新生成内容，无需手动重启
 
 ```shell
 # 服务端
-cd server 
+cd server
 gf run main.go
 
 # web端
@@ -69,7 +69,7 @@ CREATE TABLE `hg_test_category` (
 
 
 ### 创建生成配置
-- 登录HotGo后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，选择和填写如下参数：
+- 登录AuroraOps 后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，选择和填写如下参数：
 
 ![](images/code/join-add.png)
 
@@ -84,14 +84,14 @@ CREATE TABLE `hg_test_category` (
 
 - 在该页面你可以调整生成表格字段名称、表单组件、表单编辑/验证项、列表展示/查询项、字段排序、重置和同步字段
 
-![](images/code/join-fields.png)    
+![](images/code/join-fields.png)
 
 
 ### 关联表字段设置
 - 在该页面你可以调整生成表格关联表字段名称、列表展示/查询项、字段排序、重置和同步字段
 - 如果存在多个关联表，也可以对多个关联表字段进行设置
 
-![](images/code/join-fields2.png)   
+![](images/code/join-fields2.png)
 
 ### 预览并生成
 

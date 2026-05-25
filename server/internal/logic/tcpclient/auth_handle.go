@@ -6,9 +6,9 @@
 package tcpclient
 
 import (
+	"auroraops/api/servmsg"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/api/servmsg"
 )
 
 // OnResponseAuthSummary 响应授权信息

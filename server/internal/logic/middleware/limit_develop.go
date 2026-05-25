@@ -6,13 +6,13 @@
 package middleware
 
 import (
+	"auroraops/internal/library/location"
+	"auroraops/internal/library/response"
 	"fmt"
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/library/location"
-	"hotgo/internal/library/response"
 )
 
 // Develop 开发工具白名单过滤

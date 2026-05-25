@@ -6,17 +6,17 @@
 package views
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hggen/internal/cmd/gendao"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
+	"auroraops/utility/file"
+	"auroraops/utility/tree"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hggen/internal/cmd/gendao"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
-	"hotgo/utility/file"
-	"hotgo/utility/tree"
 	"runtime"
 	"strings"
 
@@ -367,9 +367,9 @@ func (l *gCurd) loadView(ctx context.Context, in *CurdPreviewInput) (err error) 
 	importApi := gstr.Replace(temp.ApiPath, "./", modName+"/") + "/" + strings.ToLower(in.In.VarName)
 	importInput := gstr.Replace(temp.InputPath, "./", modName+"/")
 	importController := gstr.Replace(temp.ControllerPath, "./", modName+"/")
-	importService := "hotgo/internal/service"
+	importService := "auroraops/internal/service"
 	if temp.IsAddon {
-		importService = "hotgo/addons/" + in.In.AddonName + "/service"
+		importService = "auroraops/addons/" + in.In.AddonName + "/service"
 	}
 
 	in.options.ImportWebApi = "@/api/" + gstr.LcFirst(in.In.VarName)
@@ -896,7 +896,7 @@ func (l *gCurd) generateSqlContent(ctx context.Context, in *CurdPreviewInput) (e
 			"menuTable":     config.Prefix + "admin_menu",
 			"mainComponent": "LAYOUT",
 		}
-		genFile     = new(sysin.GenFile)
+		genFile      = new(sysin.GenFile)
 		templateName = "source.sql.template"
 	)
 

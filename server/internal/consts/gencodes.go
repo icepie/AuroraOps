@@ -6,8 +6,8 @@
 package consts
 
 import (
-	"hotgo/internal/library/dict"
-	"hotgo/internal/model"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/model"
 )
 
 // 生成代码类型

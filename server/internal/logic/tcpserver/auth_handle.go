@@ -6,17 +6,17 @@
 package tcpserver
 
 import (
+	"auroraops/api/servmsg"
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/servmsgin"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/api/servmsg"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/servmsgin"
-	"hotgo/internal/service"
 )
 
 // OnAuthSummary 获取授权信息

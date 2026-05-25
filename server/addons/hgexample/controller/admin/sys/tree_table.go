@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/api/admin/treetable"
+	"auroraops/addons/hgexample/service"
 	"context"
-	"hotgo/addons/hgexample/api/admin/treetable"
-	"hotgo/addons/hgexample/service"
 )
 
 var (

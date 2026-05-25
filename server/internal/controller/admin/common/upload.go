@@ -6,13 +6,13 @@
 package common
 
 import (
+	"auroraops/api/admin/common"
+	"auroraops/internal/library/storager"
+	"auroraops/internal/service"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/api/admin/common"
-	"hotgo/internal/library/storager"
-	"hotgo/internal/service"
-	"hotgo/utility/validate"
 )
 
 var Upload = new(cUpload)

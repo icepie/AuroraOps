@@ -14,12 +14,12 @@
 - 指定数据库驱动
 
 
-> 在HotGo中可以通过后台开发工具快速的一键生成CRUD，自动生成Api、控制器、业务逻辑、Web页面、表单组件、菜单权限等。
+> 在AuroraOps 中可以通过后台开发工具快速的一键生成CRUD，自动生成Api、控制器、业务逻辑、Web页面、表单组件、菜单权限等。
 
 
 ### 使用条件
 
-- hotgo 版本号 >= 2.13.1
+- auroraops 版本号 >= 2.13.1
 - 使用前必须先看 [数据库](sys-db.md)
 
 
@@ -87,14 +87,14 @@ hggen:
 
 ### 生成CLI配置
 
-- hotgo在生成dao、service配置时，默认了和gf官方一致的配置方式和代码生成规则。所以无论你是通过hotgo亦或gf命令生成，最终代码格式完全一致，遵循一致的代码规范。
+- AuroraOps 在生成dao、service配置时，默认了和gf官方一致的配置方式和代码生成规则。所以无论你是通过auroraops亦或gf命令生成，最终代码格式完全一致，遵循一致的代码规范。
 
 - 配置路径：[server/hack/config.yaml](../../server/hack/config.yaml)
 
 ```yaml
 gfcli:
   build:
-    name: "hotgo"                          # 编译后的可执行文件名称
+    name: "auroraops-server"                          # 编译后的可执行文件名称
     #    arch: "all"                           #不填默认当前系统架构，可选：386,amd64,arm,all
     #    system: "all"                         #不填默认当前系统平台，可选：linux,darwin,windows,all
     mod: "none"
@@ -102,14 +102,14 @@ gfcli:
     packSrc: "resource"                    # 将resource目录打包进可执行文件，静态资源无需单独部署
     packDst: "internal/packed/packed.go"   # 打包后生成的Go文件路径，一般使用相对路径指定到本项目目录中
     version: ""
-    output: "./temp/hotgo"                 # 可执行文件生成路径
+    output: "./temp/auroraops-server"                 # 可执行文件生成路径
     extra: ""
 
   gen:
     dao:
-      - link: "mysql:hotgo:hg123456.@tcp(127.0.0.1:3306)/hotgo?loc=Local&parseTime=true"
-#      - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/hotgo"
-        group: "default"                                                # 分组 使用hotgo代码生成功能时必须填
+      - link: "mysql:auroraops:hg123456.@tcp(127.0.0.1:3306)/auroraops?loc=Local&parseTime=true"
+#      - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/auroraops"
+        group: "default"                                                # 分组 使用AuroraOps 代码生成功能时必须填
         #        tables:          ""                                    # 指定当前数据库中需要执行代码生成的数据表。如果为空，表示数据库的所有表都会生成。
         tablesEx:        "hg_sys_addons_install"                        # 指定当前数据库中需要排除代码生成的数据表。
         removePrefix: "hg_"
@@ -128,7 +128,7 @@ gfcli:
 
 ### 生成CRUD表格
 
-- 推荐使用热编译方式启动HotGo，这样生成完成页面自动刷新即可看到新生成内容，无需手动重启
+- 推荐使用热编译方式启动 AuroraOps，这样生成完成页面自动刷新即可看到新生成内容，无需手动重启
 - 服务端热编译启动：`gf run main.go`, web前端启动：`pnpm run dev` 或 `npm run dev`
 
 1、创建数据表
@@ -177,20 +177,20 @@ CREATE TABLE `hg_test_category` (
 
 1.3 插入测试数据
 ```mysql
-INSERT INTO `hg_test_table` (`id`, `category_id`, `title`, `description`, `content`, `image`, `attachfile`, `city_id`, `switch`, `sort`, `status`, `created_by`, `updated_by`, `created_at`, `updated_at`, `deleted_at`) VALUES (1, 1, '测试标题', '描述', '<h2><strong>不知道写点啥！</strong></h2><p><br></p><iframe class=\"ql-video\" frameborder=\"0\" allowfullscreen=\"true\" src=\"https://media.w3.org/2010/05/sintel/trailer.mp4\"></iframe><p><br></p><p><img src=\"https://gmycos.facms.cn/hotgo/attachment/2023-02-09/cqdq9iuv0phsg8patk.png\"></p>', 'https://gmycos.facms.cn/hotgo/logo.sig.png', 'https://gmycos.facms.cn/hotgo/attachment/2022-12-30/cpf1x44idoycrtajf2.xlsx', 110102, 1, 10, 1, 0, 1, '2022-12-15 19:30:14', '2023-02-23 13:55:32', NULL);
+INSERT INTO `hg_test_table` (`id`, `category_id`, `title`, `description`, `content`, `image`, `attachfile`, `city_id`, `switch`, `sort`, `status`, `created_by`, `updated_by`, `created_at`, `updated_at`, `deleted_at`) VALUES (1, 1, '测试标题', '描述', '<h2><strong>不知道写点啥！</strong></h2><p><br></p><iframe class=\"ql-video\" frameborder=\"0\" allowfullscreen=\"true\" src=\"https://media.w3.org/2010/05/sintel/trailer.mp4\"></iframe><p><br></p><p><img src=\"https://gmycos.facms.cn/auroraops/attachment/2023-02-09/cqdq9iuv0phsg8patk.png\"></p>', 'https://gmycos.facms.cn/auroraops/logo.sig.png', 'https://gmycos.facms.cn/auroraops/attachment/2022-12-30/cpf1x44idoycrtajf2.xlsx', 110102, 1, 10, 1, 0, 1, '2022-12-15 19:30:14', '2023-02-23 13:55:32', NULL);
 
 ```
 
 
 2、创建生成配置
-- 登录HotGo后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，选择和填写如下参数：
+- 登录AuroraOps 后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，选择和填写如下参数：
 
 ![生成添加演示图](images/sys-code-add.png)
 
 
 3、自定义配置
 - 确认配置无误后，点击生成配置会自动跳转到生成配置页面，如下：
-  
+
 ![生成配置页面](images/sys-code-config-init.png)
 
 - 你可以在该页面点击`预览代码`查看生成的内容，如果无需调整亦可以直接点击`提交生成`，以下是预览代码效果：
@@ -252,7 +252,7 @@ INSERT INTO `hg_test_table` (`id`, `category_id`, `title`, `description`, `conte
 
 ![最终编辑表单效果](images/sys-code-list-edit-ok.png)
 
-   
+
 - 至此生成增删改查列表示例结束！
 
 ### 生成树形表格
@@ -261,15 +261,15 @@ INSERT INTO `hg_test_table` (`id`, `category_id`, `title`, `description`, `conte
 
 ### 多数据库使用
 
-- 假设我们要增加一个库名为`hotgo2`、分组为`default2`的数据库，并要为其生成代码
+- 假设我们要增加一个库名为`auroraops2`、分组为`default2`的数据库，并要为其生成代码
 
 1. 配置[server/hack/config.yaml](../../server/hack/config.yaml) 如下：
 ```yaml
   gen:
     dao:
-      - link: "mysql:hotgo:hg123456.@tcp(127.0.0.1:3306)/hotgo?loc=Local&parseTime=true"
-#      - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/hotgo"
-        group: "default"                                                # 分组 使用hotgo代码生成功能时必须填
+      - link: "mysql:auroraops:hg123456.@tcp(127.0.0.1:3306)/auroraops?loc=Local&parseTime=true"
+#      - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/auroraops"
+        group: "default"                                                # 分组 使用AuroraOps 代码生成功能时必须填
         tablesEx:        "hg_sys_addons_install"                        # 指定当前数据库中需要排除代码生成的数据表。
         removePrefix: "hg_"
         descriptionTag: true
@@ -277,8 +277,8 @@ INSERT INTO `hg_test_table` (`id`, `category_id`, `title`, `description`, `conte
         jsonCase: "CamelLower"
         gJsonSupport: true
         clear: false
-      - link: "mysql:hotgo2:hg123456.@tcp(127.0.0.1:3306)/hotgo2?loc=Local&parseTime=true"
-        group: "default2"                                                # 分组 使用hotgo代码生成功能时必须填
+      - link: "mysql:auroraops2:hg123456.@tcp(127.0.0.1:3306)/auroraops2?loc=Local&parseTime=true"
+        group: "default2"                                                # 分组 使用AuroraOps 代码生成功能时必须填
         tablesEx:        "hg_sys_addons_install"                         # 指定当前数据库中需要排除代码生成的数据表。
         removePrefix: ""
         descriptionTag: true
@@ -297,12 +297,12 @@ database:
     level: "all"
     stdout: true
   default:
-    link: "mysql:hotgo:hg123456.@tcp(127.0.0.1:3306)/hotgo?loc=Local&parseTime=true"
-#    - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/hotgo"
+    link: "mysql:auroraops:hg123456.@tcp(127.0.0.1:3306)/auroraops?loc=Local&parseTime=true"
+#    - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/auroraops"
     debug: true
     Prefix: "hg_"
   default2:
-    link: "mysql:hotgo2:hg123456.@tcp(127.0.0.1:3306)/hotgo2?loc=Local&parseTime=true"
+    link: "mysql:auroraops2:hg123456.@tcp(127.0.0.1:3306)/auroraops2?loc=Local&parseTime=true"
     debug: true
     Prefix: ""
 ```
@@ -316,7 +316,7 @@ hggen:
   delimiters: ["@{", "}"]                                             # 模板引擎变量分隔符号
 ```
 
-3. 登录HotGo后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，就会发现`数据库`选项增加了一个`default2`，后续生成步骤和生成例子完全一样
+3. 登录AuroraOps 后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，就会发现`数据库`选项增加了一个`default2`，后续生成步骤和生成例子完全一样
 
 > 注意：上述的配置中所有的`default2`名称必须保持一致
 
@@ -325,13 +325,13 @@ hggen:
 
 > 系统内置了两组CURD生成模板，请参考[生成模板配置](sys-code.md#生成模板配置)。default：是默认的生成到主模块下；addon：是默认生成到指定的插件下
 
-- HotGo允许你新建新的模板分组来满足你的需求，模板可根据现有模板基础拷贝一份出来做改造，默认模板目录：[server/resource/generate/default](../../server/resource/generate/default)
+- AuroraOps 允许你新建新的模板分组来满足你的需求，模板可根据现有模板基础拷贝一份出来做改造，默认模板目录：[server/resource/generate/default](../../server/resource/generate/default)
 
 
 
 ### 内置gf-cli
 
-> 为了确保生成代码的依赖稳定性，在面对`gf`版本更新可能导致向下不兼容情况时，HotGo将`gf-cli`工具内置到系统中并进行在线执行调整，从而提供更可靠和一致的生成代码功能。
+> 为了确保生成代码的依赖稳定性，在面对`gf`版本更新可能导致向下不兼容情况时， AuroraOps将`gf-cli`工具内置到系统中并进行在线执行调整，从而提供更可靠和一致的生成代码功能。
 
 - 后续我们也将开放在线运行`gf gen ...`功能。在做插件开发时也会支持到在线生成插件下的service接口，这将会使得插件开发更加方便
 
@@ -339,13 +339,13 @@ hggen:
 
 ### 指定gf-cli版本
 
-> HotGo多数情况下会和最新版本的gf-cli保持同步，如果更新不及时或你不想使用最新版本的gf-cli来生成代码，可以找到自己想要的版本进行替换即可。
+> AuroraOps 多数情况下会和最新版本的gf-cli保持同步，如果更新不及时或你不想使用最新版本的gf-cli来生成代码，可以找到自己想要的版本进行替换即可。
 
 - 下面大致做一些替换步骤说明：
 
 1. 打开https://github.com/gogf/gf，找到你想要使用的版本`clone`下来
 2. 将`clone`代码中`gf/cmd/gf/internal/`目录覆盖到`server/internal/library/hggen/internal`
-3. 将覆盖过来的目录文件中引入包名`github.com/gogf/gf/cmd/gf/v2/`批量改为`hotgo/internal/library/hggen/`
+3. 将覆盖过来的目录文件中引入包名`github.com/gogf/gf/cmd/gf/v2/`批量改为`auroraops/internal/library/hggen/`
 4. 运行`go mod tidy`
 5. 运行`go run main.go`，如果没有报错，那么恭喜你已经完成了。如果有报错一般都是版本差异带来的影响，需要根据情况自行调整
 
@@ -353,7 +353,7 @@ hggen:
 
 ### 指定数据库驱动
 
-> HotGo默认使用mysql驱动，如果你想用其他数据库驱动打开下方文件中注释即可，目前已支持mysql、pgsql
+> AuroraOps 默认使用mysql驱动，如果你想用其他数据库驱动打开下方文件中注释即可，目前已支持mysql、pgsql
 
 修改文件路径：server/internal/library/hggen/internal/cmd/cmd_gen_dao.go
 ```go
@@ -367,7 +367,7 @@ import (
 	_ "github.com/gogf/gf/contrib/drivers/pgsql/v2"
 	//_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
 
-	"hotgo/internal/library/hggen/internal/cmd/gendao"
+	"auroraops/internal/library/hggen/internal/cmd/gendao"
 )
 
 type (

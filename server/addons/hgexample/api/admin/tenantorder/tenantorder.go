@@ -7,8 +7,8 @@
 package tenantorder
 
 import (
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/internal/model/input/form"
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/internal/model/input/form"
 
 	"github.com/gogf/gf/v2/frame/g"
 )

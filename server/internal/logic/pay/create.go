@@ -8,17 +8,17 @@ package pay
 // 订单创建
 
 import (
+	v1 "auroraops/api/api/pay/v1"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/location"
+	"auroraops/internal/library/payment"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/payin"
+	"auroraops/internal/service"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
-	v1 "hotgo/api/api/pay/v1"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/location"
-	"hotgo/internal/library/payment"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/payin"
-	"hotgo/internal/service"
-	"hotgo/utility/validate"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"

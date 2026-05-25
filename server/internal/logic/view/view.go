@@ -6,6 +6,12 @@
 package view
 
 import (
+	"auroraops/internal/library/addons"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/model"
+	"auroraops/internal/service"
+	"auroraops/utility/charset"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -13,12 +19,6 @@ import (
 	"github.com/gogf/gf/v2/os/gres"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/model"
-	"hotgo/internal/service"
-	"hotgo/utility/charset"
-	"hotgo/utility/simple"
 )
 
 type sView struct{}

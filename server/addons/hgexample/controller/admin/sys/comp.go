@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/api/admin/comp"
 	"context"
 	"github.com/xuri/excelize/v2"
-	"hotgo/addons/hgexample/api/admin/comp"
 )
 
 var (

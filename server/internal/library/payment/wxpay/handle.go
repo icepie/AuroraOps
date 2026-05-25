@@ -6,6 +6,10 @@
 package wxpay
 
 import (
+	"auroraops/internal/consts"
+	weOpen "auroraops/internal/library/wechat"
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/payin"
 	"context"
 	"crypto/rsa"
 	"github.com/go-pay/crypto/xpem"
@@ -15,10 +19,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/consts"
-	weOpen "hotgo/internal/library/wechat"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/payin"
 	"time"
 )
 

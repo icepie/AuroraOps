@@ -6,22 +6,22 @@
 package admin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
+	"auroraops/utility/tree"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
-	"hotgo/utility/tree"
-	"hotgo/utility/validate"
 )
 
 type sAdminDept struct{}

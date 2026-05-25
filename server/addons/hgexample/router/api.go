@@ -6,13 +6,13 @@
 package router
 
 import (
+	"auroraops/addons/hgexample/controller/api"
+	"auroraops/addons/hgexample/global"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/hgexample/controller/api"
-	"hotgo/addons/hgexample/global"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/service"
 )
 
 // Api 前台路由

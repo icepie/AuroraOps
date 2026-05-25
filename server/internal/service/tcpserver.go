@@ -6,10 +6,10 @@
 package service
 
 import (
+	"auroraops/api/servmsg"
+	"auroraops/internal/library/cron"
+	"auroraops/internal/library/network/tcp"
 	"context"
-	"hotgo/api/servmsg"
-	"hotgo/internal/library/cron"
-	"hotgo/internal/library/network/tcp"
 )
 
 type (

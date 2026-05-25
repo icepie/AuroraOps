@@ -6,11 +6,11 @@
 package casbin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
 	"context"
 	"errors"
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
 	"math"
 	"strings"
 
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS %s (
 )
 ;
 
-ALTER TABLE "public"."%s" 
+ALTER TABLE "public"."%s"
   OWNER TO "postgres";
 
 COMMENT ON TABLE "public"."%s" IS '管理员_casbin权限表';`

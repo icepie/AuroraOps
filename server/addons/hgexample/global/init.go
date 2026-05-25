@@ -6,8 +6,8 @@
 package global
 
 import (
+	"auroraops/internal/library/addons"
 	"context"
-	"hotgo/internal/library/addons"
 )
 
 func Init(ctx context.Context, sk *addons.Skeleton) {

@@ -6,8 +6,8 @@
 package common
 
 import (
+	"auroraops/internal/websocket"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/websocket"
 )
 
 var (

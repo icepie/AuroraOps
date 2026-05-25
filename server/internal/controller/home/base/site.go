@@ -6,13 +6,13 @@
 package base
 
 import (
+	"auroraops/api/home/base"
+	"auroraops/internal/consts"
+	"auroraops/internal/model"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/api/home/base"
-	"hotgo/internal/consts"
-	"hotgo/internal/model"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 )
 
 // Site 基础

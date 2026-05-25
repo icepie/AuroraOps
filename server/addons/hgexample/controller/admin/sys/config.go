@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/api/admin/config"
+	"auroraops/addons/hgexample/service"
 	"context"
-	"hotgo/addons/hgexample/api/admin/config"
-	"hotgo/addons/hgexample/service"
 )
 
 var (

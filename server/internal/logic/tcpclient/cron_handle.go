@@ -6,9 +6,9 @@
 package tcpclient
 
 import (
+	"auroraops/api/servmsg"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/servmsg"
-	"hotgo/internal/service"
 )
 
 // OnCronDelete 删除任务

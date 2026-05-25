@@ -6,8 +6,8 @@
 package sysin
 
 import (
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 )
 
 // LogListInp 获取菜单列表

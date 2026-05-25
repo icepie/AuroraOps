@@ -6,10 +6,10 @@
 package sysin
 
 import (
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 	"context"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
 )
 
 // ServeLogDeleteInp 删除服务日志

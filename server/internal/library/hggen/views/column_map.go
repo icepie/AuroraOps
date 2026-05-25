@@ -6,9 +6,9 @@
 package views
 
 import (
+	"auroraops/internal/model/input/sysin"
+	"auroraops/utility/validate"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/utility/validate"
 )
 
 // 字段映射关系

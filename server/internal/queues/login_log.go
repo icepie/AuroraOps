@@ -6,12 +6,12 @@
 package queues
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/queue"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/service"
 	"context"
 	"encoding/json"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/queue"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/service"
 )
 
 func init() {

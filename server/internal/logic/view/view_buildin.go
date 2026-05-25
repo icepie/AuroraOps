@@ -6,7 +6,7 @@
 package view
 
 import (
-	"hotgo/internal/consts"
+	"auroraops/internal/consts"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gtime"

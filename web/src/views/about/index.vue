@@ -14,7 +14,7 @@
       :segmented="{ content: true }"
     >
       <n-descriptions bordered label-placement="left" class="py-2">
-        <n-descriptions-item label="HotGo版本">
+        <n-descriptions-item label="AuroraOps 版本">
           <n-tag type="info"> {{ config?.version }}</n-tag>
         </n-descriptions-item>
         <n-descriptions-item label="最后编译时间">
@@ -23,7 +23,7 @@
         <n-descriptions-item label="文档地址">
           <div class="flex items-center">
             <a
-              href="https://github.com/bufanyun/hotgo/tree/v2.0/docs/guide-zh-CN"
+              href="https://github.com/bufanyun/auroraops/tree/main/docs/guide-zh-CN"
               class="py-2"
               target="_blank"
               >查看文档地址</a
@@ -32,12 +32,12 @@
         </n-descriptions-item>
         <n-descriptions-item label="预览地址">
           <div class="flex items-center">
-            <a href="https://hotgo.facms.cn/admin" class="py-2" target="_blank">查看预览地址</a>
+            <a href="https://auroraops.facms.cn/admin" class="py-2" target="_blank">查看预览地址</a>
           </div>
         </n-descriptions-item>
         <n-descriptions-item label="Github">
           <div class="flex items-center">
-            <a href="https://github.com/bufanyun/hotgo" class="py-2" target="_blank"
+            <a href="https://github.com/bufanyun/auroraops" class="py-2" target="_blank"
               >查看Github地址</a
             >
           </div>
@@ -45,7 +45,7 @@
         <n-descriptions-item label="QQ交流群">
           <div class="flex items-center">
             <a href="https://jq.qq.com/?_wv=1027&k=izJg29Cx" class="py-2" target="_blank"
-              >点击链接加入群聊【HotGo 交流群】</a
+              >点击链接加入群聊【AuroraOps 交流群】</a
             >
           </div>
         </n-descriptions-item>

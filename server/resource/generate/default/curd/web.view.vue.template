@@ -16,7 +16,7 @@
   import { useMessage } from 'naive-ui';
   import { View } from '@{.importWebApi}';
   import { State, newState } from './model';
-  import { adaModalWidth } from '@/utils/hotgo';
+  import { adaModalWidth } from '@/utils/auroraops';
   @{ if eq .hasUploadFile true }import { getFileExt } from '@/utils/urlUtils';
   @{end}@{ if eq .options.DictOps.Has true }import { useDictStore } from '@/store/modules/dict';@{end}
 

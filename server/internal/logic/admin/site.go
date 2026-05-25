@@ -6,17 +6,17 @@
 package admin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/token"
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/token"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 
 	"github.com/gogf/gf/v2/crypto/gmd5"
 	"github.com/gogf/gf/v2/database/gdb"

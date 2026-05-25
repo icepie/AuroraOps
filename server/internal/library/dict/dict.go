@@ -6,12 +6,12 @@
 package dict
 
 import (
+	"auroraops/internal/model"
 	"context"
 	"errors"
 	"fmt"
 	"github.com/gogf/gf/v2/frame/g"
 	"hash/fnv"
-	"hotgo/internal/model"
 	"strconv"
 )
 

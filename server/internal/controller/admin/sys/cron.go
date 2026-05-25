@@ -6,12 +6,12 @@
 package sys
 
 import (
+	"auroraops/api/admin/cron"
+	"auroraops/api/servmsg"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/api/admin/cron"
-	"hotgo/api/servmsg"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 )
 
 var (

@@ -6,12 +6,12 @@
 package payment
 
 import (
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/model/input/payin"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/model/input/payin"
-	"hotgo/utility/simple"
 	"sync"
 )
 

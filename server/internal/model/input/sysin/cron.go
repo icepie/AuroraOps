@@ -6,9 +6,9 @@
 package sysin
 
 import (
-	"hotgo/internal/library/cron"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
+	"auroraops/internal/library/cron"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 )
 
 // CronMaxSortInp 最大排序

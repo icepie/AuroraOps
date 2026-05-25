@@ -1,10 +1,10 @@
 package adminin
 
 import (
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/utility/simple"
 )
 
 // RegisterInp 账号注册

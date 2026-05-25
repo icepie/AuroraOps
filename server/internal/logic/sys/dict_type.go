@@ -6,16 +6,16 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 )
 
 type sSysDictType struct{}

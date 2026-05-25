@@ -6,11 +6,11 @@
 package tcpserver
 
 import (
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 )
 
 type sTCPServer struct {

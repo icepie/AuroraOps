@@ -5,7 +5,7 @@
 package dao
 
 import (
-	"hotgo/internal/dao/internal"
+	"auroraops/internal/dao/internal"
 )
 
 // sysGenCurdDemoDao is the data access object for the table hg_sys_gen_curd_demo.

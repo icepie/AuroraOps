@@ -6,11 +6,11 @@
 package admin
 
 import (
+	"auroraops/api/admin/role"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/role"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/service"
 )
 
 var (

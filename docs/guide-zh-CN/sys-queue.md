@@ -18,7 +18,7 @@
 queue:
   switch: true                                        # 队列开关，可选：true|false，默认为true
   driver: "disk"                                      # 队列驱动，可选：disk|redis|rocketmq|kafka，默认为disk
-  groupName: "hotgo"                                  # mq群组名称
+  groupName: "auroraops"                                  # mq群组名称
   # 磁盘队列
   disk:
     path: "./storage/diskqueue"                       # 数据存放路径
@@ -63,16 +63,16 @@ type Consumer interface {
 
 - 文件路径：server/internal/queues/sys_log.go
 
-```go 
+```go
 package queues
 
 import (
 	"context"
 	"encoding/json"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/queue"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/service"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/queue"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/service"
 )
 
 func init() {
@@ -107,9 +107,9 @@ package main
 
 import (
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/queue"
-	"hotgo/internal/model/entity"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/queue"
+	"auroraops/internal/model/entity"
 )
 
 func test()  {
@@ -130,16 +130,16 @@ package main
 
 import (
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/queue"
-	"hotgo/internal/model/entity"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/queue"
+	"auroraops/internal/model/entity"
 )
 
 func test()  {
 	data := &entity.SysLog{
 		//...
     }
-	
+
 	// redis 延迟10秒
 	if err := queue.SendDelayMsg(consts.QueueLogTopic, data, 10); err != nil {
 		fmt.Printf("queue.Push err:%+v", err)

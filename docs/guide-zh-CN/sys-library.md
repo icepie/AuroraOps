@@ -28,7 +28,7 @@ cache:
 package main
 
 import (
-	"hotgo/internal/library/cache"
+	"auroraops/internal/library/cache"
 	"github.com/gogf/gf/v2/os/gctx"
 )
 
@@ -43,7 +43,7 @@ func  test() {
 
 	// 删除
 	cache.Instance().Remove(ctx, "qwe")
-	
+
 	// 更多方法请参考：https://goframe.org/pages/viewpage.action?pageId=27755640
 }
 
@@ -59,8 +59,8 @@ package admin
 import (
 	"fmt"
 	"context"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/addons"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/addons"
 )
 
 
@@ -72,11 +72,11 @@ func test(ctx context.Context) {
 	// 获取当前请求的应用模块
 	var module = contexts.GetModule(ctx)
 	fmt.Printf("当前请求的应用：%+v\n", module)
-	
+
 	// 获取当前请求的用户信息
 	var member = contexts.GetUser(ctx)
 	fmt.Printf("当前访问用户信息：%+v\n", member)
-	
+
 	// 获取当前请求的插件模块
 	fmt.Printf("当前是否为插件请求：%v", contexts.IsAddonRequest(ctx))
 	if contexts.IsAddonRequest(ctx) {
@@ -95,7 +95,7 @@ func test(ctx context.Context) {
 ```yaml
 # 登录令牌
 token:
-  secretKey: "hotgo123"                  # 令牌加密秘钥，考虑安全问题生产环境中请修改默认值
+  secretKey: "auroraops123"                  # 令牌加密秘钥，考虑安全问题生产环境中请修改默认值
   expires: 604800                        # 令牌有效期，单位：秒。默认7天
   autoRefresh: true                      # 是否开启自动刷新过期时间， false|true 默认为true
   refreshInterval: 86400                 # 刷新间隔，单位：秒。必须小于expires，否则无法触发。默认1天内只允许刷新一次
@@ -110,8 +110,8 @@ package admin
 import (
 	"fmt"
 	"context"
-	"hotgo/internal/library/token"
-	"hotgo/internal/model"
+	"auroraops/internal/library/token"
+	"auroraops/internal/model"
 )
 
 
@@ -136,16 +136,16 @@ func test(ctx context.Context) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// gf请求对象
 	r := *ghttp.Request
-	
+
 	// 获取登录用户信息
 	user, err := token.ParseLoginUser(r)
 	if err != nil {
 		return
 	}
-	
+
 	// 注销登录
 	err = token.Logout(r)
 }
@@ -154,7 +154,7 @@ func test(ctx context.Context) {
 
 ### 数据字典
 
-- hotgo增加了对枚举字典和自定义方法字典的内置支持，从而在系统中经常使用的一些特定数据上做出了增强。
+- auroraops增加了对枚举字典和自定义方法字典的内置支持，从而在系统中经常使用的一些特定数据上做出了增强。
 
 #### 字典数据选项
 - 文件路径：server/internal/model/dict.go
@@ -184,8 +184,8 @@ type Option struct {
 package consts
 
 import (
-	"hotgo/internal/library/dict"
-	"hotgo/internal/model"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/model"
 )
 
 func init() {
@@ -252,12 +252,12 @@ import (
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/service"
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/service"
 )
 
 type sAdminPost struct{}

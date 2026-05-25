@@ -6,9 +6,9 @@
 package menu
 
 import (
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/model/input/form"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/model/input/form"
 )
 
 // EditReq 修改/新增菜单

@@ -6,11 +6,11 @@
 package hook
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/utility/simple"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/utility/simple"
 	"sync"
 	"time"
 

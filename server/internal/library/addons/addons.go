@@ -6,9 +6,9 @@
 package addons
 
 import (
+	"auroraops/internal/consts"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
 )
 
 var cacheResourcePath string

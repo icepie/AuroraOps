@@ -17,7 +17,7 @@ import (
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 
-	"hotgo/internal/library/hggen/internal/utility/utils"
+	"auroraops/internal/library/hggen/internal/utility/utils"
 )
 
 type generateStructTagInput struct {

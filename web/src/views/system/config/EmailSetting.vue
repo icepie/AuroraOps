@@ -148,7 +148,7 @@
     smtpPort: 25,
     smtpUser: '',
     smtpPass: '',
-    smtpSendName: 'HotGo',
+    smtpSendName: 'AuroraOps',
     smtpAdminMailbox: '',
     smtpMinInterval: 60,
     smtpMaxIpLimit: 10,

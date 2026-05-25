@@ -6,10 +6,10 @@
 package sys
 
 import (
+	"auroraops/api/admin/provinces"
+	"auroraops/internal/library/location"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/provinces"
-	"hotgo/internal/library/location"
-	"hotgo/internal/service"
 )
 
 var (

@@ -6,6 +6,9 @@
 package alipay
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/payin"
 	"context"
 	"github.com/go-pay/gopay"
 	"github.com/go-pay/gopay/alipay"
@@ -13,9 +16,6 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/consts"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/payin"
 )
 
 func New(config *model.PayConfig) *aliPay {

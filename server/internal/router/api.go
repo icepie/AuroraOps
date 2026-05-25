@@ -6,12 +6,12 @@
 package router
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/controller/api/member"
+	"auroraops/internal/controller/api/pay"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/controller/api/member"
-	"hotgo/internal/controller/api/pay"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 )

@@ -6,13 +6,13 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/global"
+	"auroraops/addons/hgexample/model"
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/addons/hgexample/service"
+	isc "auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/addons/hgexample/global"
-	"hotgo/addons/hgexample/model"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/addons/hgexample/service"
-	isc "hotgo/internal/service"
 )
 
 type sSysConfig struct{}

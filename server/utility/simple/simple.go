@@ -6,6 +6,8 @@
 package simple
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/utility/encrypt"
 	"context"
 	"github.com/gogf/gf/v2/crypto/gmd5"
 	"github.com/gogf/gf/v2/encoding/gbase64"
@@ -14,8 +16,6 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/glog"
-	"hotgo/internal/consts"
-	"hotgo/utility/encrypt"
 )
 
 // RouterPrefix 获取应用路由前缀

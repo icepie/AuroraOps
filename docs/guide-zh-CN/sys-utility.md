@@ -1,10 +1,10 @@
 ## 工具方法
 
-HotGo还提供一些系统中常用的工具库方法，在这里简单说明：
+ AuroraOps还提供一些系统中常用的工具库方法，在这里简单说明：
 
 ```
 /server
-├── utility         
+├── utility
 │   ├── charset     # 字符串处理
 │   ├── convert     # 数据类型转换
 │   ├── encrypt     # 数据加密/解密

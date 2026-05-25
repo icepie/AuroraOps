@@ -6,6 +6,15 @@
 package middleware
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/response"
+	"auroraops/internal/library/token"
+	"auroraops/internal/model"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -17,15 +26,6 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/text/gstr"
 	"go.opentelemetry.io/otel/attribute"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/response"
-	"hotgo/internal/library/token"
-	"hotgo/internal/model"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
-	"hotgo/utility/validate"
 	"net/http"
 	"strings"
 )

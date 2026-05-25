@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/api/admin/attachment"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/attachment"
-	"hotgo/internal/service"
 )
 
 var (

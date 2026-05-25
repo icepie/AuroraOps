@@ -6,8 +6,8 @@
 package dict
 
 import (
+	"auroraops/internal/model"
 	"hash/fnv"
-	"hotgo/internal/model"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )

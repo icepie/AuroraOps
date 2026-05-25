@@ -7,9 +7,9 @@
 package sys
 
 import (
+	"auroraops/api/admin/servelicense"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/servelicense"
-	"hotgo/internal/service"
 )
 
 var (

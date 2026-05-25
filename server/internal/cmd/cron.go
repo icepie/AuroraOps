@@ -6,12 +6,12 @@
 package cmd
 
 import (
+	_ "auroraops/internal/crons"
+	"auroraops/internal/global"
+	"auroraops/internal/library/cron"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/os/gcmd"
-	_ "hotgo/internal/crons"
-	"hotgo/internal/global"
-	"hotgo/internal/library/cron"
-	"hotgo/internal/service"
 )
 
 var (

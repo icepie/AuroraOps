@@ -13,7 +13,7 @@
 
 
 ### 介绍
-> 在web应用开发中，支付功能可以做为不可或缺的一部分，HotGo提供了相对通用的支付网关，目前已支持支付宝、微信支付、QQ支付，包含创建支付订单、支付回调、订单退款等功能，开发者几乎只需关注订单业务处理即可。
+> 在web应用开发中，支付功能可以做为不可或缺的一部分，AuroraOps 提供了相对通用的支付网关，目前已支持支付宝、微信支付、QQ支付，包含创建支付订单、支付回调、订单退款等功能，开发者几乎只需关注订单业务处理即可。
 
 #### 一个简单的支付流程
 
@@ -24,9 +24,9 @@ graph TD
    B -->|网关返回失败| H(提示错误)
    B -->|网关返回成功| G(拿到支付链接,用户侧跳转支付页面)
    G -->|支付完成| C(支付平台通知支付网关<br> 支付网关进行验签和效验支付处理状态) -->|验证通过,回调订单业务| E(订单更新状态,发放业务产品)
-   G -->|支付取消| D(订单支付超时关闭) 
-   
-  
+   G -->|支付取消| D(订单支付超时关闭)
+
+
 ```
 
 
@@ -61,9 +61,9 @@ func main()  {
 package global
 
 import (
-	"hotgo/internal/consts"
-	"hotgo/internal/library/payment"
-	"hotgo/internal/service"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/payment"
+	"auroraops/internal/service"
 )
 
 // RegisterNotifyCall 注册支付成功回调方法

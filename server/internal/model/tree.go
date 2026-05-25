@@ -5,7 +5,7 @@
 // @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
 package model
 
-import "hotgo/internal/model/entity"
+import "auroraops/internal/model/entity"
 
 // DefaultTree 默认树表字段
 type DefaultTree struct {

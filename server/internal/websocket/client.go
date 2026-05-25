@@ -6,6 +6,9 @@
 package websocket
 
 import (
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/location"
+	"auroraops/internal/model"
 	"context"
 	"github.com/gogf/gf/v2/container/garray"
 	"github.com/gogf/gf/v2/errors/gcode"
@@ -15,9 +18,6 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
 	"github.com/gorilla/websocket"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/location"
-	"hotgo/internal/model"
 	"runtime/debug"
 )
 

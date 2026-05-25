@@ -6,6 +6,9 @@
 package qqpay
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/payin"
 	"context"
 	"github.com/go-pay/gopay"
 	"github.com/go-pay/gopay/qq"
@@ -14,9 +17,6 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/gogf/gf/v2/util/grand"
-	"hotgo/internal/consts"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/payin"
 )
 
 func New(config *model.PayConfig) *qqPay {

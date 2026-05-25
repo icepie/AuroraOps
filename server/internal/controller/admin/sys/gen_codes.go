@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/api/admin/gencodes"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/gencodes"
-	"hotgo/internal/service"
 )
 
 var (

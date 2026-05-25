@@ -1,8 +1,8 @@
 // Package @{.templateGroup}in
-// @Link  https://github.com/bufanyun/hotgo
-// @Copyright  Copyright (c) @{NowYear} HotGo CLI
+// @Link  https://github.com/bufanyun/auroraops
+// @Copyright  Copyright (c) @{NowYear}  AuroraOps CLI
 // @Author  Ms <133814250@qq.com>
-// @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
+// @License  https://github.com/bufanyun/auroraops/blob/master/LICENSE
 // @AutoGenerate Version @{.hgVersion}
 //
 package @{.templateGroup}in
@@ -14,12 +14,12 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/consts"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/validate"
-	@{ if eq .options.Step.HasHookMemberSummary true }"hotgo/internal/library/hgorm/hook"@{end}
-	@{ if eq .options.Step.IsTreeTable true }"hotgo/utility/tree"@{end}
+	"auroraops/internal/consts"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/validate"
+	@{ if eq .options.Step.HasHookMemberSummary true }"auroraops/internal/library/hgorm/hook"@{end}
+	@{ if eq .options.Step.IsTreeTable true }"auroraops/utility/tree"@{end}
 )
 @{ if eq .options.Step.HasEdit true }
 // @{.varName}UpdateFields 修改@{.tableComment}字段过滤

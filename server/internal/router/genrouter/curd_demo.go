@@ -6,7 +6,7 @@
 // @AutoGenerate Version 2.18.6
 package genrouter
 
-import "hotgo/internal/controller/admin/sys"
+import "auroraops/internal/controller/admin/sys"
 
 func init() {
 	LoginRequiredRouter = append(LoginRequiredRouter, sys.CurdDemo) // CURD列表

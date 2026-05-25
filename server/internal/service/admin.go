@@ -6,15 +6,15 @@
 package service
 
 import (
+	"auroraops/api/admin/role"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/payin"
+	"auroraops/utility/tree"
 	"context"
-	"hotgo/api/admin/role"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/payin"
-	"hotgo/utility/tree"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/database/gredis"

@@ -17,7 +17,7 @@ import (
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gtag"
 
-	"hotgo/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
 )
 
 var (
@@ -32,7 +32,7 @@ const (
 	cDockerUsage = `gf docker [MAIN] [OPTION]`
 	cDockerBrief = `build docker image for current GoFrame project`
 	cDockerEg    = `
-gf docker 
+gf docker
 gf docker -t hub.docker.com/john/image:tag
 gf docker -p -t hub.docker.com/john/image:tag
 gf docker main.go

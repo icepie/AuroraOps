@@ -6,9 +6,9 @@
 package addons
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"

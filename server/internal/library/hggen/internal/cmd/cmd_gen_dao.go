@@ -17,7 +17,7 @@ import (
 	// do not add dm in cli pre-compilation,
 	// the dm driver does not support certain target platforms.
 	// _ "github.com/gogf/gf/contrib/drivers/dm/v2"
-	"hotgo/internal/library/hggen/internal/cmd/gendao"
+	"auroraops/internal/library/hggen/internal/cmd/gendao"
 )
 
 type (

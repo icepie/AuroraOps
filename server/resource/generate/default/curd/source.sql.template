@@ -1,8 +1,8 @@
--- hotgo自动生成菜单权限SQL 通常情况下只在首次生成代码时自动执行一次
+-- auroraops自动生成菜单权限SQL 通常情况下只在首次生成代码时自动执行一次
 -- 如需再次执行请先手动删除生成的菜单权限和SQL文件：@{.generatePath}
 -- Version: @{.hgVersion}
 -- Date: @{.nowTime}
--- Link https://github.com/bufanyun/hotgo
+-- Link https://github.com/bufanyun/auroraops
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;

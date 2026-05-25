@@ -6,9 +6,9 @@
 package views
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model/input/sysin"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/consts"
-	"hotgo/internal/model/input/sysin"
 )
 
 // 默认表单组件映射 Ts -> 表单组件

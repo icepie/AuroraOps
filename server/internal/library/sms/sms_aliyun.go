@@ -6,6 +6,7 @@
 package sms
 
 import (
+	"auroraops/internal/model/input/sysin"
 	"context"
 	"fmt"
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
@@ -13,7 +14,6 @@ import (
 	util "github.com/alibabacloud-go/tea-utils/v2/service"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/sysin"
 )
 
 type AliYunDrive struct{}

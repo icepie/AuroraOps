@@ -30,9 +30,9 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/gogf/gf/v2/util/gtag"
 
-	"hotgo/internal/library/hggen/internal/consts"
-	"hotgo/internal/library/hggen/internal/utility/mlog"
-	"hotgo/internal/library/hggen/internal/utility/utils"
+	"auroraops/internal/library/hggen/internal/consts"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/utility/utils"
 )
 
 type (

@@ -6,15 +6,15 @@
 package views
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/hggen/views/gohtml"
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/utility/convert"
+	"auroraops/utility/simple"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/hggen/views/gohtml"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/utility/convert"
-	"hotgo/utility/simple"
-	"hotgo/utility/validate"
 	"os"
 	"regexp"
 	"strings"

@@ -9,7 +9,7 @@
 - 服务认证
 - 更多
 
-> HotGo基于GoFrame的TCP服务器组件，提供了一个简单而灵活的方式快速搭建基于TCP的服务应用。集成了许多常用功能，如长连接、服务认证、路由分发、RPC消息、拦截器和数据绑定等，大大简化和规范了服务器开发流程。
+>  AuroraOps基于GoFrame的TCP服务器组件，提供了一个简单而灵活的方式快速搭建基于TCP的服务应用。集成了许多常用功能，如长连接、服务认证、路由分发、RPC消息、拦截器和数据绑定等，大大简化和规范了服务器开发流程。
 
 ### 配置文件
 - 配置文件：server/manifest/config/config.yaml
@@ -27,7 +27,7 @@ tcp:
       name: "cron1"                                                 # 客户端名称
       address: "127.0.0.1:8099"                                     # 服务器地址
       appId: "1002"                                                 # 应用名称
-      secretKey: "hotgo"                                            # 密钥
+      secretKey: "auroraops"                                            # 密钥
     # 系统授权
     auth:
       group: "auth"                                                 # 分组名称
@@ -38,7 +38,7 @@ tcp:
 
 ```
 - 可以看到，除了服务器配置外，还有两个客户端配置`cron` 和`auth`
-- `cron`是HotGo内置的定时任务服务，和http服务通过RPC通讯以实现和后台交互，使其可以独立、集群部署。
+- `cron`是 AuroraOps内置的定时任务服务，和http服务通过RPC通讯以实现和后台交互，使其可以独立、集群部署。
 - `auth`可以为第三方平台提供授权服务。如果你需要他，可以将它部署在第三方程序中，在重要的位置进行授权验证。
 
 ### 一个基本的消息收发测试用例
@@ -53,7 +53,7 @@ import (
 	"fmt"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/test/gtest"
-	"hotgo/internal/library/network/tcp"
+	"auroraops/internal/library/network/tcp"
 	"testing"
 	"time"
 )
@@ -105,7 +105,7 @@ func onTestRPCMsg(ctx context.Context, req *TestRPCMsgReq) (res *TestRPCMsgRes, 
 
 func startTCPServer() {
 	serv := tcp.NewServer(&tcp.ServerConfig{
-		Name: "hotgo",
+		Name: "auroraops",
 		Addr: ":8002",
 	})
 
@@ -193,15 +193,15 @@ package main
 import (
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/library/network/tcp"
+	"auroraops/internal/library/network/tcp"
 )
 
 func main()  {
 	serv = tcp.NewServer(&tcp.ServerConfig{
-		Name: "hotgo",
+		Name: "auroraops",
 		Addr: ":8002",
 	})
-	
+
 	// 注册拦截器
 	// 执行顺序是从前到后，即Interceptor -> Interceptor2 -> Interceptor3。如果中间有任意一个抛出错误，则会中断后续处理
 	serv.RegisterInterceptor(Interceptor, Interceptor2, Interceptor3)
@@ -220,7 +220,7 @@ func  Interceptor(ctx context.Context, msg *tcp.Message) (err error) {
 
 	// 拿到原始请求消息
 	g.Dump(msg)
-	
+
 	// 如果想要中断后续处理只需返回一个错误即可，但注意两种情况
 	// tcp消息：如果你还想对该消息进行回复应在拦截器中进行处理，例如：conn.Send(ctx, 回复消息内容)
 	// rpc消息：返回一个错误后系统会将错误自动回复到rpc响应中，无需单独处理

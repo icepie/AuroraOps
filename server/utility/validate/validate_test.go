@@ -6,8 +6,8 @@
 package validate_test
 
 import (
+	"auroraops/utility/validate"
 	"github.com/gogf/gf/v2/test/gtest"
-	"hotgo/utility/validate"
 	"testing"
 )
 

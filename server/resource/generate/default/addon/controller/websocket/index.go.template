@@ -1,14 +1,14 @@
 // Package websocket
-// @Link  https://github.com/bufanyun/hotgo
-// @Copyright  Copyright (c) 2024 HotGo CLI
+// @Link  https://github.com/bufanyun/auroraops
+// @Copyright  Copyright (c) 2024  AuroraOps CLI
 // @Author  Ms <133814250@qq.com>
-// @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
+// @License  https://github.com/bufanyun/auroraops/blob/master/LICENSE
 package websocket
 
 import (
 	"context"
-	"hotgo/addons/@{.name}/api/websocket/index"
-	"hotgo/addons/@{.name}/service"
+	"auroraops/addons/@{.name}/api/websocket/index"
+	"auroraops/addons/@{.name}/service"
 )
 
 var (

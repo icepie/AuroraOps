@@ -7,22 +7,22 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/library/hgorm/hook"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/library/hgorm/hook"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
-	"hotgo/utility/tree"
+	"auroraops/utility/tree"
 )
 
 type sSysOptionTreeDemo struct{}

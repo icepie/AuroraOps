@@ -6,6 +6,13 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/global"
+	"auroraops/internal/library/location"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
 	"context"
 	"github.com/gogf/gf/v2/database/gredis"
 	"github.com/gogf/gf/v2/errors/gcode"
@@ -13,13 +20,6 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/global"
-	"hotgo/internal/library/location"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
 	"sync"
 )
 

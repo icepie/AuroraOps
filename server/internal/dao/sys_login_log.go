@@ -5,7 +5,7 @@
 package dao
 
 import (
-	"hotgo/internal/dao/internal"
+	"auroraops/internal/dao/internal"
 )
 
 // sysLoginLogDao is the data access object for the table hg_sys_login_log.

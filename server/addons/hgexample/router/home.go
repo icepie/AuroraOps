@@ -6,12 +6,12 @@
 package router
 
 import (
+	"auroraops/addons/hgexample/controller/home"
+	"auroraops/addons/hgexample/global"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/hgexample/controller/home"
-	"hotgo/addons/hgexample/global"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
 )
 
 // Home 前台页面路由

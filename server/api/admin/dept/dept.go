@@ -6,10 +6,10 @@
 package dept
 
 import (
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/tree"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/tree"
 )
 
 // ListReq 查询列表

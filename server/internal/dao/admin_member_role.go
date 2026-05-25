@@ -5,7 +5,7 @@
 package dao
 
 import (
-	"hotgo/internal/dao/internal"
+	"auroraops/internal/dao/internal"
 )
 
 // adminMemberRoleDao is the data access object for the table hg_admin_member_role.

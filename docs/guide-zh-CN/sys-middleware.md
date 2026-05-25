@@ -9,7 +9,7 @@
 - 更多
 
 ### 介绍
-- 在hotgo中，中间件/拦截器主要作用于web请求的上下文预设、跨域请求处理、鉴权处理、请求拦截和请求结束后统一响应处理等。
+- 在 AuroraOps 中，中间件/拦截器主要作用于web请求的上下文预设、跨域请求处理、鉴权处理、请求拦截和请求结束后统一响应处理等。
 
 
 ### 全局中间件
@@ -17,29 +17,29 @@
 package main
 
 import (
-	"hotgo/internal/service"
+	"auroraops/internal/service"
 )
 
 func main()  {
-	
+
 	// 初始化请求上下文，一般需要第一个进行加载，后续中间件存在依赖关系
-	service.Middleware().Ctx() 
-	
+	service.Middleware().Ctx()
+
 	// 跨域中间件，自动处理跨域问题
 	service.Middleware().CORS()
-	
+
 	// IP黑名单中间件，如果请求IP被后台拉黑，所有请求将被拒绝
 	service.Middleware().Blacklist()
-	
+
 	// 演示系統操作限制，当开启演示模式时，所有POST请求将被拒绝
 	service.Middleware().DemoLimit()
 
 	// 请求输入预处理，api使用gf规范路由并且XxxReq结构体实现了validate.Filter接口即可隐式预处理
 	service.Middleware().PreFilter()
-	
+
 	// HTTP响应预处理，在业务处理完成后，对响应结果进行格式化和错误过滤，将处理后的数据发送给请求方
 	service.Middleware().ResponseHandler()
-	
+
 }
 
 ```
@@ -52,13 +52,13 @@ import (
 )
 
 func main()  {
-	
+
 	// 在鉴权中间件下的路由如果没有通过权限验证，后续请求将被拒绝
-	// 在hotgo中，鉴权中间件一般是配合一个业务模块下的路由组进行使用
+	// 在 AuroraOps 中，鉴权中间件一般是配合一个业务模块下的路由组进行使用
 	// 目前admin、api、home、websocket模块都已接入
 	// 如果你需要创建一个新的模块也需要用到鉴权中间件，可以参考：server/internal/logic/middleware/admin_auth.go
-	
-	
+
+
 	// 一个简单例子
 	s := g.Server()
 	s.Group("/api", func(group *ghttp.RouterGroup) {
@@ -67,7 +67,7 @@ func main()  {
 			member.Member, // 管理员
 		)
 	})
-	
+
 }
 
 ```
@@ -78,7 +78,7 @@ func main()  {
 
 #### 常用响应类型
 
-- hotgo为一些常用的响应类型做了统一格式封装，例如：`application/json`、`text/xml`、`text/html`、`text/event-stream`等，默认使用`application/json`。
+- AuroraOps 为一些常用的响应类型做了统一格式封装，例如：`application/json`、`text/xml`、`text/html`、`text/event-stream`等，默认使用`application/json`。
 - 下面我们以`text/xml`为例简单演示几种使用方法：
 
 1. 当你使用规范化路由时，可直接在XxxRes结构体的`g.Meta`中声明响应类型：
@@ -86,7 +86,7 @@ func main()  {
 ```go
 type HelloReq struct {
     g.Meta `path:"/hello" tags:"Hello" method:"get" summary:"You first hello api"`
-    Name   string `json:"name" d:"hotgo" dc:"名字"`
+    Name   string `json:"name" d:"auroraops" dc:"名字"`
 }
 
 type HelloRes struct {
@@ -107,7 +107,7 @@ type cHello struct{}
 func (c *cHello) Hello(ctx context.Context, req *user.HelloReq) (res *user.HelloRes, err error) {
     r := ghttp.RequestFromCtx(ctx)
     r.Response.Header().Set("Content-Type", "text/xml")
-	
+
     res = &user.HelloRes{
         Tips: fmt.Sprintf("hello %v, this is the api for %v applications.", req.Name, simple.AppName(ctx)),
     }
@@ -140,7 +140,7 @@ func main()  {
 
 	// 写入响应
 	r.Response.Write("自定义响应内容")
-	
+
 	// 终止后续http处理
 	r.ExitAll()
 }
@@ -149,7 +149,7 @@ func main()  {
 2. 在`server/internal/logic/middleware/response.go`中根据请求的独有特征进行单独的处理，兼容后续http处理。
 
 #### 重写响应错误提示
-- 在实际开发中，我们可能想要隐藏一些敏感错误，返回给客户端友好的错误提示，但开发者同时又想需要看到真实的敏感错误。对此hotgo已经进行了过滤处理，下面是一个简单的例子：
+- 在实际开发中，我们可能想要隐藏一些敏感错误，返回给客户端友好的错误提示，但开发者同时又想需要看到真实的敏感错误。对此auroraops已经进行了过滤处理，下面是一个简单的例子：
 
 ```go
 package main
@@ -172,12 +172,12 @@ func test() error {
   "message": "用户创建失败，请稍后重试！~",
   "error": [
     "1. 用户创建失败，请稍后重试！~",
-    "   1).  hotgo/internal/logic/admin.(*sAdminMember).List",
-    "        E:/Users/Administrator/Desktop/gosrc/hotgo_dev/server/internal/logic/admin/member.go:526",
-    "2. 这是一个sql执行错误", "   1).  hotgo/internal/logic/admin.(*sAdminMember).List",
-    "        E:/Users/Administrator/Desktop/gosrc/hotgo_dev/server/internal/logic/admin/member.go:525",
-    "   2).  hotgo/internal/controller/admin/admin.(*cMember).List",
-    "        E:/Users/Administrator/Desktop/gosrc/hotgo_dev/server/internal/controller/admin/admin/member.go:157", ""
+    "   1).  auroraops/internal/logic/admin.(*sAdminMember).List",
+    "        E:/Users/Administrator/Desktop/gosrc/auroraops_dev/server/internal/logic/admin/member.go:526",
+    "2. 这是一个sql执行错误", "   1).  auroraops/internal/logic/admin.(*sAdminMember).List",
+    "        E:/Users/Administrator/Desktop/gosrc/auroraops_dev/server/internal/logic/admin/member.go:525",
+    "   2).  auroraops/internal/controller/admin/admin.(*cMember).List",
+    "        E:/Users/Administrator/Desktop/gosrc/auroraops_dev/server/internal/controller/admin/admin/member.go:157", ""
   ],
   "timestamp": 1684145107,
   "traceID": "084022730d495f17f19e550140f3e1a8"
@@ -201,13 +201,13 @@ func test() error {
 re/1.94.197.400 QQBrowser/11.7.5287.400", -1, "", ""
 Stack:
 1. 用户创建失败，请稍后重试！~
-   1).  hotgo/internal/logic/admin.(*sAdminMember).List
-        E:/Users/Administrator/Desktop/gosrc/hotgo_dev/server/internal/logic/admin/member.go:526
+   1).  auroraops/internal/logic/admin.(*sAdminMember).List
+        E:/Users/Administrator/Desktop/gosrc/auroraops_dev/server/internal/logic/admin/member.go:526
 2. 这是一个sql执行错误
-   1).  hotgo/internal/logic/admin.(*sAdminMember).List
-        E:/Users/Administrator/Desktop/gosrc/hotgo_dev/server/internal/logic/middleware/response.go:24
-   13). hotgo/internal/logic/middleware.(*sMiddleware).DemoLimit
-        E:/Users/Administrator/Desktop/gosrc/hotgo_dev/server/internal/logic/middleware/init.go:90
+   1).  auroraops/internal/logic/admin.(*sAdminMember).List
+        E:/Users/Administrator/Desktop/gosrc/auroraops_dev/server/internal/logic/middleware/response.go:24
+   13). auroraops/internal/logic/middleware.(*sMiddleware).DemoLimit
+        E:/Users/Administrator/Desktop/gosrc/auroraops_dev/server/internal/logic/middleware/init.go:90
 
 ```
 
@@ -216,7 +216,7 @@ Stack:
 
 
 #### 重写错误码
-- hotgo默认使用了gf内置的错误码进行业务处理，通常情况下成功状态码为`0`，失败状态码为`-1`
+- AuroraOps 默认使用了gf内置的错误码进行业务处理，通常情况下成功状态码为`0`，失败状态码为`-1`
 - 查看gf内置错误码：https://goframe.org/pages/viewpage.action?pageId=30739587
 - 以下是自定义错误码的简单例子：
 

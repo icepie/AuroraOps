@@ -6,9 +6,9 @@
 package common
 
 import (
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/adminin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/adminin"
 )
 
 // LoginLogoutReq 注销登录

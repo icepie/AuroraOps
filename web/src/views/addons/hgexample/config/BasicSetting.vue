@@ -39,7 +39,7 @@
   const message = useMessage();
 
   const formValue = ref({
-    basicTest: 'HotGo',
+    basicTest: 'AuroraOps',
   });
 
   function formSubmit() {

@@ -7,10 +7,10 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/api/admin/tenantorder"
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/addons/hgexample/service"
 	"context"
-	"hotgo/addons/hgexample/api/admin/tenantorder"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/addons/hgexample/service"
 )
 
 var (

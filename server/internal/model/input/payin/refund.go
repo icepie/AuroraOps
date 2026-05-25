@@ -8,9 +8,9 @@
 package payin
 
 import (
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 	"context"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
 
 	"github.com/gogf/gf/v2/os/gtime"
 )

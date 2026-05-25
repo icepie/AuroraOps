@@ -6,12 +6,12 @@
 package common
 
 import (
+	"auroraops/internal/library/storager"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/file"
+	"auroraops/utility/format"
 	"context"
-	"hotgo/internal/library/storager"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/file"
-	"hotgo/utility/format"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"

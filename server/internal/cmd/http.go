@@ -6,17 +6,17 @@
 package cmd
 
 import (
+	"auroraops/internal/library/addons"
+	"auroraops/internal/library/casbin"
+	"auroraops/internal/library/hggen"
+	"auroraops/internal/router"
+	"auroraops/internal/service"
+	"auroraops/internal/websocket"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/util/gmode"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/library/casbin"
-	"hotgo/internal/library/hggen"
-	"hotgo/internal/router"
-	"hotgo/internal/service"
-	"hotgo/internal/websocket"
 )
 
 var (

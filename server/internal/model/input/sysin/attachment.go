@@ -6,13 +6,13 @@
 package sysin
 
 import (
+	"auroraops/internal/library/storager"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/library/storager"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/validate"
 )
 
 // AttachmentDeleteInp 删除附件

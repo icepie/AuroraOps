@@ -6,11 +6,11 @@
 package location_test
 
 import (
+	"auroraops/internal/library/location"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/test/gtest"
-	"hotgo/internal/library/location"
 	"sync"
 	"testing"
 )

@@ -6,13 +6,13 @@
 package views
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model/input/sysin"
 	"bytes"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/consts"
-	"hotgo/internal/model/input/sysin"
 )
 
 const (

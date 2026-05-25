@@ -6,15 +6,15 @@
 package router
 
 import (
+	"auroraops/addons/hgexample/controller/websocket"
+	"auroraops/addons/hgexample/controller/websocket/handler"
+	"auroraops/addons/hgexample/global"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/service"
+	ws "auroraops/internal/websocket"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/hgexample/controller/websocket"
-	"hotgo/addons/hgexample/controller/websocket/handler"
-	"hotgo/addons/hgexample/global"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/service"
-	ws "hotgo/internal/websocket"
 )
 
 // WebSocket ws路由配置

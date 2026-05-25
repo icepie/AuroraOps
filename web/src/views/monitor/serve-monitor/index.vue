@@ -66,7 +66,7 @@
             >
               <n-descriptions-item label="Go版本"> {{ dataRunInfo.version }}</n-descriptions-item>
 
-              <n-descriptions-item label="HotGo版本">
+              <n-descriptions-item label="AuroraOps 版本">
                 {{ dataRunInfo.hgVersion }}</n-descriptions-item
               >
               <n-descriptions-item label="启动时间">

@@ -6,9 +6,9 @@
 package admin
 
 import (
+	"auroraops/api/admin/menu"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/menu"
-	"hotgo/internal/service"
 )
 
 // Menu 菜单

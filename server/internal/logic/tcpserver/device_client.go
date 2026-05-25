@@ -5,7 +5,7 @@ import (
 
 	"github.com/gogf/gf/v2/util/gconv"
 
-	"hotgo/internal/library/network/tcp"
+	"auroraops/internal/library/network/tcp"
 )
 
 func (s *sTCPServer) getDeviceClients(deviceID uint64) []*tcp.Conn {

@@ -6,9 +6,9 @@
 package admin
 
 import (
+	"auroraops/api/admin/post"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/post"
-	"hotgo/internal/service"
 )
 
 // Post 岗位

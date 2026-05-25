@@ -8,9 +8,9 @@
 package pay
 
 import (
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/payin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/payin"
 )
 
 // RefundListReq 查询交易退款列表

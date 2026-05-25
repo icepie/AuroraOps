@@ -1,7 +1,7 @@
-# hotgo系统配置
+# AuroraOps 系统配置
 system:
   # 应用名称
-  appName: "hotgo"
+  appName: "auroraops"
   # debug开关，开启后接口出现错误时会向前端输出堆栈信息，可选：false|true，默认为true
   debug: true
   # gf运行模式，可选：not-set|develop|testing|staging|product。product模式下后台【开发工具】菜单自动隐藏
@@ -81,7 +81,7 @@ tcp:
       name: "cron1"                                                 # 客户端名称
       address: "127.0.0.1:8099"                                     # 服务器地址
       appId: "1002"                                                 # 应用名称
-      secretKey: "hotgo"                                            # 密钥
+      secretKey: "auroraops"                                            # 密钥
     # 系统授权
     auth:
       group: "auth"                                                 # 分组名称
@@ -124,9 +124,9 @@ viewer:
 
 # 内容设置
 setting:
-  title: "HotGo"
+  title: "AuroraOps"
   keywords: "中后台解决方案,gf框架,vue3"
-  description: "hotgo 是一个基于 goframe2，vue3，vite2，TypeScript，uniapp 的中后台解决方案，它可以帮助你快速搭建企业级中后台项目，相信不管是从新技术使用还是其他方面，都能帮助到你，持续更新中。"
+  description: "AuroraOps 是一个面向运维设备管理、远程终端和远程桌面控制的管理平台。"
 
 
 # 路由配置
@@ -181,7 +181,7 @@ cache:
 
 # 登录令牌
 token:
-  secretKey: "hotgo123"                  # 令牌加密秘钥，考虑安全问题生产环境中请修改默认值
+  secretKey: "auroraops123"                  # 令牌加密秘钥，考虑安全问题生产环境中请修改默认值
   expires: 604800                        # 令牌有效期，单位：秒。默认7天
   autoRefresh: true                      # 是否开启自动刷新过期时间， false|true 默认为true
   refreshInterval: 86400                 # 刷新间隔，单位：秒。必须小于expires，否则无法触发。默认1天内只允许刷新一次
@@ -193,7 +193,7 @@ token:
 queue:
   switch: true                                        # 队列开关，可选：true|false，默认为true
   driver: "disk"                                      # 队列驱动，可选：disk|redis|rocketmq|kafka，默认为disk
-  groupName: "hotgo"                                  # mq群组名称
+  groupName: "auroraops"                                  # mq群组名称
   # 磁盘队列
   disk:
     path: "./storage/diskqueue"                       # 数据存放路径
@@ -234,7 +234,7 @@ database:
     <<: *defaultLogger
     stdout: true
   default:
-    link: "mysql:hotgo:hg123456.@tcp(127.0.0.1:3306)/hotgo?loc=Local&parseTime=true&charset=utf8mb4"
+    link: "mysql:auroraops:hg123456.@tcp(127.0.0.1:3306)/auroraops?loc=Local&parseTime=true&charset=utf8mb4"
     debug: true
     Prefix: "hg_"
 

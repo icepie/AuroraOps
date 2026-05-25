@@ -6,12 +6,12 @@
 package router
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/controller/home/base"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/internal/consts"
-	"hotgo/internal/controller/home/base"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 )
 
 // Home 前台页面路由

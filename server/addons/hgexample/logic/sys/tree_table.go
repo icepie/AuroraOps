@@ -6,19 +6,19 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/addons/hgexample/service"
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/entity"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/addons/hgexample/service"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/entity"
 )
 
 type sSysTreeTable struct{}

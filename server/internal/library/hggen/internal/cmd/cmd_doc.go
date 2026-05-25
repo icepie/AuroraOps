@@ -20,7 +20,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"hotgo/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
 )
 
 const (

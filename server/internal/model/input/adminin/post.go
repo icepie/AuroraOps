@@ -6,13 +6,13 @@
 package adminin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/consts"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/validate"
 )
 
 // PostListInp 获取列表

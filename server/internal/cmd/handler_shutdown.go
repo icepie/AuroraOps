@@ -6,11 +6,11 @@
 package cmd
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gproc"
-	"hotgo/internal/consts"
-	"hotgo/utility/simple"
 	"os"
 	"sync"
 )

@@ -6,6 +6,10 @@
 package hook
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/hgorm"
+	"auroraops/utility/convert"
 	"context"
 	"database/sql"
 	"github.com/gogf/gf/v2/database/gdb"
@@ -13,10 +17,6 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/hgorm"
-	"hotgo/utility/convert"
 )
 
 // SaveTenant 自动维护更新租户关系字段

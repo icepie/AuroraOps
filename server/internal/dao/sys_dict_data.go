@@ -5,7 +5,7 @@
 package dao
 
 import (
-	"hotgo/internal/dao/internal"
+	"auroraops/internal/dao/internal"
 )
 
 // sysDictDataDao is the data access object for the table hg_sys_dict_data.

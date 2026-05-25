@@ -1,17 +1,17 @@
 // Package genrouter
-// @Link  https://github.com/bufanyun/hotgo
-// @Copyright  Copyright (c) 2024 HotGo CLI
+// @Link  https://github.com/bufanyun/auroraops
+// @Copyright  Copyright (c) 2024  AuroraOps CLI
 // @Author  Ms <133814250@qq.com>
-// @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
+// @License  https://github.com/bufanyun/auroraops/blob/master/LICENSE
 package genrouter
 
 import (
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/@{.name}/global"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/service"
+	"auroraops/addons/@{.name}/global"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/service"
 )
 
 var (

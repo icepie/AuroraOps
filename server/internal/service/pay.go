@@ -6,9 +6,9 @@
 package service
 
 import (
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/input/payin"
 	"context"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/input/payin"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )

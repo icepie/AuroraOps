@@ -8,19 +8,19 @@ package pay
 // 异步通知
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/location"
+	"auroraops/internal/library/payment"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/payin"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/location"
-	"hotgo/internal/library/payment"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/payin"
-	"hotgo/internal/service"
 )
 
 // RegisterNotifyCall 注册支付成功回调方法

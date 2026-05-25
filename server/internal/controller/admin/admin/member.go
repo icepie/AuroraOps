@@ -6,12 +6,12 @@
 package admin
 
 import (
+	"auroraops/api/admin/member"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/api/admin/member"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/service"
 )
 
 var (

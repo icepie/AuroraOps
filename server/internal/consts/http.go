@@ -6,9 +6,9 @@
 package consts
 
 import (
+	"auroraops/internal/library/dict"
+	"auroraops/internal/model"
 	"fmt"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/model"
 	"net/http"
 
 	"github.com/gogf/gf/v2/errors/gcode"

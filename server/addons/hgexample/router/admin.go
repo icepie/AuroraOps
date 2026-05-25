@@ -6,14 +6,14 @@
 package router
 
 import (
+	"auroraops/addons/hgexample/controller/admin/sys"
+	"auroraops/addons/hgexample/global"
+	"auroraops/addons/hgexample/router/genrouter"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/hgexample/controller/admin/sys"
-	"hotgo/addons/hgexample/global"
-	"hotgo/addons/hgexample/router/genrouter"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/service"
 )
 
 func Admin(ctx context.Context, group *ghttp.RouterGroup) {

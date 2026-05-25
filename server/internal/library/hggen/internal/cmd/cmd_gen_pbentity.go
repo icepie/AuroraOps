@@ -6,7 +6,7 @@
 
 package cmd
 
-import "hotgo/internal/library/hggen/internal/cmd/genpbentity"
+import "auroraops/internal/library/hggen/internal/cmd/genpbentity"
 
 type (
 	cGenPbEntity = genpbentity.CGenPbEntity

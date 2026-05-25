@@ -7,6 +7,14 @@
 package sys
 
 import (
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
+	"auroraops/utility/excel"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/database/gdb"
@@ -14,14 +22,6 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
-	"hotgo/utility/excel"
 )
 
 type sSysServeLicense struct{}

@@ -6,17 +6,17 @@
 package router
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/controller/admin/admin"
+	"auroraops/internal/controller/admin/common"
+	"auroraops/internal/controller/admin/pay"
+	"auroraops/internal/controller/admin/sys"
+	"auroraops/internal/library/response"
+	"auroraops/internal/router/genrouter"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/internal/consts"
-	"hotgo/internal/controller/admin/admin"
-	"hotgo/internal/controller/admin/common"
-	"hotgo/internal/controller/admin/pay"
-	"hotgo/internal/controller/admin/sys"
-	"hotgo/internal/library/response"
-	"hotgo/internal/router/genrouter"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 )
 
 func Admin(ctx context.Context, group *ghttp.RouterGroup) {

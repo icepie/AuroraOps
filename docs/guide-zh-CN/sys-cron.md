@@ -6,7 +6,7 @@
 - 一个例子
 - 更多
 
-> 在实际的项目开发中，定时任务几乎成为不可或缺的一部分。HotGo为定时任务提供一个方便的后台操作界面，让您能够轻松地进行在线启停、修改和立即执行等操作。这样的设计可以极大地改善您在使用定时任务过程中的体验，让整个过程更加顺畅、高效。
+> 在实际的项目开发中，定时任务几乎成为不可或缺的一部分。AuroraOps 为定时任务提供一个方便的后台操作界面，让您能够轻松地进行在线启停、修改和立即执行等操作。这样的设计可以极大地改善您在使用定时任务过程中的体验，让整个过程更加顺畅、高效。
 
 
 ### 实现接口
@@ -29,12 +29,12 @@ type Cron interface {
 
 - 文件路径：server/internal/crons/test.go
 
-```go 
+```go
 package crons
 
 import (
 	"context"
-	"hotgo/internal/library/cron"
+	"auroraops/internal/library/cron"
 	"time"
 )
 

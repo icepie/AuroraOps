@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/api/admin/servelog"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/servelog"
-	"hotgo/internal/service"
 )
 
 var (

@@ -6,10 +6,10 @@
 package casbin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
 	"context"
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
 	"net/http"
 	"strings"
 

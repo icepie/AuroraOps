@@ -6,8 +6,8 @@
 package config
 
 import (
+	"auroraops/addons/hgexample/model/input/sysin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/addons/hgexample/model/input/sysin"
 )
 
 // GetReq 获取指定分组的配置

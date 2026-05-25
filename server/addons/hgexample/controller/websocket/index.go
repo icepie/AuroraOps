@@ -6,9 +6,9 @@
 package websocket
 
 import (
+	"auroraops/addons/hgexample/api/websocket/index"
+	"auroraops/addons/hgexample/service"
 	"context"
-	"hotgo/addons/hgexample/api/websocket/index"
-	"hotgo/addons/hgexample/service"
 )
 
 var (

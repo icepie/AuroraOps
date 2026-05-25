@@ -6,10 +6,10 @@
 package cmd
 
 import (
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcmd"
-	"hotgo/internal/service"
 )
 
 var (

@@ -6,11 +6,11 @@
 package admin
 
 import (
+	"auroraops/internal/dao"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/internal/dao"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/service"
 )
 
 type sAdminMemberPost struct{}

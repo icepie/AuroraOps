@@ -6,6 +6,13 @@
 package admin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model"
+	"auroraops/internal/service"
+	"auroraops/internal/websocket"
+	"auroraops/utility/file"
+	"auroraops/utility/format"
+	"auroraops/utility/simple"
 	"fmt"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
@@ -15,13 +22,6 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/process"
-	"hotgo/internal/consts"
-	"hotgo/internal/model"
-	"hotgo/internal/service"
-	"hotgo/internal/websocket"
-	"hotgo/utility/file"
-	"hotgo/utility/format"
-	"hotgo/utility/simple"
 	"os"
 	"runtime"
 	"time"

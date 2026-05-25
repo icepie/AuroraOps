@@ -1,14 +1,14 @@
 package sys
 
 import (
+	"auroraops/api/admin/opsdevice"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"hotgo/api/admin/opsdevice"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 	"io"
 	"net/http"
 	"net/http/httputil"

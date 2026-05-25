@@ -6,17 +6,17 @@
 package cmd
 
 import (
+	"auroraops/internal/cmd/upgrade/fix"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcmd"
-	"hotgo/internal/cmd/upgrade/fix"
 )
 
 var (
 	Up = &gcmd.Command{
 		Name:        "up",
-		Brief:       "处理hotgo版本升级更新带来的兼容问题",
+		Brief:       "处理 AuroraOps 版本升级更新带来的兼容问题",
 		Description: ``,
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
 			args := parser.GetOptAll()

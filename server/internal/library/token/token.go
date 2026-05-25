@@ -6,6 +6,11 @@
 package token
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/cache"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/model"
+	"auroraops/utility/simple"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/crypto/gmd5"
@@ -16,11 +21,6 @@ import (
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/golang-jwt/jwt/v5"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/cache"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/model"
-	"hotgo/utility/simple"
 	"time"
 )
 

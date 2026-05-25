@@ -6,8 +6,8 @@
 package common
 
 import (
+	"auroraops/api/admin/common"
 	"context"
-	"hotgo/api/admin/common"
 )
 
 var Console = cConsole{}

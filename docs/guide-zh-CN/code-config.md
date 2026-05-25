@@ -71,14 +71,14 @@ hggen:
 
 ### CLI配置
 
-- hotgo在生成dao、service配置时，默认了和gf官方一致的配置方式和代码生成规则。所以无论你是通过hotgo亦或gf命令生成，最终代码格式完全一致，遵循一致的代码规范。
+- AuroraOps 在生成dao、service配置时，默认了和gf官方一致的配置方式和代码生成规则。所以无论你是通过auroraops亦或gf命令生成，最终代码格式完全一致，遵循一致的代码规范。
 
 - 配置路径：[server/hack/config.yaml](../../server/hack/config.yaml)
 
 ```yaml
 gfcli:
   build:
-    name: "hotgo"                          # 编译后的可执行文件名称
+    name: "auroraops-server"                          # 编译后的可执行文件名称
     #    arch: "all"                           #不填默认当前系统架构，可选：386,amd64,arm,all
     #    system: "all"                         #不填默认当前系统平台，可选：linux,darwin,windows,all
     mod: "none"
@@ -86,14 +86,14 @@ gfcli:
     packSrc: "resource"                    # 将resource目录打包进可执行文件，静态资源无需单独部署
     packDst: "internal/packed/packed.go"   # 打包后生成的Go文件路径，一般使用相对路径指定到本项目目录中
     version: ""
-    output: "./temp/hotgo"                 # 可执行文件生成路径
+    output: "./temp/auroraops-server"                 # 可执行文件生成路径
     extra: ""
 
   gen:
     dao:
-      - link: "mysql:hotgo:hg123456.@tcp(127.0.0.1:3306)/hotgo?loc=Local&parseTime=true"
-#      - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/hotgo"
-        group: "default"                                                # 分组 使用hotgo代码生成功能时必须填
+      - link: "mysql:auroraops:hg123456.@tcp(127.0.0.1:3306)/auroraops?loc=Local&parseTime=true"
+#      - link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/auroraops"
+        group: "default"                                                # 分组 使用AuroraOps 代码生成功能时必须填
         #        tables:          ""                                    # 指定当前数据库中需要执行代码生成的数据表。如果为空，表示数据库的所有表都会生成。
         tablesEx:        "hg_sys_addons_install"                        # 指定当前数据库中需要排除代码生成的数据表。
         removePrefix: "hg_"
@@ -112,14 +112,14 @@ gfcli:
 
 ### 多数据库使用
 
-- 假设我们要增加一个库名为`hotgo2`、分组为`default2`的数据库，并要为其生成代码
+- 假设我们要增加一个库名为`auroraops2`、分组为`default2`的数据库，并要为其生成代码
 
 1. 配置[server/hack/config.yaml](../../server/hack/config.yaml) 如下：
 ```yaml
   gen:
     dao:
-      - link: "mysql:hotgo:hg123456.@tcp(127.0.0.1:3306)/hotgo?loc=Local&parseTime=true"
-        group: "default"                                                # 分组 使用hotgo代码生成功能时必须填
+      - link: "mysql:auroraops:hg123456.@tcp(127.0.0.1:3306)/auroraops?loc=Local&parseTime=true"
+        group: "default"                                                # 分组 使用AuroraOps 代码生成功能时必须填
         tablesEx:        "hg_sys_addons_install"                        # 指定当前数据库中需要排除代码生成的数据表。
         removePrefix: "hg_"
         descriptionTag: true
@@ -127,8 +127,8 @@ gfcli:
         jsonCase: "CamelLower"
         gJsonSupport: true
         clear: false
-      - link: "mysql:hotgo2:hg123456.@tcp(127.0.0.1:3306)/hotgo2?loc=Local&parseTime=true"
-        group: "default2"                                                # 分组 使用hotgo代码生成功能时必须填
+      - link: "mysql:auroraops2:hg123456.@tcp(127.0.0.1:3306)/auroraops2?loc=Local&parseTime=true"
+        group: "default2"                                                # 分组 使用AuroraOps 代码生成功能时必须填
         tablesEx:        "hg_sys_addons_install"                         # 指定当前数据库中需要排除代码生成的数据表。
         removePrefix: ""
         descriptionTag: true
@@ -147,12 +147,12 @@ database:
     level: "all"
     stdout: true
   default:
-    link: "mysql:hotgo:hg123456.@tcp(127.0.0.1:3306)/hotgo?loc=Local&parseTime=true"
-#    link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/hotgo"
+    link: "mysql:auroraops:hg123456.@tcp(127.0.0.1:3306)/auroraops?loc=Local&parseTime=true"
+#    link: "pgsql:postgres:hg123456@tcp(127.0.0.1:5432)/auroraops"
     debug: true
     Prefix: "hg_"
   default2:
-    link: "mysql:hotgo2:hg123456.@tcp(127.0.0.1:3306)/hotgo2?loc=Local&parseTime=true"
+    link: "mysql:auroraops2:hg123456.@tcp(127.0.0.1:3306)/auroraops2?loc=Local&parseTime=true"
     debug: true
     Prefix: ""
 ```
@@ -166,7 +166,7 @@ hggen:
   delimiters: ["@{", "}"]                                             # 模板引擎变量分隔符号
 ```
 
-3. 登录HotGo后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，就会发现`数据库`选项增加了一个`default2`，后续生成步骤和生成例子完全一样
+3. 登录AuroraOps 后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，就会发现`数据库`选项增加了一个`default2`，后续生成步骤和生成例子完全一样
 
 > 注意：上述的配置中所有的`default2`名称必须保持一致
 

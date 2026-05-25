@@ -8,9 +8,9 @@
 package sys
 
 import (
+	"auroraops/api/admin/loginlog"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/loginlog"
-	"hotgo/internal/service"
 )
 
 var (

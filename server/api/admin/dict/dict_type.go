@@ -6,8 +6,8 @@
 package dict
 
 import (
+	"auroraops/internal/model/input/sysin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/sysin"
 )
 
 // TypeTreeReq 字典类型树

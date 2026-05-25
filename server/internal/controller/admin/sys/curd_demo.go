@@ -7,10 +7,10 @@
 package sys
 
 import (
+	"auroraops/api/admin/curddemo"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/curddemo"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 )
 
 var (

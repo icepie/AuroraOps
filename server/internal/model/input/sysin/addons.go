@@ -6,11 +6,11 @@
 package sysin
 
 import (
+	"auroraops/internal/library/addons"
+	"auroraops/internal/model/input/form"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gregex"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/model/input/form"
 )
 
 // AddonsListInp 获取列表

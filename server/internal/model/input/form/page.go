@@ -6,7 +6,7 @@
 package form
 
 import (
-	"hotgo/internal/consts"
+	"auroraops/internal/consts"
 )
 
 type ReqPageFunc interface {

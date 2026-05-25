@@ -15,7 +15,7 @@ import (
 	"github.com/gogf/gf/v2/text/gregex"
 	"github.com/gogf/gf/v2/text/gstr"
 
-	"hotgo/internal/library/hggen/internal/consts"
+	"auroraops/internal/library/hggen/internal/consts"
 )
 
 func (c CGenService) generatePackageImports(generatedContent *bytes.Buffer, packageName string, imports []string) {

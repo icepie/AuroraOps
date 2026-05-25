@@ -1,7 +1,7 @@
 package db
 
 import (
-	"hotgo/internal/consts"
+	"auroraops/internal/consts"
 	"strings"
 	"unicode"
 

@@ -6,9 +6,9 @@
 package sys
 
 import (
+	"auroraops/api/admin/cron"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/cron"
-	"hotgo/internal/service"
 )
 
 var (

@@ -6,10 +6,10 @@
 package websocket
 
 import (
+	"auroraops/api/websocket/base"
+	"auroraops/internal/websocket"
+	"auroraops/utility/simple"
 	"context"
-	"hotgo/api/websocket/base"
-	"hotgo/internal/websocket"
-	"hotgo/utility/simple"
 )
 
 // Send 通过http发送ws消息

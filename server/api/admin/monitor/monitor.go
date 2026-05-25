@@ -6,10 +6,10 @@
 package monitor
 
 import (
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/model/input/form"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/model/input/form"
 )
 
 // UserOfflineReq 下线用户

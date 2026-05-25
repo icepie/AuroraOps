@@ -7,16 +7,16 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/addons/hgexample/service"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/library/hgorm/hook"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/convert"
+	"auroraops/utility/excel"
 	"context"
 	"fmt"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/addons/hgexample/service"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/library/hgorm/hook"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/convert"
-	"hotgo/utility/excel"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"

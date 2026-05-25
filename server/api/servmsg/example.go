@@ -6,8 +6,8 @@
 package servmsg
 
 import (
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/model/input/servmsgin"
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/model/input/servmsgin"
 )
 
 // 一些例子.

@@ -7,7 +7,7 @@
 package cmd
 
 import (
-	"hotgo/internal/library/hggen/internal/cmd/genctrl"
+	"auroraops/internal/library/hggen/internal/cmd/genctrl"
 )
 
 type (

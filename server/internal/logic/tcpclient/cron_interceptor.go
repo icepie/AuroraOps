@@ -6,8 +6,8 @@
 package tcpclient
 
 import (
+	"auroraops/internal/library/network/tcp"
 	"context"
-	"hotgo/internal/library/network/tcp"
 )
 
 // DefaultInterceptor 默认拦截器

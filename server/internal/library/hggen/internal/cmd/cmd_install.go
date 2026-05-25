@@ -11,7 +11,7 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 
-	"hotgo/internal/library/hggen/internal/service"
+	"auroraops/internal/library/hggen/internal/service"
 )
 
 var (

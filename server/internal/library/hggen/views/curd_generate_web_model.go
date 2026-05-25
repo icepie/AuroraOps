@@ -6,14 +6,14 @@
 package views
 
 import (
+	"auroraops/internal/dao"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/utility/convert"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/utility/convert"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"

@@ -6,12 +6,12 @@
 package service
 
 import (
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/utility/tree"
 	"context"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/utility/tree"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/database/gredis"

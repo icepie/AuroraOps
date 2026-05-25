@@ -6,14 +6,14 @@
 package tcpclient
 
 import (
+	"auroraops/api/servmsg"
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/model/input/servmsgin"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
-	"hotgo/api/servmsg"
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/model/input/servmsgin"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 )
 
 // tcp客户端

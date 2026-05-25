@@ -66,7 +66,7 @@
 
   const message = useMessage();
   const messages = ref<Message[]>([]);
-  const inputMessage = ref('你好，HotGo');
+  const inputMessage = ref('你好，AuroraOps');
   const isInput = ref(false);
   const testMessageEvent = 'admin/addons/hgexample/testMessage';
 

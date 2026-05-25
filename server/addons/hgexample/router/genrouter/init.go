@@ -6,12 +6,12 @@
 package genrouter
 
 import (
+	"auroraops/addons/hgexample/global"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"hotgo/addons/hgexample/global"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/service"
 )
 
 var (

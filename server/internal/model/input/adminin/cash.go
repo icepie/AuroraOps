@@ -6,9 +6,9 @@
 package adminin
 
 import (
-	"hotgo/internal/library/hgorm/hook"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
+	"auroraops/internal/library/hgorm/hook"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 )
 
 // CashViewInp 获取信息

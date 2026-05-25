@@ -6,9 +6,9 @@
 package sms
 
 import (
+	"auroraops/internal/dao"
+	"auroraops/internal/model"
 	"context"
-	"hotgo/internal/dao"
-	"hotgo/internal/model"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )

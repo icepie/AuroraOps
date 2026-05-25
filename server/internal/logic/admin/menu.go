@@ -6,19 +6,19 @@
 package admin
 
 import (
+	"auroraops/api/admin/role"
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/casbin"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
+	"auroraops/utility/validate"
 	"context"
-	"hotgo/api/admin/role"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/casbin"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
-	"hotgo/utility/validate"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -244,8 +244,8 @@ func (s *sAdminMenu) LoginPermissions(ctx context.Context, memberId int64) (list
 	var (
 		allPermissions []*Permissions
 		mod            = dao.AdminMenu.Ctx(ctx).Fields(dao.AdminMenu.Columns().Permissions).
-			Where(dao.AdminMenu.Columns().Status, consts.StatusEnabled).
-			WhereNot(dao.AdminMenu.Columns().Permissions, "")
+				Where(dao.AdminMenu.Columns().Status, consts.StatusEnabled).
+				WhereNot(dao.AdminMenu.Columns().Permissions, "")
 	)
 
 	// 非超管验证允许的菜单列表

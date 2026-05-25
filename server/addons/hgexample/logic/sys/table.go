@@ -6,6 +6,16 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/addons/hgexample/service"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/convert"
+	"auroraops/utility/excel"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/database/gdb"
@@ -13,16 +23,6 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/addons/hgexample/service"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/convert"
-	"hotgo/utility/excel"
-	"hotgo/utility/validate"
 )
 
 type sSysTable struct{}

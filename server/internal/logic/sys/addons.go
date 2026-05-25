@@ -6,15 +6,15 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 )
 
 type sSysAddons struct{}

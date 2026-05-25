@@ -6,16 +6,16 @@ import (
 	"sort"
 	"strings"
 
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
+	"auroraops/utility/excel"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
-	"hotgo/utility/excel"
 )
 
 type sSysOpsHardware struct{}

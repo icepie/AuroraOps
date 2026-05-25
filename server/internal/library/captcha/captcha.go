@@ -6,8 +6,8 @@
 package captcha
 
 import (
+	"auroraops/internal/consts"
 	"context"
-	"hotgo/internal/consts"
 	"image/color"
 
 	"github.com/gogf/gf/v2/frame/g"

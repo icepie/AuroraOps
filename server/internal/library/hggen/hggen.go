@@ -6,23 +6,23 @@
 package hggen
 
 import (
-	_ "hotgo/internal/library/hggen/internal/cmd/gendao"
-	"hotgo/internal/library/hggen/internal/utility/utils"
+	_ "auroraops/internal/library/hggen/internal/cmd/gendao"
+	"auroraops/internal/library/hggen/internal/utility/utils"
 	_ "unsafe"
 
 	"github.com/gogf/gf/v2/os/gfile"
 
+	"auroraops/internal/consts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/library/hggen/internal/cmd"
+	"auroraops/internal/library/hggen/internal/cmd/gendao"
+	"auroraops/internal/library/hggen/internal/cmd/genservice"
+	"auroraops/internal/library/hggen/views"
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/library/hggen/internal/cmd"
-	"hotgo/internal/library/hggen/internal/cmd/gendao"
-	"hotgo/internal/library/hggen/internal/cmd/genservice"
-	"hotgo/internal/library/hggen/views"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 	"sort"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -30,7 +30,7 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
-//go:linkname doGenDaoForArray hotgo/internal/library/hggen/internal/cmd/gendao.doGenDaoForArray
+//go:linkname doGenDaoForArray auroraops/internal/library/hggen/internal/cmd/gendao.doGenDaoForArray
 func doGenDaoForArray(ctx context.Context, index int, in gendao.CGenDaoInput)
 
 // Dao 生成数据库实体

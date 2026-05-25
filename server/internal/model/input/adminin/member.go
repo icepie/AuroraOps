@@ -6,16 +6,16 @@
 package adminin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/validate"
 )
 
 // MemberUpdateCashInp 更新会员提现信息

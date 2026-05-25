@@ -11,7 +11,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/guid"
 
-	"hotgo/internal/library/network/tcp"
+	"auroraops/internal/library/network/tcp"
 )
 
 const desktopSessionTTL = 15 * time.Minute

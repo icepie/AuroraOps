@@ -6,13 +6,13 @@
 package handler
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/contexts"
+	"auroraops/internal/model/entity"
+	"auroraops/utility/convert"
+	"auroraops/utility/tree"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/contexts"
-	"hotgo/internal/model/entity"
-	"hotgo/utility/convert"
-	"hotgo/utility/tree"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"

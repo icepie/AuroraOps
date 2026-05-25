@@ -12,7 +12,7 @@ import (
 
 // AppName 应用名称
 func AppName(ctx context.Context) string {
-	return g.Cfg().MustGet(ctx, "system.appName", "hotgo").String()
+	return g.Cfg().MustGet(ctx, "system.appName", "auroraops").String()
 }
 
 // Debug debug

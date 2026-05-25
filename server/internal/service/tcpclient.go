@@ -6,10 +6,10 @@
 package service
 
 import (
+	"auroraops/api/servmsg"
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/model/input/servmsgin"
 	"context"
-	"hotgo/api/servmsg"
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/model/input/servmsgin"
 )
 
 type (

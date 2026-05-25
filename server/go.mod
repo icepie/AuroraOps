@@ -1,4 +1,4 @@
-module hotgo
+module auroraops
 
 go 1.25.0
 

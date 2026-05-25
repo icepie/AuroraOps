@@ -6,13 +6,13 @@
 package queues
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/queue"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/service"
 	"context"
 	"encoding/json"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/queue"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/service"
 )
 
 func init() {

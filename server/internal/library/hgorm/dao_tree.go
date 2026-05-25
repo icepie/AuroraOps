@@ -6,12 +6,12 @@
 package hgorm
 
 import (
+	"auroraops/internal/model"
+	"auroraops/utility/tree"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model"
-	"hotgo/utility/tree"
-	"hotgo/utility/validate"
 )
 
 // GenSubTree 生成下级关系树

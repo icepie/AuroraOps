@@ -6,8 +6,8 @@
 package servmsg
 
 import (
-	"hotgo/internal/library/network/tcp"
-	"hotgo/internal/model/input/sysin"
+	"auroraops/internal/library/network/tcp"
+	"auroraops/internal/model/input/sysin"
 )
 
 // CronDeleteReq 删除任务

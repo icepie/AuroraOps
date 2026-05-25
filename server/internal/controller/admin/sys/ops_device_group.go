@@ -1,10 +1,10 @@
 package sys
 
 import (
+	"auroraops/api/admin/opsdevicegroup"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/opsdevicegroup"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 )
 
 var (

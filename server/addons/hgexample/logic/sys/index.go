@@ -6,13 +6,13 @@
 package sys
 
 import (
+	"auroraops/addons/hgexample/global"
+	"auroraops/addons/hgexample/model/input/sysin"
+	"auroraops/addons/hgexample/service"
+	"auroraops/internal/library/contexts"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/addons/hgexample/global"
-	"hotgo/addons/hgexample/model/input/sysin"
-	"hotgo/addons/hgexample/service"
-	"hotgo/internal/library/contexts"
 )
 
 type sSysIndex struct{}

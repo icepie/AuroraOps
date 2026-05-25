@@ -1,11 +1,11 @@
 ## 生成树型CURD
 
 ### 热编译启动
-- 推荐使用热编译方式启动HotGo，这样生成完成页面自动刷新即可看到新生成内容，无需手动重启
+- 推荐使用热编译方式启动 AuroraOps，这样生成完成页面自动刷新即可看到新生成内容，无需手动重启
 
 ```shell
 # 服务端
-cd server 
+cd server
 gf run main.go
 
 # web端
@@ -49,7 +49,7 @@ CREATE TABLE `hg_sys_gen_tree_demo` (
 | tree	  | 关系树	     | varchar(512) | 是   |
 
 ### 创建生成配置
-- 登录HotGo后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，选择和填写如下参数：
+- 登录AuroraOps 后台 -> 开发工具 -> 代码生成 -> 找到立即生成按钮并打开，选择和填写如下参数：
 
 ![](images/code/tree-add.png)
 

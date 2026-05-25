@@ -50,7 +50,7 @@ package main
 
 import (
 	"fmt"
-	"hotgo/addons/hgexample/global"
+	"auroraops/addons/hgexample/global"
 )
 
 func test()  {
@@ -66,8 +66,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/library/contexts"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/library/contexts"
 )
 
 func test(ctx context.Context)  {
@@ -82,5 +82,5 @@ func test(ctx context.Context)  {
 - 更多辅助方法请参考插件功能库：server/internal/library/addons
 
 #### 插件路由规则
-- 如果你不喜欢现在的路由风格，可以自行调整。修改位置在：\server\internal\library\addons\addons.go的RouterPrefix方法。 
+- 如果你不喜欢现在的路由风格，可以自行调整。修改位置在：\server\internal\library\addons\addons.go的RouterPrefix方法。
 - 注意调整后如web前端页面中如有之前的路由风格也需同步修改。

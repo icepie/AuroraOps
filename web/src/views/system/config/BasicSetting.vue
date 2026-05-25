@@ -71,15 +71,15 @@
   const dialog = useDialog();
 
   const formValue = ref({
-    basicName: 'HotGo',
+    basicName: 'AuroraOps',
     basicLogo: '',
-    basicDomain: 'https://hotgo.facms.cn',
-    basicWsAddr: 'wss://hotgo.facms.cn/socket',
+    basicDomain: 'https://auroraops.facms.cn',
+    basicWsAddr: 'wss://auroraops.facms.cn/socket',
     basicIcpCode: '',
     basicLoginCode: 0,
     basicRegisterSwitch: 1,
     basicCaptchaSwitch: 1,
-    basicCopyright: '© 2021 - 2023 HotGo All Rights Reserved.',
+    basicCopyright: '© 2021 - 2026 AuroraOps All Rights Reserved.',
     basicCloseText:
       '网站维护中，暂时无法访问！本网站正在进行系统维护和技术升级，网站暂时无法访问，敬请谅解！',
     basicSystemOpen: true,

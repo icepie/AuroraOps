@@ -1,18 +1,18 @@
 // Package sys
-// @Link  https://github.com/bufanyun/hotgo
-// @Copyright  Copyright (c) 2024 HotGo CLI
+// @Link  https://github.com/bufanyun/auroraops
+// @Copyright  Copyright (c) 2024  AuroraOps CLI
 // @Author  Ms <133814250@qq.com>
-// @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
+// @License  https://github.com/bufanyun/auroraops/blob/master/LICENSE
 package sys
 
 import (
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/addons/@{.name}/global"
-	"hotgo/addons/@{.name}/model/input/sysin"
-	"hotgo/addons/@{.name}/service"
-	"hotgo/internal/library/contexts"
+	"auroraops/addons/@{.name}/global"
+	"auroraops/addons/@{.name}/model/input/sysin"
+	"auroraops/addons/@{.name}/service"
+	"auroraops/internal/library/contexts"
 )
 
 type sSysIndex struct{}

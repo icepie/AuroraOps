@@ -6,8 +6,8 @@
 package common
 
 import (
+	"auroraops/internal/model/input/sysin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/sysin"
 )
 
 // SendTestSmsReq 发送测试短信

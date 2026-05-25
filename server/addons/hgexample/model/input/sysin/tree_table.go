@@ -6,10 +6,10 @@
 package sysin
 
 import (
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
 )
 
 // TreeTableListInp 获取列表

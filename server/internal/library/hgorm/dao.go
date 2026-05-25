@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"strings"
 
-	"hotgo/utility/convert"
-	"hotgo/utility/db"
+	"auroraops/utility/convert"
+	"auroraops/utility/db"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"

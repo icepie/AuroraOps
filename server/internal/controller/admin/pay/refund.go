@@ -8,9 +8,9 @@
 package pay
 
 import (
+	"auroraops/api/admin/pay"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/pay"
-	"hotgo/internal/service"
 )
 
 var (

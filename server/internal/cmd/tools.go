@@ -6,13 +6,13 @@
 package cmd
 
 import (
+	"auroraops/internal/library/casbin"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/os/gres"
-	"hotgo/internal/library/casbin"
 )
 
 var (

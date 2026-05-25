@@ -6,6 +6,20 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/library/hgorm/hook"
+	"auroraops/internal/library/location"
+	"auroraops/internal/library/queue"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/convert"
+	"auroraops/utility/excel"
+	"auroraops/utility/useragent"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/database/gdb"
@@ -16,20 +30,6 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/library/hgorm/hook"
-	"hotgo/internal/library/location"
-	"hotgo/internal/library/queue"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/convert"
-	"hotgo/utility/excel"
-	"hotgo/utility/useragent"
 )
 
 type sSysLoginLog struct{}

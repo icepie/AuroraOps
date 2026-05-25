@@ -8,14 +8,14 @@ package hook_test
 import (
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm/hook"
+	"auroraops/internal/model"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/grand"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm/hook"
-	"hotgo/internal/model"
 	"testing"
 )
 

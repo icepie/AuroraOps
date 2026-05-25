@@ -5,5 +5,5 @@
 package logic
 
 import (
-	_ "hotgo/addons/@{.name}/logic/sys"
+	_ "auroraops/addons/@{.name}/logic/sys"
 )

@@ -6,9 +6,9 @@
 package config
 
 import (
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
 )
 
 // GetReq 获取指定分组的配置

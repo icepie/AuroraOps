@@ -6,10 +6,10 @@
 package sys
 
 import (
+	"auroraops/api/admin/log"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/api/admin/log"
-	"hotgo/internal/service"
 )
 
 // Log 日志

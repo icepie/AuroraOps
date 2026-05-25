@@ -8,9 +8,9 @@
 package admin
 
 import (
+	"auroraops/api/admin/creditslog"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/creditslog"
-	"hotgo/internal/service"
 )
 
 var (

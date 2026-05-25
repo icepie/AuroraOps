@@ -7,12 +7,12 @@
 package sysin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/hgorm/hook"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/validate"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/hgorm/hook"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/validate"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"

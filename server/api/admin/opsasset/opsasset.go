@@ -1,8 +1,8 @@
 package opsasset
 
 import (
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
 
 	"github.com/gogf/gf/v2/frame/g"
 )

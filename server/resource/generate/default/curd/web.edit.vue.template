@@ -43,7 +43,7 @@
 <script lang="ts" setup>
 @{.script.import}  import { useProjectSettingStore } from '@/store/modules/projectSetting';
   import { useMessage } from 'naive-ui';
-  import { adaModalWidth } from '@/utils/hotgo';
+  import { adaModalWidth } from '@/utils/auroraops';
 
   const emit = defineEmits(['reloadTable']);
   const message = useMessage();

@@ -5,7 +5,7 @@
 // @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
 package payment
 
-import "hotgo/internal/model"
+import "auroraops/internal/model"
 
 var config *model.PayConfig
 

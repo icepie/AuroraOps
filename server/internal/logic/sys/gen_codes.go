@@ -6,16 +6,16 @@
 package sys
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hggen"
+	"auroraops/internal/model"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
+	"auroraops/utility/validate"
 	"context"
 	"fmt"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hggen"
-	"hotgo/internal/model"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
-	"hotgo/utility/validate"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -222,12 +222,12 @@ func (s *sSysGenCodes) TableSelect(ctx context.Context, in *sysin.GenCodesTableS
 	if config.Type == consts.DBPgsql {
 		// PostgreSQL: 使用pg_catalog查询表和注释
 		sql = `
-			SELECT 
+			SELECT
 				c.relname as value,
 				COALESCE(obj_description(c.oid), '') as label
 			FROM pg_class c
 			JOIN pg_namespace n ON c.relnamespace = n.oid
-			WHERE n.nspname = 'public' 
+			WHERE n.nspname = 'public'
 				AND c.relkind = 'r'
 			ORDER BY c.relname`
 	} else {
@@ -286,15 +286,15 @@ func (s *sSysGenCodes) ColumnSelect(ctx context.Context, in *sysin.GenCodesColum
 	if config.Type == consts.DBPgsql {
 		// PostgreSQL: 使用pg_catalog查询列注释
 		sql = `
-			SELECT 
+			SELECT
 				a.attname as value,
 				COALESCE(col_description(a.attrelid, a.attnum), '') as label
 			FROM pg_attribute a
 			JOIN pg_class c ON a.attrelid = c.oid
 			JOIN pg_namespace n ON c.relnamespace = n.oid
-			WHERE n.nspname = 'public' 
+			WHERE n.nspname = 'public'
 				AND c.relname = '%s'
-				AND a.attnum > 0 
+				AND a.attnum > 0
 				AND NOT a.attisdropped
 			ORDER BY a.attnum`
 		sql = fmt.Sprintf(sql, in.Table)

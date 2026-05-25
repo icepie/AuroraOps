@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"hotgo/internal/library/network/tcp"
+	"auroraops/internal/library/network/tcp"
 )
 
 func TestDesktopHubBroadcastAndClose(t *testing.T) {

@@ -14,16 +14,16 @@
 
 ### 启动流程
 
-HotGo 入口文件->隐式注入(hotgo/addons/modules)->注册所有插件->初始化已安装的插件->写入路由组->根据 HotGo 正常的开发和访问流程去开发访问插件
+ AuroraOps 入口文件->隐式注入(auroraops/addons/modules)->注册所有插件->初始化已安装的插件->写入路由组->根据  AuroraOps 正常的开发和访问流程去开发访问插件
 
 
 ### 目录结构
 - 详细介绍请参考：[目录结构](sys-catalog.md)
 ```
 /server
-├── addons           
-│   ├── modules        
-│   ├── xxx插件 
+├── addons
+│   ├── modules
+│   ├── xxx插件
 │   |   ├── api
 │   |   ├── consts
 │   |   ├── controller

@@ -6,18 +6,18 @@
 package admin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/adminin"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/adminin"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/service"
 )
 
 type sAdminPost struct{}

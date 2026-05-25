@@ -6,7 +6,7 @@
 package v1
 
 import (
-	"hotgo/internal/model/input/payin"
+	"auroraops/internal/model/input/payin"
 
 	"github.com/gogf/gf/v2/frame/g"
 )

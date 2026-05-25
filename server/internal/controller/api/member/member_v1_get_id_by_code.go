@@ -3,7 +3,7 @@ package member
 import (
 	"context"
 
-	v1 "hotgo/api/api/member/v1"
+	v1 "auroraops/api/api/member/v1"
 
 	"github.com/gogf/gf/v2/frame/g"
 )

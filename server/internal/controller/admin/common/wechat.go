@@ -6,9 +6,9 @@
 package common
 
 import (
+	"auroraops/api/admin/common"
+	"auroraops/internal/service"
 	"context"
-	"hotgo/api/admin/common"
-	"hotgo/internal/service"
 )
 
 var (

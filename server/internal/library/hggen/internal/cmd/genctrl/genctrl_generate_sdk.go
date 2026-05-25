@@ -16,8 +16,8 @@ import (
 	"github.com/gogf/gf/v2/text/gregex"
 	"github.com/gogf/gf/v2/text/gstr"
 
-	"hotgo/internal/library/hggen/internal/consts"
-	"hotgo/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/consts"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
 )
 
 type apiSdkGenerator struct{}

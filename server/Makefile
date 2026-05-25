@@ -99,7 +99,7 @@ start:
 # example: make image tag=v0.0.1
 .PHONY: image
 image:
-	@echo "y" | gf docker main.go -p -tn hotgo:$(tag)
+	@echo "y" | gf docker main.go -p -tn auroraops-server:$(tag)
 
 # Deploy image and yaml to current kubectl environment.
 .PHONY: deploy

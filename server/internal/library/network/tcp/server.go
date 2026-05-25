@@ -6,6 +6,7 @@
 package tcp
 
 import (
+	"auroraops/utility/simple"
 	"context"
 	"github.com/gogf/gf/v2/container/gtype"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -14,7 +15,6 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/grpool"
-	"hotgo/utility/simple"
 	"sync"
 )
 

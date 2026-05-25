@@ -16,7 +16,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"hotgo/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
 )
 
 // HTTPDownloadFileWithPercent downloads target url file to local path with percent process printing.

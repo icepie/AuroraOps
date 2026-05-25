@@ -6,9 +6,9 @@
 package useragent
 
 import (
+	"auroraops/internal/consts"
 	"fmt"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/internal/consts"
 	"regexp"
 	"strings"
 )

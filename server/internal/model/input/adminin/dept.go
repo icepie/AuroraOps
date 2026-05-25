@@ -6,14 +6,14 @@
 package adminin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/tree"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/consts"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/tree"
-	"hotgo/utility/validate"
 )
 
 // DeptMaxSortInp 最大排序

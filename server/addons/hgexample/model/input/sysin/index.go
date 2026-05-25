@@ -3,7 +3,6 @@
 // @Copyright  Copyright (c) 2023 HotGo CLI
 // @Author  Ms <133814250@qq.com>
 // @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
-//
 package sysin
 
 import (
@@ -13,7 +12,7 @@ import (
 
 // IndexTestInp 测试
 type IndexTestInp struct {
-	Name string `json:"name" d:"HotGo" dc:"名称"`
+	Name string `json:"name" d:"AuroraOps" dc:"名称"`
 }
 
 func (in *IndexTestInp) Filter(ctx context.Context) (err error) {

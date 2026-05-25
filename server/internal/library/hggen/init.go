@@ -6,13 +6,13 @@
 package hggen
 
 import (
+	"auroraops/internal/library/hggen/internal/cmd/gendao"
+	"auroraops/internal/library/hggen/internal/cmd/genservice"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/util/gconv"
 	"gopkg.in/yaml.v3"
-	"hotgo/internal/library/hggen/internal/cmd/gendao"
-	"hotgo/internal/library/hggen/internal/cmd/genservice"
 )
 
 const (

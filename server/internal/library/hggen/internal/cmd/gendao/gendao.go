@@ -27,8 +27,8 @@ import (
 	"github.com/gogf/gf/v2/text/gregex"
 	"github.com/gogf/gf/v2/text/gstr"
 
-	"hotgo/internal/library/hggen/internal/utility/mlog"
-	"hotgo/internal/library/hggen/internal/utility/utils"
+	"auroraops/internal/library/hggen/internal/utility/mlog"
+	"auroraops/internal/library/hggen/internal/utility/utils"
 )
 
 type (
@@ -147,7 +147,7 @@ func doGenDaoForArray(ctx context.Context, index int, in CGenDaoInput) {
 	if in.genItems == nil {
 		in.genItems = newCGenDaoInternalGenItems()
 	}
-	
+
 	var (
 		err error
 		db  gdb.DB

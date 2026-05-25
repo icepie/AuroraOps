@@ -6,9 +6,9 @@
 package gencodes
 
 import (
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
 )
 
 // ListReq 查询列表

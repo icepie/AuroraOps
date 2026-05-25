@@ -7,11 +7,11 @@
 package sysin
 
 import (
+	"auroraops/internal/library/hgorm/hook"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/tree"
 	"context"
-	"hotgo/internal/library/hgorm/hook"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/tree"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"

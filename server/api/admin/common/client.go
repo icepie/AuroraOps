@@ -1,7 +1,7 @@
 package common
 
 import (
-	"hotgo/internal/model/input/sysin"
+	"auroraops/internal/model/input/sysin"
 
 	"github.com/gogf/gf/v2/frame/g"
 )

@@ -6,13 +6,13 @@
 package queue
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/utility/simple"
 	"context"
 	"fmt"
 	"github.com/IBM/sarama"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
-	"hotgo/utility/simple"
 	"time"
 )
 

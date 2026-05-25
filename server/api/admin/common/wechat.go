@@ -6,8 +6,8 @@
 package common
 
 import (
+	"auroraops/internal/model/input/commonin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/commonin"
 )
 
 // WechatAuthorizeReq 微信用户授权

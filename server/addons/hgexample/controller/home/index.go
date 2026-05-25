@@ -6,12 +6,12 @@
 package home
 
 import (
+	"auroraops/addons/hgexample/api/home/index"
+	"auroraops/addons/hgexample/service"
+	"auroraops/internal/model"
+	isc "auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/addons/hgexample/api/home/index"
-	"hotgo/addons/hgexample/service"
-	"hotgo/internal/model"
-	isc "hotgo/internal/service"
 )
 
 // Index 基础

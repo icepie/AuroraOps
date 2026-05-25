@@ -6,14 +6,14 @@
 package common
 
 import (
+	"auroraops/api/admin/common"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/captcha"
+	"auroraops/internal/library/token"
+	"auroraops/internal/service"
+	"auroraops/utility/validate"
 	"context"
 	"github.com/gogf/gf/v2/i18n/gi18n"
-	"hotgo/api/admin/common"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/captcha"
-	"hotgo/internal/library/token"
-	"hotgo/internal/service"
-	"hotgo/utility/validate"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"

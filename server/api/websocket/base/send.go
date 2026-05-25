@@ -6,8 +6,8 @@
 package base
 
 import (
+	"auroraops/internal/model/input/websocketin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/websocketin"
 )
 
 // SendToTagReq 发送标签消息

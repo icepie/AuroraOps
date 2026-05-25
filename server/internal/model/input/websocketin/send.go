@@ -6,7 +6,7 @@
 package websocketin
 
 import (
-	"hotgo/internal/websocket"
+	"auroraops/internal/websocket"
 )
 
 // SendToTagInp 发送标签消息

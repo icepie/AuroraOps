@@ -6,16 +6,16 @@
 package hgexample
 
 import (
+	_ "auroraops/addons/hgexample/crons"
+	"auroraops/addons/hgexample/global"
+	_ "auroraops/addons/hgexample/logic"
+	_ "auroraops/addons/hgexample/queues"
+	"auroraops/addons/hgexample/router"
+	"auroraops/internal/library/addons"
+	"auroraops/internal/service"
 	"context"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
-	_ "hotgo/addons/hgexample/crons"
-	"hotgo/addons/hgexample/global"
-	_ "hotgo/addons/hgexample/logic"
-	_ "hotgo/addons/hgexample/queues"
-	"hotgo/addons/hgexample/router"
-	"hotgo/internal/library/addons"
-	"hotgo/internal/service"
 	"sync"
 )
 

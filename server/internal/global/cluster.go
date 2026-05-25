@@ -6,14 +6,14 @@
 package global
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/library/hgrds/lock"
+	"auroraops/internal/library/hgrds/pubsub"
+	"auroraops/internal/service"
+	"auroraops/utility/simple"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/consts"
-	"hotgo/internal/library/hgrds/lock"
-	"hotgo/internal/library/hgrds/pubsub"
-	"hotgo/internal/service"
-	"hotgo/utility/simple"
 )
 
 // SubscribeClusterSync 订阅集群同步，可以用来集中同步数据、状态等

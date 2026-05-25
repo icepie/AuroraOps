@@ -6,19 +6,19 @@
 package admin
 
 import (
+	"auroraops/api/admin/monitor"
+	"auroraops/internal/consts"
+	"auroraops/internal/dao"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/service"
+	"auroraops/internal/websocket"
+	"auroraops/utility/simple"
+	"auroraops/utility/useragent"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
-	"hotgo/api/admin/monitor"
-	"hotgo/internal/consts"
-	"hotgo/internal/dao"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/service"
-	"hotgo/internal/websocket"
-	"hotgo/utility/simple"
-	"hotgo/utility/useragent"
 	"sort"
 )
 

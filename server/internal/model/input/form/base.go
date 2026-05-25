@@ -5,7 +5,7 @@
 // @License  https://github.com/bufanyun/hotgo/blob/master/LICENSE
 package form
 
-import "hotgo/internal/consts"
+import "auroraops/internal/consts"
 
 // StatusReq 通用状态查询
 type StatusReq struct {

@@ -6,12 +6,12 @@
 package sysin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/consts"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
 )
 
 // SmsLogEditInp 修改/新增数据

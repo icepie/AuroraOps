@@ -6,12 +6,12 @@
 package fix
 
 import (
+	"auroraops/internal/dao"
+	"auroraops/internal/library/hgorm"
+	"auroraops/internal/model/entity"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/hgorm"
-	"hotgo/internal/model/entity"
 )
 
 // UpdateAdminMenuTree 更新菜单关系树

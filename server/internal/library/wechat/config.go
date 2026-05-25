@@ -6,13 +6,13 @@
 package wechat
 
 import (
+	"auroraops/internal/model"
 	"context"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/silenceper/wechat/v2"
 	"github.com/silenceper/wechat/v2/officialaccount"
 	offConfig "github.com/silenceper/wechat/v2/officialaccount/config"
 	officialJs "github.com/silenceper/wechat/v2/officialaccount/js"
-	"hotgo/internal/model"
 )
 
 var (

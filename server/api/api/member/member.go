@@ -7,7 +7,7 @@ package member
 import (
 	"context"
 
-	"hotgo/api/api/member/v1"
+	"auroraops/api/api/member/v1"
 )
 
 type IMemberV1 interface {

@@ -1,9 +1,9 @@
 package common
 
 import (
+	apicommon "auroraops/api/admin/common"
+	"auroraops/internal/service"
 	"context"
-	apicommon "hotgo/api/admin/common"
-	"hotgo/internal/service"
 )
 
 var Client = cClient{}

@@ -8,10 +8,10 @@ package handler
 import (
 	"regexp"
 
-	"hotgo/internal/consts"
-	"hotgo/internal/model/input/form"
-	"hotgo/utility/convert"
-	"hotgo/utility/db"
+	"auroraops/internal/consts"
+	"auroraops/internal/model/input/form"
+	"auroraops/utility/convert"
+	"auroraops/utility/db"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"

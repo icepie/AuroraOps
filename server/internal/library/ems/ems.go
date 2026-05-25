@@ -6,9 +6,9 @@
 package ems
 
 import (
+	"auroraops/internal/model"
+	"auroraops/utility/validate"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/internal/model"
-	"hotgo/utility/validate"
 	"net/smtp"
 	"strings"
 )

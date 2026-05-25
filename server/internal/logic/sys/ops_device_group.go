@@ -1,17 +1,17 @@
 package sys
 
 import (
+	"auroraops/internal/dao"
+	"auroraops/internal/library/dict"
+	"auroraops/internal/library/hgorm/handler"
+	"auroraops/internal/model"
+	"auroraops/internal/model/do"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
+	"auroraops/internal/model/input/sysin"
+	"auroraops/internal/service"
 	"context"
 	"fmt"
-	"hotgo/internal/dao"
-	"hotgo/internal/library/dict"
-	"hotgo/internal/library/hgorm/handler"
-	"hotgo/internal/model"
-	"hotgo/internal/model/do"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
-	"hotgo/internal/model/input/sysin"
-	"hotgo/internal/service"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"

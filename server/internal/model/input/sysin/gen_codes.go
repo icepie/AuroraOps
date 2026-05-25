@@ -6,14 +6,14 @@
 package sysin
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gregex"
 	"github.com/gogf/gf/v2/util/gconv"
-	"hotgo/internal/consts"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
 )
 
 // GenCodesMaxSortInp 最大排序

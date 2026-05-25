@@ -6,8 +6,8 @@
 package sysin
 
 import (
+	"auroraops/internal/model/input/sysin"
 	"github.com/gogf/gf/v2/frame/g"
-	"hotgo/internal/model/input/sysin"
 )
 
 // UpdateConfigInp 更新指定配置

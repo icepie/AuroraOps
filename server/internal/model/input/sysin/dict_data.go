@@ -6,11 +6,11 @@
 package sysin
 
 import (
+	"auroraops/internal/model"
+	"auroraops/internal/model/entity"
+	"auroraops/internal/model/input/form"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"hotgo/internal/model"
-	"hotgo/internal/model/entity"
-	"hotgo/internal/model/input/form"
 )
 
 // DictDataEditInp 修改/新增字典数据

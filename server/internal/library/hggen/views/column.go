@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	"hotgo/internal/consts"
-	"hotgo/internal/library/hggen/internal/cmd/gendao"
-	"hotgo/internal/model/input/sysin"
+	"auroraops/internal/consts"
+	"auroraops/internal/library/hggen/internal/cmd/gendao"
+	"auroraops/internal/model/input/sysin"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
@@ -32,27 +32,27 @@ func DoTableColumns(ctx context.Context, in *sysin.GenCodesColumnListInp, config
 	if conf.Type == consts.DBPgsql {
 		// PostgreSQL: 使用pg_catalog查询列详细信息
 		sql = `
-			SELECT 
+			SELECT
 				a.attnum as id,
 				a.attname as name,
 				COALESCE(col_description(a.attrelid, a.attnum), '') as dc,
 				t.typname as dataType,
-				CASE 
+				CASE
 					WHEN a.atttypmod > 0 THEN t.typname || '(' || (a.atttypmod - 4) || ')'
 					ELSE t.typname
 				END as sqlType,
-				CASE 
+				CASE
 					WHEN a.atttypmod > 0 THEN a.atttypmod - 4
 					ELSE NULL
 				END as length,
 				CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END as isAllowNull,
 				pg_get_expr(ad.adbin, ad.adrelid) as defaultValue,
-				CASE 
+				CASE
 					WHEN pk.contype = 'p' THEN 'PRI'
 					WHEN uk.contype = 'u' THEN 'UNI'
 					ELSE ''
 				END as "index",
-				CASE 
+				CASE
 					WHEN ad.adbin IS NOT NULL AND ad.adbin LIKE '%nextval%' THEN 'auto_increment'
 					ELSE ''
 				END as extra

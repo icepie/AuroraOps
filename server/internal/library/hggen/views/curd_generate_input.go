@@ -13,8 +13,8 @@ import (
 	"github.com/olekukonko/tablewriter/tw"
 	"strings"
 
-	"hotgo/internal/dao"
-	"hotgo/internal/model/input/sysin"
+	"auroraops/internal/dao"
+	"auroraops/internal/model/input/sysin"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"

@@ -6,11 +6,11 @@
 package tcp
 
 import (
+	"auroraops/utility/encrypt"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
-	"hotgo/utility/encrypt"
 )
 
 // serverLogin 心跳

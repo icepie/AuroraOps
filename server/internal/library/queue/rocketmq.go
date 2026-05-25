@@ -6,10 +6,10 @@
 package queue
 
 import (
+	"auroraops/internal/consts"
+	"auroraops/utility/simple"
+	"auroraops/utility/validate"
 	"context"
-	"hotgo/internal/consts"
-	"hotgo/utility/simple"
-	"hotgo/utility/validate"
 	"sync"
 	"time"
 

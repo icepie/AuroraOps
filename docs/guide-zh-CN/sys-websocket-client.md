@@ -6,7 +6,7 @@
 - 单页面消息监听
 - 发送消息
 
-> 基于WebSocket服务器，hotgo还对客户端的上做了一些封装，使其使用起来更加方便
+> 基于WebSocket服务器，auroraops还对客户端的上做了一些封装，使其使用起来更加方便
 - [WebSocket服务器](sys-websocket-server.md)
 
 ###  全局消息监听
@@ -122,7 +122,7 @@ export function registerGlobalMessage() {
 
   const message = useMessage();
   const messages = ref<Message[]>([]);
-  const inputMessage = ref('你好，HotGo');
+  const inputMessage = ref('你好， AuroraOps');
   const isInput = ref(false);
   const testMessageEvent = 'admin/addons/hgexample/testMessage';
 
@@ -202,12 +202,12 @@ export function registerGlobalMessage() {
     };
     const isRetry = false; // 发送失败是否重试，不传默认为true
 
-    // 基本使用 
+    // 基本使用
     sendMsg(event, data);
 
-    // 无消息内容 
+    // 无消息内容
     sendMsg(event);
 
-    // 发送失败不重试 
+    // 发送失败不重试
     sendMsg(event, data, isRetry);
 ```

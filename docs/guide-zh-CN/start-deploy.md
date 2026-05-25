@@ -14,7 +14,7 @@
 ```yaml
 gfcli:
   build:
-    name: "hotgo"                              # 编译后的可执行文件名称
+    name: "auroraops-server"                              # 编译后的可执行文件名称
     #    arch: "all"                           #不填默认当前系统架构，可选：386,amd64,arm,all
     #    system: "all"                         #不填默认当前系统平台，可选：linux,darwin,windows,all
     mod: "none"
@@ -22,7 +22,7 @@ gfcli:
     packSrc: "resource"                        # 将resource目录打包进可执行文件，静态资源无需单独部署
     packDst: "internal/packed/packed.go"       # 打包后生成的Go文件路径，一般使用相对路径指定到本项目目录中
     version: ""
-    output: "./temp/hotgo"                     # 可执行文件生成路径
+    output: "./temp/auroraops-server"                     # 可执行文件生成路径
     extra: ""
 ```
 
@@ -34,7 +34,7 @@ gfcli:
 1、 make一键编译 （确认已安装`make环境`）
 ```shell
 cd server &&  make build
-``` 
+```
 
 2、 按步骤手动编译
 ```shell
@@ -44,9 +44,9 @@ mkdir ./resource/public/admin/                        # 重新创建web资源存
 cd ../web && pnpm run build                               # 切换到web项目下，编译web项目
 \cp -rf ./dist/*  ../server/resource/public/admin/    # 将编译好的web资源复制到server对应的资源存放路径下
 cd ../server                                          # 切换回服务端目录下
-echo "y" | gf build                                   # 编译hotgo服务端
+echo "y" | gf build                                   # 编译AuroraOps 服务端
 
-# 不出意外你已经编译好了hotgo可执行文件！
+# 不出意外你已经编译好了auroraops可执行文件！
 ```
 
 3、分端编译 （多人开发时推荐）
@@ -54,10 +54,10 @@ echo "y" | gf build                                   # 编译hotgo服务端
 # 编译服务端
 cd server                                        # 切换到服务端目录下
 rm -rf ./resource/public/admin/                  # 删除之前的web资源，如果开发环境没有这个目录可以忽略此步骤
-echo "y" | gf build                              # 编译hotgo服务端
+echo "y" | gf build                              # 编译AuroraOps 服务端
 
 # 编译web端
-cd web                                           
+cd web
 pnpm run build 或 npm run build
 
 # web端编译完成后，将web/dist/*中的文件上传到`server`端线上运行目录：/resource/public/admin即可

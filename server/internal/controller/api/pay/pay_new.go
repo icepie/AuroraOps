@@ -5,7 +5,7 @@
 package pay
 
 import (
-	"hotgo/api/api/pay"
+	"auroraops/api/api/pay"
 )
 
 type ControllerV1 struct{}
