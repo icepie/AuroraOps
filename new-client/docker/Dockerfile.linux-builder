@@ -35,10 +35,14 @@ RUN set -eux; \
         printf 'deb http://archive.debian.org/debian buster-updates main contrib non-free\n' >> /etc/apt/sources.list; \
         printf 'deb http://archive.debian.org/debian-security buster/updates main contrib non-free\n' >> /etc/apt/sources.list; \
       fi; \
-      # Ubuntu EOL (16.04 xenial) moved to old-releases
-      if [ "${ID:-}" = "ubuntu" ] && [ "${VERSION_ID:-}" = "16.04" ]; then \
-        sed -i 's/http:\/\/archive\.ubuntu\.com/http:\/\/old-releases.ubuntu.com/g' /etc/apt/sources.list; \
-        sed -i 's/http:\/\/security\.ubuntu\.com/http:\/\/old-releases.ubuntu.com/g' /etc/apt/sources.list; \
+      # Ubuntu EOL: redirect to old-releases
+      if [ "${ID:-}" = "ubuntu" ]; then \
+        case "${VERSION_ID:-}" in \
+          16.04|18.04) \
+            sed -i 's/http:\/\/archive\.ubuntu\.com/http:\/\/old-releases.ubuntu.com/g' /etc/apt/sources.list; \
+            sed -i 's/http:\/\/security\.ubuntu\.com/http:\/\/old-releases.ubuntu.com/g' /etc/apt/sources.list; \
+            printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99archive ;; \
+        esac; \
       fi; \
       apt-get update; \
       apt-get install -y --no-install-recommends \
@@ -94,6 +98,36 @@ RUN set -eux; \
       echo "Unsupported base image: no apt-get, dnf or yum found." >&2; \
       exit 1; \
     fi
+
+# -------- nasm >= 2.14 (for ffmpeg from-source build on x86_64) --------
+ARG NASM_VERSION=2.16.03
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64) \
+        curl -fsSL "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/linux/nasm-${NASM_VERSION}-0.fc27.x86_64.rpm" -o /tmp/nasm.rpm; \
+        if command -v rpm >/dev/null 2>&1; then \
+          rpm -Uvh --force /tmp/nasm.rpm; \
+        else \
+          apt-get install -y --no-install-recommends alien 2>/dev/null && alien -i /tmp/nasm.rpm || \
+          (cd /tmp && ar x nasm.rpm && tar xf data.tar* -C /usr/local --strip-components=2) || true; \
+        fi; \
+        rm -f /tmp/nasm.rpm ;; \
+    esac; \
+    nasm --version || true
+
+# -------- CMake >= 3.28 (for fltk-sys) --------
+ARG CMAKE_VERSION=3.31.6
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64) cmake_arch=x86_64 ;; \
+      aarch64) cmake_arch=aarch64 ;; \
+      *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${cmake_arch}.tar.gz" \
+      | tar xz --strip-components=1 -C /usr/local; \
+    cmake --version
 
 # -------- Rust toolchain --------
 RUN set -eux; \
