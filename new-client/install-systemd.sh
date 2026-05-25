@@ -45,7 +45,7 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
   "deviceName": "linux-node-01",
   "httpBase": "http://127.0.0.1:8000",
   "bindAddress": "127.0.0.1",
-  "webPort": 1701,
+  "webPort": 0,
   "controlDisplayManager": true
 }
 JSON
@@ -57,4 +57,4 @@ systemctl enable --now auroraops-agent.service
 
 echo "AuroraOps agent installed."
 echo "Local UI: http://127.0.0.1:18765/"
-echo "Desktop service: http://127.0.0.1:1701/"
+echo "Desktop service: local random port, open it through AuroraOps server."

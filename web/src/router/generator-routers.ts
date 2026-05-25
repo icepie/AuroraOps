@@ -104,6 +104,12 @@ function normalizeOpsRouteMeta(route: any) {
       : {}),
     hidden: OPS_HIDDEN_ROUTE_NAMES.has(route.name) ? true : route.meta?.hidden,
   };
+
+  const isVisibleMenuPage = String(route.meta?.type) === '2' && route.meta?.hidden !== true;
+  if (isVisibleMenuPage && route.meta?.activeMenu && route.meta.activeMenu !== route.name) {
+    delete route.meta.activeMenu;
+  }
+
   return route;
 }
 

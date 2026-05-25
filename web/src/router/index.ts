@@ -47,6 +47,7 @@ export const OpsTerminalRoute: RouteRecordRaw = {
   meta: {
     title: '远程终端',
     hidden: true,
+    activeMenu: 'opsDevice',
   },
   children: [
     {
@@ -56,6 +57,7 @@ export const OpsTerminalRoute: RouteRecordRaw = {
       meta: {
         title: '远程终端',
         hidden: true,
+        activeMenu: 'opsDevice',
         noKeepAlive: true,
       },
     },
@@ -69,6 +71,7 @@ export const OpsDesktopRoute: RouteRecordRaw = {
   meta: {
     title: '远程桌面',
     hidden: true,
+    activeMenu: 'opsDevice',
   },
   children: [
     {
@@ -78,6 +81,7 @@ export const OpsDesktopRoute: RouteRecordRaw = {
       meta: {
         title: '远程桌面',
         hidden: true,
+        activeMenu: 'opsDevice',
         noKeepAlive: true,
       },
     },

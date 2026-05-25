@@ -14,7 +14,7 @@ fn default_agent_port() -> u16 {
 pub struct Config {
     #[arg(long, help = "Access code")]
     pub access_code: Option<String>,
-    #[arg(long, default_value = "0.0.0.0", help = "Bind address")]
+    #[arg(long, default_value = "127.0.0.1", help = "Bind address")]
     pub bind_address: IpAddr,
     #[arg(long, default_value = "1701", help = "Web port")]
     pub web_port: u16,

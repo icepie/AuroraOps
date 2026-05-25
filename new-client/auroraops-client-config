@@ -6,7 +6,7 @@ SERVICE_NAME="${AURORAOPS_SERVICE_NAME:-auroraops-agent.service}"
 DEFAULT_SERVER_HOST="127.0.0.1:8000"
 DEFAULT_DEVICE_NAME="$(hostname 2>/dev/null || printf 'linux-node-01')"
 DEFAULT_BIND_ADDRESS="127.0.0.1"
-DEFAULT_WEB_PORT="1701"
+DEFAULT_WEB_PORT="0"
 PLAIN=0
 
 if [ "${1:-}" = "--plain" ]; then
@@ -174,7 +174,7 @@ cfg.update({
     "deviceName": device_name.strip(),
     "httpBase": http_base,
     "bindAddress": bind_address.strip() or "127.0.0.1",
-    "webPort": int(web_port or "1701"),
+    "webPort": int(web_port or "0"),
     "accessCode": access_code.strip() or None,
     "kmsDevice": kms_device.strip() or None,
     "waylandSupport": wayland == "true",

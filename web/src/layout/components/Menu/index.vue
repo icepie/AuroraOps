@@ -101,8 +101,7 @@
           updateMenu();
           const matched = currentRoute.matched;
           state.openKeys = matched.map((item) => item.name);
-          const activeMenu: string = (currentRoute.meta?.activeMenu as string) || '';
-          selectedKeys.value = activeMenu ? (activeMenu as string) : (currentRoute.name as string);
+          selectedKeys.value = getRouteSelectedKey();
         }
       );
 
@@ -116,6 +115,17 @@
           const activeMenu: string = currentRoute?.matched[0].meta?.activeMenu as string;
           headerMenuSelectKey.value = (activeMenu ? activeMenu : firstRouteName) || '';
         }
+      }
+
+      function getRouteSelectedKey() {
+        const routeName = currentRoute.name as string;
+        const meta = currentRoute.meta || {};
+        const isVisibleMenuPage = String(meta.type) === '2' && meta.hidden !== true;
+        if (isVisibleMenuPage) {
+          return routeName;
+        }
+        const activeMenu = (meta.activeMenu as string) || '';
+        return activeMenu || routeName;
       }
 
       // 点击菜单
@@ -154,8 +164,7 @@
         updateMenu();
         const matched = currentRoute.matched;
         state.openKeys = matched.map((item) => item.name);
-        const activeMenu: string = (currentRoute.meta?.activeMenu as string) || '';
-        selectedKeys.value = activeMenu ? (activeMenu as string) : (currentRoute.name as string);
+        selectedKeys.value = getRouteSelectedKey();
       });
 
       return {

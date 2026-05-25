@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{IpAddr, SocketAddr, TcpStream, UdpSocket};
+use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener, TcpStream, UdpSocket};
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::{Path, PathBuf};
 #[cfg(not(unix))]
 use std::process::{Child, Command, Stdio};
 use std::ptr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -44,7 +44,7 @@ type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/auroraops/agent-config.json";
 const DEFAULT_AGENT_PORT: u16 = 18765;
-const DEFAULT_WEYLUS_PORT: u16 = 1701;
+const AUTO_WEYLUS_PORT: u16 = 0;
 const WEYLUS_TUNNEL_CHUNK_SIZE: usize = 64 * 1024;
 const WEYLUS_TUNNEL_FRAME_OPEN: u8 = 1;
 const WEYLUS_TUNNEL_FRAME_DATA: u8 = 2;
@@ -101,7 +101,7 @@ fn default_weylus_bind() -> String {
 }
 
 fn default_weylus_port() -> u16 {
-    DEFAULT_WEYLUS_PORT
+    AUTO_WEYLUS_PORT
 }
 
 fn default_control_display_manager() -> bool {
@@ -130,7 +130,7 @@ impl Default for AgentStatus {
             tcp_address: None,
             message: None,
             updated_at: now_millis(),
-            desktop_url: format!("http://127.0.0.1:{DEFAULT_WEYLUS_PORT}/"),
+            desktop_url: String::new(),
         }
     }
 }
@@ -222,6 +222,7 @@ struct AgentInner {
     status: RwLock<AgentStatus>,
     connector_stop: Mutex<Option<oneshot::Sender<()>>>,
     run_id: AtomicU64,
+    auto_web_port: AtomicBool,
 }
 
 impl AgentRuntime {
@@ -232,12 +233,13 @@ impl AgentRuntime {
                 local_port,
                 config: RwLock::new(AgentConfig {
                     bind_address: default_weylus_bind(),
-                    web_port: DEFAULT_WEYLUS_PORT,
+                    web_port: AUTO_WEYLUS_PORT,
                     ..AgentConfig::default()
                 }),
                 status: RwLock::new(AgentStatus::default()),
                 connector_stop: Mutex::new(None),
                 run_id: AtomicU64::new(0),
+                auto_web_port: AtomicBool::new(true),
             }),
         }
     }
@@ -247,6 +249,9 @@ impl AgentRuntime {
             Ok(data) => {
                 let mut cfg: AgentConfig = serde_json::from_str(&data)?;
                 normalize_config(&mut cfg);
+                self.inner
+                    .auto_web_port
+                    .store(cfg.web_port == AUTO_WEYLUS_PORT, Ordering::SeqCst);
                 self.set_desktop_url(&cfg);
                 *self.inner.config.write().unwrap() = cfg;
                 Ok(())
@@ -260,12 +265,27 @@ impl AgentRuntime {
         if let Some(parent) = self.inner.config_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(&self.inner.config_path, serde_json::to_string_pretty(cfg)?)?;
+        let mut persisted = cfg.clone();
+        if self.inner.auto_web_port.load(Ordering::SeqCst) {
+            persisted.web_port = AUTO_WEYLUS_PORT;
+        }
+        fs::write(
+            &self.inner.config_path,
+            serde_json::to_string_pretty(&persisted)?,
+        )?;
         Ok(())
     }
 
     fn get_config(&self) -> AgentConfig {
         self.inner.config.read().unwrap().clone()
+    }
+
+    fn get_display_config(&self) -> AgentConfig {
+        let mut cfg = self.get_config();
+        if self.inner.auto_web_port.load(Ordering::SeqCst) {
+            cfg.web_port = AUTO_WEYLUS_PORT;
+        }
+        cfg
     }
 
     fn get_status(&self) -> AgentStatus {
@@ -304,6 +324,10 @@ impl AgentRuntime {
     }
 
     fn set_desktop_url(&self, cfg: &AgentConfig) {
+        if cfg.web_port == AUTO_WEYLUS_PORT {
+            self.inner.status.write().unwrap().desktop_url = String::new();
+            return;
+        }
         let bind = if cfg.bind_address == "0.0.0.0" || cfg.bind_address == "::" {
             "127.0.0.1"
         } else {
@@ -356,13 +380,19 @@ impl AgentRuntime {
             .trim()
             .parse()
             .map_err(|_| "bindAddress must be a valid IP address")?;
-        if payload.web_port == 0 {
-            return Err("webPort must be greater than 0".into());
-        }
 
         let mut cfg = self.get_config();
+        let current_web_port = cfg.web_port;
+        self.inner
+            .auto_web_port
+            .store(payload.web_port == AUTO_WEYLUS_PORT, Ordering::SeqCst);
         cfg.bind_address = payload.bind_address.trim().to_string();
-        cfg.web_port = payload.web_port;
+        cfg.web_port =
+            if payload.web_port == AUTO_WEYLUS_PORT && current_web_port != AUTO_WEYLUS_PORT {
+                current_web_port
+            } else {
+                payload.web_port
+            };
         cfg.access_code = payload
             .access_code
             .map(|code| code.trim().to_string())
@@ -386,6 +416,24 @@ impl AgentRuntime {
             optional_string(&cfg.tcp_address),
             Some("desktop config saved; restart service to apply".to_string()),
         );
+        Ok(cfg)
+    }
+
+    fn prepare_desktop_runtime_config(&self) -> Result<AgentConfig, BoxError> {
+        let mut cfg = self.get_config();
+        normalize_config(&mut cfg);
+        self.inner
+            .auto_web_port
+            .store(cfg.web_port == AUTO_WEYLUS_PORT, Ordering::SeqCst);
+        if cfg.web_port == AUTO_WEYLUS_PORT {
+            cfg.web_port = reserve_loopback_port()?;
+            info!(
+                "AuroraOps desktop service selected local port {}.",
+                cfg.web_port
+            );
+        }
+        self.set_desktop_url(&cfg);
+        *self.inner.config.write().unwrap() = cfg.clone();
         Ok(cfg)
     }
 
@@ -578,6 +626,7 @@ pub fn run_service(conf: &WeylusConfig) -> Result<(), BoxError> {
         runtime.save_config(server.clone(), name.clone())?;
     }
 
+    runtime.prepare_desktop_runtime_config()?;
     start_weylus_service(conf, &runtime);
     let http_runtime = runtime.clone();
     let _http_thread = thread::spawn(move || {
@@ -976,7 +1025,7 @@ fn envelope(
     ControlResponse {
         ok,
         status: runtime.get_status(),
-        config: runtime.get_config(),
+        config: runtime.get_display_config(),
         assets,
         diagnostics,
         message,
@@ -2103,11 +2152,9 @@ fn normalize_config(cfg: &mut AgentConfig) {
     if cfg.http_base.trim().is_empty() || cfg.http_base != normalize_http_base(&cfg.server_host) {
         cfg.http_base = normalize_http_base(&cfg.server_host);
     }
-    if cfg.bind_address.trim().is_empty() {
+    cfg.bind_address = cfg.bind_address.trim().to_string();
+    if cfg.bind_address.is_empty() || cfg.bind_address == "0.0.0.0" || cfg.bind_address == "::" {
         cfg.bind_address = default_weylus_bind();
-    }
-    if cfg.web_port == 0 {
-        cfg.web_port = DEFAULT_WEYLUS_PORT;
     }
     if cfg
         .kms_device
@@ -2116,6 +2163,11 @@ fn normalize_config(cfg: &mut AgentConfig) {
     {
         cfg.kms_device = None;
     }
+}
+
+fn reserve_loopback_port() -> Result<u16, BoxError> {
+    let listener = StdTcpListener::bind((default_weylus_bind().as_str(), 0))?;
+    Ok(listener.local_addr()?.port())
 }
 
 fn normalize_http_base(host: &str) -> String {
@@ -2277,7 +2329,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       <h2>远程桌面</h2>
       <div class="grid">
         <div><label for="bindAddress">绑定地址</label><input id="bindAddress" placeholder="127.0.0.1" /></div>
-        <div><label for="webPort">Web 端口</label><input id="webPort" type="number" min="1" max="65535" placeholder="1701" /></div>
+        <div><label for="webPort">Web 端口</label><input id="webPort" type="number" min="0" max="65535" placeholder="0 表示随机本地端口" /></div>
         <div><label for="accessCode">访问码</label><input id="accessCode" placeholder="留空则不限制" /></div>
         <div><label for="kmsDevice">KMS 设备</label><input id="kmsDevice" placeholder="/dev/dri/card0" /></div>
       </div>
@@ -2335,7 +2387,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       $('serverHost').value = cfg.serverHost || '';
       $('deviceName').value = cfg.deviceName || '';
       $('bindAddress').value = cfg.bindAddress || '127.0.0.1';
-      $('webPort').value = cfg.webPort || 1701;
+      $('webPort').value = cfg.webPort ?? 0;
       $('accessCode').value = cfg.accessCode || '';
       $('kmsDevice').value = cfg.kmsDevice || '';
       $('waylandSupport').checked = !!cfg.waylandSupport;
@@ -2363,7 +2415,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     }
     async function saveDesktopConfig() {
       await call('/api/desktop-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
-        bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 1701), accessCode: $('accessCode').value || null,
+        bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 0), accessCode: $('accessCode').value || null,
         kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked,
         tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, controlDisplayManager: $('controlDisplayManager').checked
       }) }, '桌面配置已保存，重启桌面服务后生效');
