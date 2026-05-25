@@ -2,13 +2,15 @@
 # Matrix builder for AuroraOps Agent across 信创 / mainstream Linux targets.
 # Targets are mapped onto upstream-compatible base images (same glibc):
 #
-#   ubuntu2004  ubuntu:20.04        glibc 2.31  → Ubuntu ≥20.04          (.deb)
+#   ubuntu1604  ubuntu:16.04        glibc 2.23  → Ubuntu ≥16.04          (.deb, no Wayland)
 #   uos-v20     debian:11           glibc 2.31  → 统信 UOS V20 桌面       (.deb)
 #   kylin-v10   rockylinux:8        glibc 2.28  → 麒麟 V10 SP1 (server)   (.rpm)
+#   centos7     centos:7            glibc 2.17  → CentOS 7 系列           (.rpm, no Wayland)
 #   centos8     rockylinux:8        glibc 2.28  → CentOS ≥8 / Rocky/Alma  (.rpm)
 #   nfs-v4      rockylinux:8        glibc 2.28  → 中科方德 V4             (.rpm)
 #
-# NOTE: CentOS 7 and Ubuntu 16.04 are not supported (GStreamer >= 1.16 required).
+# Targets without GStreamer ≥1.16 (ubuntu1604, centos7) build without the
+# 'pipewire' feature — Wayland screen capture is disabled, X11 still works.
 # All targets build for both linux/amd64 and linux/arm64 unless --arch is given.
 set -euo pipefail
 
@@ -25,7 +27,7 @@ NO_CACHE="${NO_CACHE:-0}"
 TARGETS_INPUT="${TARGETS:-all}"
 ARCHES_INPUT="${ARCHES:-amd64,arm64}"
 
-ALL_TARGETS=(ubuntu2004 uos-v20 kylin-v10 centos8 nfs-v4)
+ALL_TARGETS=(ubuntu1604 uos-v20 kylin-v10 centos7 centos8 nfs-v4)
 
 usage() {
   cat <<'EOF'
@@ -33,7 +35,7 @@ Usage: ./docker-build-linux.sh [options]
 
 Options:
   --target LIST   Comma-separated targets, or "all".
-                  Choices: ubuntu2004, uos-v20, kylin-v10, centos8, nfs-v4, all
+                  Choices: ubuntu1604, uos-v20, kylin-v10, centos7, centos8, nfs-v4, all
                   Default: all
   --arch LIST     Comma-separated archs. Choices: amd64, arm64. Default: amd64,arm64
   --output DIR    Output directory. Default: dist/linux-matrix
@@ -73,21 +75,29 @@ IFS=',' read -r -a ARCHES <<< "$ARCHES_INPUT"
 # Per-target base image + features + extra packages
 target_config() {
   case "$1" in
-    ubuntu2004)
-      BASE_IMAGE="ubuntu:20.04"
+    ubuntu1604)
+      BASE_IMAGE="ubuntu:16.04"
+      # No pipewire/gstreamer (too old); X11-only capture
       FEATURES=""
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
     uos-v20)
       BASE_IMAGE="debian:11"
-      FEATURES="ffmpeg-system"
+      FEATURES="pipewire,ffmpeg-system"
       EXTRA_PKGS_DEB="libavformat-dev libavfilter-dev libavcodec-dev libavutil-dev libavdevice-dev libswscale-dev libswresample-dev libx264-dev"
       EXTRA_PKGS_RPM=""
       ;;
     kylin-v10|centos8|nfs-v4)
       BASE_IMAGE="rockylinux:8"
-      # EL8 ffmpeg-devel needs RPM Fusion; skip ffmpeg-system to keep build self-contained.
+      # Has GStreamer 1.16 in AppStream; enable pipewire
+      FEATURES="pipewire"
+      EXTRA_PKGS_DEB=""
+      EXTRA_PKGS_RPM="epel-release"
+      ;;
+    centos7)
+      BASE_IMAGE="centos:7"
+      # No pipewire/gstreamer (too old); X11-only capture
       FEATURES=""
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM="epel-release"

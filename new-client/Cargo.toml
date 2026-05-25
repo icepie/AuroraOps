@@ -23,8 +23,6 @@ clap = { version = "4.5.18", features = ["derive"] }
 clap_complete = "4.5.29"
 dirs = "^5.0"
 fastwebsockets = { version = "0.8.0", features = ["upgrade", "unstable-split"] }
-fltk = { version = "^1.5", features = ["use-wayland"] }
-fltk-theme = "^0.7.9"
 handlebars = "^6.1"
 http-body-util = "0.1.2"
 hyper = { version = "^1.4", features = ["server", "http1", "http2"] }
@@ -60,9 +58,9 @@ dbus = "^0.9"
 drm = "0.14"
 drm-ffi = "0.9"
 drm-fourcc = "2.2"
-gstreamer = "^0.24"
-gstreamer-app = { version = "^0.24", features = ["v1_16"] }
-gstreamer-video = "^0.24"
+gstreamer = { version = "^0.24", optional = true }
+gstreamer-app = { version = "^0.24", features = ["v1_16"], optional = true }
+gstreamer-video = { version = "^0.24", optional = true }
 linux-raw-sys = "0.4"
 rustix = { version = "0.38", features = ["mm"] }
 x11 = { version = "2.21", features = ["xlib", "xtest"] }
@@ -75,9 +73,11 @@ core-foundation = "^0.10"
 core-graphics = "^0.24"
 
 [features]
+default = ["pipewire"]
 agent-service-lite = []
 bench = []
 ffmpeg-system = []
+pipewire = ["gstreamer", "gstreamer-app", "gstreamer-video"]
 vaapi = []
 va-static = ["vaapi"]
 

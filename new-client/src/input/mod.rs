@@ -8,7 +8,7 @@ pub mod uinput_device;
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
 pub mod uinput_keys;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "pipewire"))]
 pub mod wayland_portal_device;
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]

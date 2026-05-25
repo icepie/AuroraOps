@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       targets:
-        description: 'Comma list: ubuntu2004,uos-v20,kylin-v10,centos8,nfs-v4 or all'
+        description: 'Comma list: ubuntu1604,uos-v20,kylin-v10,centos7,centos8,nfs-v4 or all'
         default: 'all'
       arches:
         description: 'Comma list: amd64,arm64'
@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [ubuntu2004, uos-v20, kylin-v10, centos8, nfs-v4]
+        target: [ubuntu1604, uos-v20, kylin-v10, centos7, centos8, nfs-v4]
         arch:   [amd64, arm64]
     steps:
       - uses: actions/checkout@v4

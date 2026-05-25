@@ -48,7 +48,7 @@ fn has_x_display() -> bool {
     std::env::var_os("DISPLAY").is_some()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "pipewire"))]
 fn try_wayland_portal_input_device(
     capturable: Box<dyn Capturable>,
 ) -> Result<Box<dyn InputDevice>, String> {
@@ -226,7 +226,10 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             windows.push(c.name());
         });
         if windows.is_empty() {
-            warn!("No capturables found. DISPLAY={:?}", std::env::var("DISPLAY"));
+            warn!(
+                "No capturables found. DISPLAY={:?}",
+                std::env::var("DISPLAY")
+            );
         }
         self.send_message(MessageOutbound::CapturableList(windows));
     }
@@ -276,6 +279,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             #[cfg(target_os = "linux")]
             {
                 let mut portal_selected = false;
+                #[cfg(feature = "pipewire")]
                 if crate::input::wayland_portal_device::WaylandPortalDevice::supports_capturable(
                     capturable.as_ref(),
                 ) {

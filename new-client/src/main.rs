@@ -69,6 +69,7 @@ fn main() {
         // make sure XInitThreads is called before any threading is done
         crate::capturable::x11::x11_init();
 
+        #[cfg(feature = "pipewire")]
         if let Err(err) = gstreamer::init() {
             error!(
                 "Failed to initialize gstreamer, screen capturing will most likely not work \
@@ -160,7 +161,7 @@ mod tests {
         b.iter(|| encoder.encode(r.capture().unwrap()));
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "pipewire"))]
     #[bench]
     fn bench_capture_wayland(b: &mut Bencher) {
         gstreamer::init().unwrap();
@@ -174,7 +175,7 @@ mod tests {
         });
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "pipewire"))]
     #[bench]
     fn bench_video_wayland(b: &mut Bencher) {
         gstreamer::init().unwrap();

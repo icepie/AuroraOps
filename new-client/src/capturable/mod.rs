@@ -7,7 +7,7 @@ use tracing::{debug, warn};
 pub mod core_graphics;
 #[cfg(target_os = "linux")]
 pub mod kms;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "pipewire"))]
 pub mod pipewire;
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
@@ -77,6 +77,7 @@ pub fn get_capturables(
     let mut capturables: Vec<Box<dyn Capturable>> = vec![];
     #[cfg(target_os = "linux")]
     {
+        #[cfg(feature = "pipewire")]
         if wayland_support {
             use crate::capturable::pipewire::get_capturables as get_capturables_pw;
             match get_capturables_pw(capture_cursor) {
@@ -90,6 +91,10 @@ pub fn get_capturables(
                     err
                 ),
             }
+        }
+        #[cfg(not(feature = "pipewire"))]
+        if wayland_support {
+            warn!("Wayland/PipeWire capture not available (built without 'pipewire' feature)");
         }
 
         if kms_support {
