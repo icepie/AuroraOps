@@ -46,7 +46,16 @@ RUN set -eux; \
         esac; \
       fi; \
       apt-get update; \
-      apt-get install -y --no-install-recommends \
+      retry_apt_install() { \
+        tries=0; \
+        until apt-get install -y --no-install-recommends "$@"; do \
+          tries=$((tries + 1)); \
+          if [ "$tries" -ge 3 ]; then return 1; fi; \
+          apt-get update; \
+          sleep 5; \
+        done; \
+      }; \
+      retry_apt_install \
         ca-certificates curl git file xz-utils pkg-config \
         build-essential gcc g++ make cmake nasm yasm \
         autoconf automake libtool \
@@ -59,7 +68,7 @@ RUN set -eux; \
         libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev liborc-0.4-dev \
         libunwind-dev libdw-dev libelf-dev liblzma-dev zlib1g-dev \
         libfontconfig1-dev libpango1.0-dev libcairo2-dev \
-        gstreamer1.0-plugins-base || true; \
+        gstreamer1.0-plugins-base; \
       apt-get install -y --no-install-recommends libzstd-dev || true; \
       if [ -n "${EXTRA_PKGS_DEB}" ]; then apt-get install -y --no-install-recommends ${EXTRA_PKGS_DEB} || true; fi; \
       rm -rf /var/lib/apt/lists/*; \
