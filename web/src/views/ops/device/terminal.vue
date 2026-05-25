@@ -5,9 +5,23 @@
         <span>{{ title }}</span>
         <span class="terminal-state" :class="stateClass">{{ statusText }}</span>
       </div>
-      <n-space align="center" :size="10">
-        <n-button size="small" @click="fitTerminal">适配</n-button>
-        <n-button size="small" type="primary" @click="reconnect">重连</n-button>
+      <n-space align="center" :size="8" class="terminal-actions">
+        <n-button
+          class="terminal-action terminal-action-secondary"
+          size="tiny"
+          quaternary
+          @click="fitTerminal"
+        >
+          适配
+        </n-button>
+        <n-button
+          class="terminal-action terminal-action-primary"
+          size="tiny"
+          type="primary"
+          @click="reconnect"
+        >
+          重连
+        </n-button>
       </n-space>
     </div>
     <div ref="terminalRef" class="terminal-container" />
@@ -430,6 +444,7 @@
   }
 
   .terminal-title {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -450,6 +465,38 @@
     color: #ff8a8a;
   }
 
+  .terminal-actions {
+    flex: 0 0 auto;
+  }
+
+  .terminal-action {
+    min-width: 48px;
+  }
+
+  :deep(.terminal-action-secondary) {
+    --n-text-color: #f6f8fa !important;
+    --n-text-color-hover: #ffffff !important;
+    --n-text-color-pressed: #ffffff !important;
+    --n-border: 1px solid rgba(246, 248, 250, 0.38) !important;
+    --n-border-hover: 1px solid rgba(246, 248, 250, 0.7) !important;
+    --n-border-pressed: 1px solid rgba(246, 248, 250, 0.8) !important;
+    --n-color: rgba(255, 255, 255, 0.08) !important;
+    --n-color-hover: rgba(255, 255, 255, 0.16) !important;
+    --n-color-pressed: rgba(255, 255, 255, 0.2) !important;
+  }
+
+  :deep(.terminal-action-primary) {
+    --n-text-color: #ffffff !important;
+    --n-text-color-hover: #ffffff !important;
+    --n-text-color-pressed: #ffffff !important;
+    --n-color: #2f7cf6 !important;
+    --n-color-hover: #4a8dff !important;
+    --n-color-pressed: #246be0 !important;
+    --n-border: 1px solid #2f7cf6 !important;
+    --n-border-hover: 1px solid #4a8dff !important;
+    --n-border-pressed: 1px solid #246be0 !important;
+  }
+
   .terminal-container {
     width: 100%;
     flex: 1;
@@ -468,6 +515,15 @@
   }
 
   @media (max-width: 768px) {
+    .terminal-toolbar {
+      gap: 8px;
+      padding: 6px 8px;
+    }
+
+    .terminal-title {
+      font-size: 12px;
+    }
+
     .terminal-container {
       padding: 4px;
     }
