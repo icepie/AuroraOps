@@ -309,6 +309,7 @@ void init_scaler(
 				av_get_pix_fmt_name(pix_fmt_sw_out));
 		}
 		break;
+#ifdef HAS_VAAPI
 	case AV_PIX_FMT_VAAPI:
 		if (pix_fmt_in == AV_PIX_FMT_RGB24)
 			snprintf(
@@ -327,6 +328,7 @@ void init_scaler(
 				height_out,
 				av_get_pix_fmt_name(pix_fmt_sw_out));
 		break;
+#endif
 	default:
 		snprintf(args, sizeof(args), "scale=w=%d:h=%d:flags=fast_bilinear", width_out, height_out);
 	}
@@ -599,6 +601,9 @@ void open_video(VideoContext* ctx, Error* err)
 		av_hwdevice_ctx_create(
 			&ctx->hw_device_ctx, AV_HWDEVICE_TYPE_VAAPI, vaapi_device, NULL, 0) == 0)
 	{
+		log_info(
+			"Attempting VAAPI hardware encoding with device: %s",
+			vaapi_device ? vaapi_device : "(default)");
 
 		if (ctx->hw_device_ctx)
 		{
@@ -645,11 +650,12 @@ void open_video(VideoContext* ctx, Error* err)
 					av_opt_set(ctx->c->priv_data, "qp", "23", 0);
 					set_codec_params(ctx);
 
-					if ((ret = avcodec_open2(ctx->c, codec, NULL) == 0))
+					ret = avcodec_open2(ctx->c, codec, NULL);
+					if (ret == 0)
 						using_hw = 1;
 					else
 					{
-						log_debug("Could not open codec: %s!", av_err2str(ret));
+						log_warn("Could not open VAAPI codec: %s!", av_err2str(ret));
 						avcodec_free_context(&ctx->c);
 						av_buffer_unref(&ctx->hw_device_ctx);
 						destroy_scalers(&ctx->scalers);
@@ -658,7 +664,17 @@ void open_video(VideoContext* ctx, Error* err)
 			}
 		}
 		else
+		{
+			log_warn("Codec 'h264_vaapi' not found!");
 			av_buffer_unref(&ctx->hw_device_ctx);
+		}
+	}
+	else if (ctx->try_vaapi)
+	{
+		log_warn(
+			"Failed to initialise VAAPI connection for device %s: %s",
+			vaapi_device ? vaapi_device : "(default)",
+			av_err2str(AVERROR_UNKNOWN));
 	}
 #endif
 
@@ -974,6 +990,12 @@ VideoContext* init_video_encoder(
 {
 	VideoContext* ctx = malloc(sizeof(VideoContext));
 	ctx->rust_ctx = rust_ctx;
+	log_info(
+		"Video encoder init: try_vaapi=%d try_nvenc=%d try_videotoolbox=%d try_mediafoundation=%d",
+		try_vaapi,
+		try_nvenc,
+		try_videotoolbox,
+		try_mediafoundation);
 	ctx->width_out = width_out - width_out % 2;
 	ctx->height_out = height_out - height_out % 2;
 	ctx->width_in = width_in;

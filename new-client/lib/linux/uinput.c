@@ -1,7 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <linux/input-event-codes.h>
 #include <linux/input.h>
 #include <linux/uinput.h>
 #include <signal.h>
@@ -14,6 +13,10 @@
 #include "../error.h"
 
 #define ABS_MAXVAL 65535
+
+#ifndef KEY_MICMUTE
+#define KEY_MICMUTE 248
+#endif
 
 #ifndef REL_WHEEL_HI_RES
 #define REL_WHEEL_HI_RES	0x0b

@@ -3,24 +3,26 @@
 # Targets are mapped onto upstream-compatible base images (same glibc):
 #
 #   ubuntu2004  ubuntu:20.04        glibc 2.31  → Ubuntu ≥20.04          (.deb, X11 only)
-#   ubuntu2204  ubuntu:22.04        glibc 2.35  → Ubuntu ≥22.04          (.deb, full Wayland)
+#   ubuntu2204  ubuntu:22.04        glibc 2.35  → Ubuntu ≥22.04          (.deb, Wayland + static VA-API)
 #   uos-v20     debian:11           glibc 2.31  → 统信 UOS V20 桌面       (.deb)
 #   kylin-v10   rockylinux:8        glibc 2.28  → 麒麟 V10 SP1 (server)   (.rpm)
 #   centos7     centos:7            glibc 2.17  → CentOS 7 系列           (.rpm, no Wayland)
 #   centos8     rockylinux:8        glibc 2.28  → CentOS ≥8 / Rocky/Alma  (.rpm)
 #   nfs-v4      rockylinux:8        glibc 2.28  → 中科方德 V4             (.rpm)
 #
-# Targets without GStreamer ≥1.16 (ubuntu1604, centos7) build without the
+# Targets without GStreamer ≥1.16 (ubuntu2004, centos7) build without the
 # 'pipewire' feature — Wayland screen capture is disabled, X11 still works.
+# Targets with VA-API support link libva statically so older host libva
+# versions do not fail process startup before runtime fallback can run.
 # All targets build for both linux/amd64 and linux/arm64 unless --arch is given.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKERFILE="docker/Dockerfile.linux-builder"
 OUTPUT_DIR="${OUTPUT_DIR:-dist/linux-matrix}"
-CARGO_REGISTRY="${CARGO_REGISTRY:-sparse+https://mirrors.ustc.edu.cn/crates.io-index/}"
-RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER:-https://mirrors.ustc.edu.cn/rust-static}"
-RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://mirrors.ustc.edu.cn/rust-static/rustup}"
+CARGO_REGISTRY="${CARGO_REGISTRY:-sparse+https://index.crates.io/}"
+RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER:-https://static.rust-lang.org}"
+RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://static.rust-lang.org/rustup}"
 CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-$(nproc)}"
 NETWORK_MODE="${NETWORK_MODE:-host}"
 PROXY_URL="${PROXY_URL:-}"
@@ -85,21 +87,21 @@ target_config() {
       ;;
     ubuntu2204)
       BASE_IMAGE="ubuntu:22.04"
-      # Full Wayland + X11 support
-      FEATURES="pipewire,vaapi"
+      # Full Wayland + X11 support; VA-API is tried at runtime and falls back.
+      FEATURES="pipewire,va-static"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
     uos-v20)
       BASE_IMAGE="debian:11"
-      # GStreamer 1.18 available; ffmpeg built from source (system too old)
-      FEATURES="pipewire,vaapi"
+      # GStreamer 1.18 available; static libva avoids host libva ABI drift.
+      FEATURES="pipewire,va-static"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM=""
       ;;
     kylin-v10|centos8|nfs-v4)
       BASE_IMAGE="rockylinux:8"
-      FEATURES="pipewire,vaapi"
+      FEATURES="pipewire,va-static"
       EXTRA_PKGS_DEB=""
       EXTRA_PKGS_RPM="epel-release"
       ;;

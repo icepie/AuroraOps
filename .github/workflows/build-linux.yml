@@ -79,30 +79,112 @@ jobs:
         working-directory: new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}
         run: |
           set -eux
-          prefix="auroraops-agent-${{ matrix.target }}-${{ matrix.arch }}"
-          # rename binary so multiple targets can coexist in one release
+          version="$(awk -F '"' '/^version = / { print $2; exit }' "${GITHUB_WORKSPACE}/new-client/Cargo.toml")"
+          release="${RELEASE:-1}"
+          package_version="${version}-${release}"
+          target="${{ matrix.target }}"
+          arch="${{ matrix.arch }}"
+          prefix="auroraops-agent-${package_version}-${target}-${arch}"
+          case "$target" in
+            ubuntu2004|ubuntu2204|uos-v20)
+              package_glob="*.deb"
+              package_ext="deb"
+              ;;
+            kylin-v10|centos7|centos8|nfs-v4)
+              package_glob="*.rpm"
+              package_ext="rpm"
+              ;;
+            *)
+              echo "Unknown release target: $target" >&2
+              exit 2
+              ;;
+          esac
+
           if [ -f auroraops-agent ]; then
             mv auroraops-agent "${prefix}"
           fi
-          # leave .deb / .rpm with their native names; they already encode arch
+          for file in $package_glob; do
+            [ -e "$file" ] || continue
+            mv "$file" "${prefix}.${package_ext}"
+          done
+          if [ -f auroraops-agent.ldd.txt ]; then
+            mv auroraops-agent.ldd.txt "${prefix}.ldd.txt"
+          fi
+
           ls -la
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "package_version=${package_version}" >> "$GITHUB_OUTPUT"
+          echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
+          echo "updated=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "dir=$(pwd)" >> "$GITHUB_OUTPUT"
+
+      - name: Remove legacy dev release asset names
+        if: steps.filter.outputs.run == '1' && github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          assets="$(gh release view dev --json assets --jq '.assets[].name' 2>/dev/null || true)"
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            if [[ "$name" == "auroraops-agent.ldd.txt" ]] ||
+               [[ "$name" =~ ^auroraops-agent_[0-9].*_(amd64|arm64)\.deb$ ]] ||
+               [[ "$name" =~ ^auroraops-agent-[0-9].*\.(el[0-9]\.)?(x86_64|aarch64)\.rpm$ ]] ||
+               [[ "$name" =~ ^auroraops-agent-(ubuntu2004|ubuntu2204|uos-v20|kylin-v10|centos7|centos8|nfs-v4)-(amd64|arm64)$ ]]; then
+              gh release delete-asset dev "$name" -y || true
+            fi
+          done <<< "$assets"
 
       - name: Publish to dev rolling release
         if: steps.filter.outputs.run == '1' && github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev
-          name: Dev rolling build
+          name: AuroraOps Agent ${{ steps.stage.outputs.package_version }} dev rolling build
           prerelease: true
           body: |
-            Rolling pre-release with the latest Linux matrix builds.
+            AuroraOps Agent Linux matrix builds for the new client.
+
+            Version: ${{ steps.stage.outputs.package_version }}
             Commit: ${{ github.sha }}
-            Updated: ${{ github.event.head_commit.timestamp }}
+            Updated: ${{ steps.stage.outputs.updated }}
+
+            Asset naming:
+            `auroraops-agent-${{ steps.stage.outputs.package_version }}-<target>-<arch>.<deb|rpm>`
+
+            Architecture mapping:
+            - `amd64` = x86_64
+            - `arm64` = aarch64
+
+            VA-API:
+            Ubuntu 22.04, UOS V20, Kylin V10, CentOS 8/Rocky/Alma 8, and NFS V4 builds include statically linked libva. The agent tries VA-API at runtime and falls back to software encoding if the host driver or device is unavailable. Ubuntu 20.04 and CentOS 7 compatibility builds are X11-only and do not include VA-API.
+
+            Install the package that matches your operating system:
+
+            | System | Target asset | Package |
+            | --- | --- | --- |
+            | Ubuntu 20.04 / compatible desktop | `ubuntu2004` | `.deb` |
+            | Ubuntu 22.04 / compatible desktop | `ubuntu2204` | `.deb` |
+            | 统信 UOS V20 桌面 | `uos-v20` | `.deb` |
+            | 银河麒麟 V10 / Kylin V10 | `kylin-v10` | `.rpm` |
+            | CentOS 7 / compatible older x86 Linux | `centos7` | `.rpm` |
+            | CentOS 8 / Rocky Linux 8 / AlmaLinux 8 compatible systems | `centos8` | `.rpm` |
+            | 中科方德 V4 / NFS V4 | `nfs-v4` | `.rpm` |
+
+            国产化系统快速选择:
+            - 统信 UOS V20: `auroraops-agent-${{ steps.stage.outputs.package_version }}-uos-v20-amd64.deb` or `auroraops-agent-${{ steps.stage.outputs.package_version }}-uos-v20-arm64.deb`
+            - 银河麒麟 V10 / Kylin V10: `auroraops-agent-${{ steps.stage.outputs.package_version }}-kylin-v10-amd64.rpm` or `auroraops-agent-${{ steps.stage.outputs.package_version }}-kylin-v10-arm64.rpm`
+            - 中科方德 V4 / NFS V4: `auroraops-agent-${{ steps.stage.outputs.package_version }}-nfs-v4-amd64.rpm` or `auroraops-agent-${{ steps.stage.outputs.package_version }}-nfs-v4-arm64.rpm`
+
+            Package install commands:
+            ```bash
+            sudo apt install ./auroraops-agent-${{ steps.stage.outputs.package_version }}-<target>-<arch>.deb
+            sudo rpm -Uvh auroraops-agent-${{ steps.stage.outputs.package_version }}-<target>-<arch>.rpm
+            sudo systemctl status auroraops-agent
+            ```
+
+            The bare `auroraops-agent-${{ steps.stage.outputs.package_version }}-<target>-<arch>` binary and `.ldd.txt` files are for manual debugging. Use `.deb` or `.rpm` for normal installation.
           files: |
-            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/auroraops-agent-${{ matrix.target }}-${{ matrix.arch }}
-            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/*.deb
-            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/*.rpm
-            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/*.ldd.txt
+            new-client/dist/linux-matrix/${{ matrix.target }}-${{ matrix.arch }}/${{ steps.stage.outputs.prefix }}*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

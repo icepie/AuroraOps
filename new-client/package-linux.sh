@@ -8,12 +8,12 @@ PACKAGE_NAME="auroraops-agent"
 VERSION="${VERSION:-$(awk -F '"' '/^version = / { print $2; exit }' "${ROOT_DIR}/Cargo.toml")}"
 RELEASE="${RELEASE:-1}"
 BUILD_MODE="${BUILD_MODE:-release}"
-FEATURES="${FEATURES:-ffmpeg-system}"
-DEB_DEPENDS="libc6, libgcc-s1 | libgcc1, systemd, curl, xdg-utils, python3, policykit-1 | polkitd, libx11-6, libxext6, libxrandr2, libxfixes3, libxcomposite1, libxi6, libxtst6, libxinerama1, libxcursor1, libxkbcommon0, libwayland-client0, libwayland-cursor0, libdbus-1-3, libssl3 | libssl1.1, libglib2.0-0, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libpango-1.0-0, libcairo2, libpangocairo-1.0-0, libavformat62 | libavformat61 | libavformat60 | libavformat59 | libavformat58, libavfilter11 | libavfilter10 | libavfilter9 | libavfilter8 | libavfilter7, libavcodec62 | libavcodec61 | libavcodec60 | libavcodec59 | libavcodec58, libavutil60 | libavutil59 | libavutil58 | libavutil57 | libavutil56, libswscale9 | libswscale8 | libswscale7 | libswscale6 | libswscale5, libswresample6 | libswresample5 | libswresample4 | libswresample3"
+FEATURES="${FEATURES-ffmpeg-system}"
+DEB_DEPENDS_BASE="libc6, libgcc-s1 | libgcc1, systemd, curl, xdg-utils, python3, policykit-1 | polkitd, libx11-6, libxext6, libxrandr2, libxfixes3, libxcomposite1, libxi6, libxtst6, libxinerama1, libxcursor1, libxkbcommon0, libwayland-client0, libwayland-cursor0, libdbus-1-3, libssl3 | libssl1.1, libglib2.0-0, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libpango-1.0-0, libcairo2, libpangocairo-1.0-0"
+DEB_DEPENDS_FFMPEG="libavformat62 | libavformat61 | libavformat60 | libavformat59 | libavformat58, libavfilter11 | libavfilter10 | libavfilter9 | libavfilter8 | libavfilter7, libavcodec62 | libavcodec61 | libavcodec60 | libavcodec59 | libavcodec58, libavutil60 | libavutil59 | libavutil58 | libavutil57 | libavutil56, libswscale9 | libswscale8 | libswscale7 | libswscale6 | libswscale5, libswresample6 | libswresample5 | libswresample4 | libswresample3"
 DEB_RECOMMENDS="gstreamer1.0-plugins-base, gstreamer1.0-pipewire, libuinput-tools, whiptail | dialog, firefox | chromium | chromium-browser"
-RPM_REQUIRES=(
+RPM_REQUIRES_BASE=(
   "systemd"
-  "ffmpeg-libs"
   "gstreamer1"
   "gstreamer1-plugins-base"
   "glib2"
@@ -37,6 +37,9 @@ RPM_REQUIRES=(
   "python3"
   "newt"
   "polkit"
+)
+RPM_REQUIRES_FFMPEG=(
+  "ffmpeg-libs"
 )
 
 usage() {
@@ -83,6 +86,17 @@ if [ -z "${VERSION}" ]; then
   echo "Unable to determine package version." >&2
   exit 1
 fi
+
+case ",${FEATURES}," in
+  *,ffmpeg-system,*)
+  DEB_DEPENDS="${DEB_DEPENDS_BASE}, ${DEB_DEPENDS_FFMPEG}"
+  RPM_REQUIRES=("${RPM_REQUIRES_BASE[@]}" "${RPM_REQUIRES_FFMPEG[@]}")
+  ;;
+  *)
+  DEB_DEPENDS="${DEB_DEPENDS_BASE}"
+  RPM_REQUIRES=("${RPM_REQUIRES_BASE[@]}")
+  ;;
+esac
 
 case "$(uname -m)" in
   x86_64|amd64)
