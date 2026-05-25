@@ -94,29 +94,33 @@ ask_switches() {
   local current_kms="$2"
   local current_vaapi="$3"
   local current_nvenc="$4"
+  local current_dm="$5"
   if [ "$PLAIN" -eq 0 ] && command -v whiptail >/dev/null 2>&1; then
-    whiptail --title "AuroraOps 客户端" --checklist "选择远程桌面能力：" 15 76 4 \
+    whiptail --title "AuroraOps 客户端" --checklist "选择远程桌面能力：" 17 78 5 \
       wayland "Wayland / PipeWire 支持" "$(bool_flag "$current_wayland")" \
       kms "KMS / DRM 捕获" "$(bool_flag "$current_kms")" \
       vaapi "VAAPI 硬件编码" "$(bool_flag "$current_vaapi")" \
       nvenc "NVENC 硬件编码" "$(bool_flag "$current_nvenc")" \
+      dm "登录界面/Display Manager 控制" "$(bool_flag "$current_dm")" \
       3>&1 1>&2 2>&3
   elif [ "$PLAIN" -eq 0 ] && command -v dialog >/dev/null 2>&1; then
-    dialog --title "AuroraOps 客户端" --checklist "选择远程桌面能力：" 15 76 4 \
+    dialog --title "AuroraOps 客户端" --checklist "选择远程桌面能力：" 17 78 5 \
       wayland "Wayland / PipeWire 支持" "$(bool_flag "$current_wayland")" \
       kms "KMS / DRM 捕获" "$(bool_flag "$current_kms")" \
       vaapi "VAAPI 硬件编码" "$(bool_flag "$current_vaapi")" \
       nvenc "NVENC 硬件编码" "$(bool_flag "$current_nvenc")" \
+      dm "登录界面/Display Manager 控制" "$(bool_flag "$current_dm")" \
       3>&1 1>&2 2>&3
   else
     local result=""
-    for item in wayland kms vaapi nvenc; do
+    for item in wayland kms vaapi nvenc dm; do
       local current="false"
       case "$item" in
         wayland) current="$current_wayland" ;;
         kms) current="$current_kms" ;;
         vaapi) current="$current_vaapi" ;;
         nvenc) current="$current_nvenc" ;;
+        dm) current="$current_dm" ;;
       esac
       local yn_default="n"
       [ "$(bool_json "$(bool_flag "$current")")" = "true" ] && yn_default="y"
@@ -149,13 +153,14 @@ write_config() {
   local kms="$8"
   local vaapi="$9"
   local nvenc="${10}"
+  local dm="${11}"
 
   mkdir -p "$(dirname "$CONFIG_PATH")"
-  python3 - "$CONFIG_PATH" "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" <<'PY'
+  python3 - "$CONFIG_PATH" "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" "$dm" <<'PY'
 import json
 import sys
 
-path, server_host, device_name, bind_address, web_port, access_code, kms_device, wayland, kms, vaapi, nvenc = sys.argv[1:12]
+path, server_host, device_name, bind_address, web_port, access_code, kms_device, wayland, kms, vaapi, nvenc, dm = sys.argv[1:13]
 try:
     with open(path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -176,6 +181,7 @@ cfg.update({
     "kmsSupport": kms == "true",
     "tryVaapi": vaapi == "true",
     "tryNvenc": nvenc == "true",
+    "controlDisplayManager": dm == "true",
 })
 
 with open(path, "w", encoding="utf-8") as f:
@@ -214,15 +220,16 @@ main() {
   web_port="$(ask_text "AuroraOps 客户端" "远程桌面 Web 端口" "$(json_get webPort "$DEFAULT_WEB_PORT")")" || exit 1
   access_code="$(ask_text "AuroraOps 客户端" "访问码，留空表示不限制" "$(json_get accessCode "")")" || exit 1
   kms_device="$(ask_text "AuroraOps 客户端" "KMS 设备，留空自动选择" "$(json_get kmsDevice "")")" || exit 1
-  switches="$(ask_switches "$(json_get waylandSupport false)" "$(json_get kmsSupport false)" "$(json_get tryVaapi false)" "$(json_get tryNvenc false)")" || exit 1
+  switches="$(ask_switches "$(json_get waylandSupport false)" "$(json_get kmsSupport false)" "$(json_get tryVaapi false)" "$(json_get tryNvenc false)" "$(json_get controlDisplayManager true)")" || exit 1
 
-  local wayland=false kms=false vaapi=false nvenc=false
+  local wayland=false kms=false vaapi=false nvenc=false dm=false
   contains_token "$switches" wayland && wayland=true
   contains_token "$switches" kms && kms=true
   contains_token "$switches" vaapi && vaapi=true
   contains_token "$switches" nvenc && nvenc=true
+  contains_token "$switches" dm && dm=true
 
-  write_config "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc"
+  write_config "$server_host" "$device_name" "$bind_address" "$web_port" "$access_code" "$kms_device" "$wayland" "$kms" "$vaapi" "$nvenc" "$dm"
   echo "配置已写入：$CONFIG_PATH"
 
   if confirm_restart; then

@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+ExecStartPre=-/opt/auroraops/auroraops-uinput-setup
 ExecStart=/opt/auroraops/auroraops-agent --service --config /etc/auroraops/agent-config.json --port 18765
 Restart=always
 RestartSec=5

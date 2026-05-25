@@ -8,5 +8,6 @@
   "tryNvenc": false,
   "waylandSupport": false,
   "kmsSupport": false,
-  "kmsDevice": null
+  "kmsDevice": null,
+  "controlDisplayManager": true
 }

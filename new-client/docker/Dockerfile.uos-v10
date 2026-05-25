@@ -19,7 +19,6 @@ ENV RUSTUP_UPDATE_ROOT=${RUSTUP_UPDATE_ROOT}
 ENV PATH=/root/.cargo/bin:${PATH}
 ENV BUILD_MODE=release
 ENV FEATURES=ffmpeg-system
-ENV FLTK_MODE=source
 ENV CARGO_BUILD_JOBS=0
 
 RUN set -eux; \

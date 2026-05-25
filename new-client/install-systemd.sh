@@ -18,6 +18,8 @@ detect_arch_dir() {
 ARCH_DIR="$(detect_arch_dir)"
 BIN_SOURCE="${1:-./target/release/auroraops-agent}"
 BIN_TARGET="/opt/auroraops/auroraops-agent"
+UINPUT_HELPER_SOURCE="./auroraops-uinput-setup"
+UINPUT_HELPER_TARGET="/opt/auroraops/auroraops-uinput-setup"
 CONFIG_TARGET="/etc/auroraops/agent-config.json"
 SERVICE_TARGET="/etc/systemd/system/auroraops-agent.service"
 
@@ -31,6 +33,10 @@ fi
 install -d /opt/auroraops
 install -d /etc/auroraops
 install -m 0755 "${BIN_SOURCE}" "${BIN_TARGET}"
+if [[ -f "${UINPUT_HELPER_SOURCE}" ]]; then
+  install -m 0755 "${UINPUT_HELPER_SOURCE}" "${UINPUT_HELPER_TARGET}"
+  "${UINPUT_HELPER_TARGET}" || true
+fi
 
 if [[ ! -f "${CONFIG_TARGET}" ]]; then
   cat > "${CONFIG_TARGET}" <<'JSON'
@@ -39,7 +45,8 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
   "deviceName": "linux-node-01",
   "httpBase": "http://127.0.0.1:8000",
   "bindAddress": "127.0.0.1",
-  "webPort": 1701
+  "webPort": 1701,
+  "controlDisplayManager": true
 }
 JSON
 fi

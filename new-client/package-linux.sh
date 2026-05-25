@@ -133,6 +133,7 @@ install_common_tree() {
   install -m 0755 "${BIN_PATH}" "${stage}/opt/auroraops/${PACKAGE_NAME}"
   install -m 0755 "${ROOT_DIR}/auroraops-client-launcher" "${stage}/opt/auroraops/auroraops-client-launcher"
   install -m 0755 "${ROOT_DIR}/auroraops-client-config" "${stage}/opt/auroraops/auroraops-client-config"
+  install -m 0755 "${ROOT_DIR}/auroraops-uinput-setup" "${stage}/opt/auroraops/auroraops-uinput-setup"
   install -m 0644 "${ROOT_DIR}/auroraops-agent.service" "${stage}/etc/systemd/system/auroraops-agent.service"
   install -m 0644 "${ROOT_DIR}/packaging/agent-config.json" "${stage}/etc/auroraops/agent-config.json"
   install -m 0644 "${ROOT_DIR}/auroraops-agent.desktop" "${stage}/usr/share/applications/auroraops-agent.desktop"
@@ -221,6 +222,7 @@ $(sed 's/^/  /' "${ROOT_DIR}/packaging/rpm/postuninstall.sh")
 /opt/auroraops/${PACKAGE_NAME}
 /opt/auroraops/auroraops-client-launcher
 /opt/auroraops/auroraops-client-config
+/opt/auroraops/auroraops-uinput-setup
 /etc/systemd/system/auroraops-agent.service
 /usr/share/applications/auroraops-agent.desktop
 %config(noreplace) /etc/auroraops/agent-config.json

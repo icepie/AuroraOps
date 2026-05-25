@@ -51,6 +51,16 @@ const WEYLUS_TUNNEL_FRAME_DATA: u8 = 2;
 const WEYLUS_TUNNEL_FRAME_CLOSE: u8 = 3;
 const REGISTER_RETRY_MAX: Duration = Duration::from_secs(10);
 const TCP_RETRY_MAX: Duration = Duration::from_secs(5);
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+const XAUTHORITY_CANDIDATES: &[&str] = &[
+    "/run/lightdm/root/:0",
+    "/var/lib/lightdm/.Xauthority",
+    "/var/run/lightdm/root/:0",
+    "/run/gdm/auth-for-gdm/database",
+    "/var/lib/gdm/.local/share/xorg/Xauthority",
+    "/var/lib/gdm3/.local/share/xorg/Xauthority",
+    "/var/run/sddm/{display}",
+];
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -82,6 +92,8 @@ pub struct AgentConfig {
     pub kms_support: bool,
     #[serde(default)]
     pub kms_device: Option<String>,
+    #[serde(default = "default_control_display_manager")]
+    pub control_display_manager: bool,
 }
 
 fn default_weylus_bind() -> String {
@@ -90,6 +102,10 @@ fn default_weylus_bind() -> String {
 
 fn default_weylus_port() -> u16 {
     DEFAULT_WEYLUS_PORT
+}
+
+fn default_control_display_manager() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -190,6 +206,8 @@ struct SaveDesktopConfigPayload {
     kms_support: bool,
     #[serde(default)]
     kms_device: Option<String>,
+    #[serde(default = "default_control_display_manager")]
+    control_display_manager: bool,
 }
 
 #[derive(Clone)]
@@ -357,6 +375,7 @@ impl AgentRuntime {
             .kms_device
             .map(|device| device.trim().to_string())
             .filter(|device| !device.is_empty());
+        cfg.control_display_manager = payload.control_display_manager;
         normalize_config(&mut cfg);
         self.save_config_file(&cfg)?;
         self.set_desktop_url(&cfg);
@@ -544,12 +563,16 @@ fn wait_for_stop(stop_rx: &mut oneshot::Receiver<()>, duration: Duration) -> boo
 
 #[cfg(not(feature = "agent-service-lite"))]
 pub fn run_service(conf: &WeylusConfig) -> Result<(), BoxError> {
+    setup_uinput_once();
     let config_path = conf
         .agent_config
         .clone()
         .unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH));
     let runtime = AgentRuntime::new(config_path, conf.agent_port);
     runtime.load_config()?;
+    if runtime.get_config().control_display_manager {
+        setup_display_environment();
+    }
 
     if let (Some(server), Some(name)) = (&conf.agent_server, &conf.agent_name) {
         runtime.save_config(server.clone(), name.clone())?;
@@ -585,6 +608,7 @@ pub fn run_service(conf: &WeylusConfig) -> Result<(), BoxError> {
 
 #[cfg(feature = "agent-service-lite")]
 pub fn run_service_lite(config_path: PathBuf, local_port: u16) -> Result<(), BoxError> {
+    setup_uinput_once();
     let runtime = AgentRuntime::new(config_path, local_port);
     runtime.load_config()?;
 
@@ -613,6 +637,137 @@ pub fn run_service_lite(config_path: PathBuf, local_port: u16) -> Result<(), Box
     }
 
     Ok(())
+}
+
+fn setup_uinput_once() {
+    #[cfg(target_os = "linux")]
+    {
+        let helper = "/opt/auroraops/auroraops-uinput-setup";
+        if Path::new(helper).is_file() {
+            match std::process::Command::new(helper).output() {
+                Ok(output) if output.status.success() => {
+                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    if !stderr.is_empty() {
+                        info!("{stderr}");
+                    }
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    warn!(
+                        "uinput setup helper exited with {}: {}",
+                        output.status, stderr
+                    );
+                }
+                Err(err) => warn!("Failed to run uinput setup helper: {err}"),
+            }
+        } else {
+            try_modprobe_uinput();
+        }
+
+        match fs::metadata("/dev/uinput") {
+            Ok(meta) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    info!(
+                        "/dev/uinput detected with mode {:o}",
+                        meta.permissions().mode() & 0o7777
+                    );
+                }
+                #[cfg(not(unix))]
+                {
+                    info!("/dev/uinput detected");
+                }
+            }
+            Err(err) => warn!("/dev/uinput is not available after setup attempt: {err}"),
+        }
+    }
+}
+
+#[cfg(not(feature = "agent-service-lite"))]
+fn setup_display_environment() {
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var_os("DISPLAY").is_none() {
+            std::env::set_var("DISPLAY", ":0");
+            info!("DISPLAY was unset; using DISPLAY=:0 for desktop/DM capture.");
+        }
+
+        if std::env::var_os("XAUTHORITY").is_none() {
+            let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+            if let Some(path) = find_xauthority(&display) {
+                std::env::set_var("XAUTHORITY", &path);
+                info!("XAUTHORITY was unset; using {}", path.display());
+            } else {
+                warn!(
+                    "XAUTHORITY was unset and no known display-manager auth file was found; X11 capture may be unavailable."
+                );
+            }
+        }
+    }
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn find_xauthority(display: &str) -> Option<PathBuf> {
+    let display_name = display.trim_start_matches(':');
+    for candidate in XAUTHORITY_CANDIDATES {
+        let candidate = candidate.replace("{display}", display_name);
+        let path = PathBuf::from(candidate);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    for pattern_dir in ["/run/user", "/var/run/sddm", "/tmp"] {
+        if let Some(path) = find_first_xauthority_under(Path::new(pattern_dir), 3) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn find_first_xauthority_under(root: &Path, depth: usize) -> Option<PathBuf> {
+    if depth == 0 || !root.is_dir() {
+        return None;
+    }
+    let entries = fs::read_dir(root).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        if path.is_file()
+            && (file_name == "Xauthority"
+                || file_name == ".Xauthority"
+                || file_name.contains("xauth")
+                || file_name.contains("Xauth"))
+        {
+            return Some(path);
+        }
+        if path.is_dir() {
+            if let Some(found) = find_first_xauthority_under(&path, depth - 1) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn try_modprobe_uinput() {
+    match std::process::Command::new("modprobe")
+        .arg("uinput")
+        .output()
+    {
+        Ok(output) if output.status.success() => info!("Loaded uinput kernel module."),
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            warn!("modprobe uinput failed with {}: {}", output.status, stderr);
+        }
+        Err(err) => warn!("Failed to run modprobe uinput: {err}"),
+    }
 }
 
 #[cfg(not(feature = "agent-service-lite"))]
@@ -743,7 +898,10 @@ async fn handle_local_request(
         },
         (Method::GET, "/api/service/status") => {
             let status = service_status_message();
-            json_response(StatusCode::OK, envelope(&runtime, true, Some(status), None, None))
+            json_response(
+                StatusCode::OK,
+                envelope(&runtime, true, Some(status), None, None),
+            )
         }
         (Method::POST, "/api/service/enable") => match run_systemctl(&["enable", "--now"]) {
             Ok(message) => json_response(
@@ -865,7 +1023,11 @@ fn run_systemctl(args: &[&str]) -> Result<String, BoxError> {
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         Err(if stderr.is_empty() {
-            format!("systemctl {} auroraops-agent.service failed", args.join(" ")).into()
+            format!(
+                "systemctl {} auroraops-agent.service failed",
+                args.join(" ")
+            )
+            .into()
         } else {
             stderr.into()
         })
@@ -1242,9 +1404,12 @@ fn run_weylus_tunnel(cfg: &AgentConfig) -> Result<(), BoxError> {
                         let cfg_for_thread = cfg.clone();
                         let out_tx_for_thread = out_tx.clone();
                         thread::spawn(move || {
-                            if let Err(err) =
-                                proxy_weylus_stream(&cfg_for_thread, stream_id, rx, out_tx_for_thread)
-                            {
+                            if let Err(err) = proxy_weylus_stream(
+                                &cfg_for_thread,
+                                stream_id,
+                                rx,
+                                out_tx_for_thread,
+                            ) {
                                 warn!("weylus stream {stream_id} closed: {err}");
                             }
                             streams_for_thread.lock().unwrap().remove(&stream_id);
@@ -1520,7 +1685,8 @@ impl TerminalManager {
             let _ = session.tty.write_all(input.as_bytes());
             let _ = session.tty.flush();
         } else {
-            let _ = send_terminal_closed(&self.tcp_sender, &session_id, "terminal session not found");
+            let _ =
+                send_terminal_closed(&self.tcp_sender, &session_id, "terminal session not found");
         }
     }
 
@@ -1582,14 +1748,7 @@ fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
     let c_force_color = CString::new("FORCE_COLOR").expect("FORCE_COLOR CString");
     let c_force_color_value = CString::new("1").expect("FORCE_COLOR value CString");
     let mut master: c_int = -1;
-    let pid = unsafe {
-        libc::forkpty(
-            &mut master,
-            ptr::null_mut(),
-            ptr::null(),
-            ptr::null(),
-        )
-    };
+    let pid = unsafe { libc::forkpty(&mut master, ptr::null_mut(), ptr::null(), ptr::null()) };
     if pid < 0 {
         return Err(std::io::Error::last_os_error().into());
     }
@@ -1600,7 +1759,11 @@ fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
             libc::setenv(c_term.as_ptr(), c_term_value.as_ptr(), 1);
             libc::setenv(c_colorterm.as_ptr(), c_colorterm_value.as_ptr(), 1);
             libc::setenv(c_clicolor.as_ptr(), c_clicolor_value.as_ptr(), 1);
-            libc::setenv(c_clicolor_force.as_ptr(), c_clicolor_force_value.as_ptr(), 1);
+            libc::setenv(
+                c_clicolor_force.as_ptr(),
+                c_clicolor_force_value.as_ptr(),
+                1,
+            );
             libc::setenv(c_force_color.as_ptr(), c_force_color_value.as_ptr(), 1);
             libc::execvp(arg0, argv.as_ptr());
             libc::_exit(127);
@@ -1620,7 +1783,11 @@ fn start_terminal_process(_shell: &str) -> Result<TerminalSession, BoxError> {
     Err("terminal pty is not implemented for this platform".into())
 }
 
-fn resize_terminal_session(session: &TerminalSession, cols: u16, rows: u16) -> Result<(), BoxError> {
+fn resize_terminal_session(
+    session: &TerminalSession,
+    cols: u16,
+    rows: u16,
+) -> Result<(), BoxError> {
     if cols == 0 || rows == 0 {
         return Ok(());
     }
@@ -1942,7 +2109,11 @@ fn normalize_config(cfg: &mut AgentConfig) {
     if cfg.web_port == 0 {
         cfg.web_port = DEFAULT_WEYLUS_PORT;
     }
-    if cfg.kms_device.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if cfg
+        .kms_device
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         cfg.kms_device = None;
     }
 }
@@ -2115,6 +2286,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
         <label class="switch"><input id="kmsSupport" type="checkbox" /><span><strong>KMS / DRM</strong>直接通过 DRM/KMS 捕获帧缓冲。</span></label>
         <label class="switch"><input id="tryVaapi" type="checkbox" /><span><strong>VAAPI</strong>尝试使用 Linux VAAPI 硬件编码。</span></label>
         <label class="switch"><input id="tryNvenc" type="checkbox" /><span><strong>NVENC</strong>尝试使用 NVIDIA NVENC 硬件编码。</span></label>
+        <label class="switch"><input id="controlDisplayManager" type="checkbox" /><span><strong>登录界面控制</strong>root 服务启动时自动探测 DISPLAY / XAUTHORITY。</span></label>
       </div>
       <div class="actions">
         <button onclick="saveDesktopConfig()">保存桌面配置</button>
@@ -2145,7 +2317,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     </section>
   </main>
   <script>
-    const ids = ['serverHost','deviceName','bindAddress','webPort','accessCode','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc'];
+    const ids = ['serverHost','deviceName','bindAddress','webPort','accessCode','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','controlDisplayManager'];
     const $ = (id) => document.getElementById(id);
     const log = (text) => $('log').textContent = `${new Date().toLocaleTimeString()} ${text}\n` + $('log').textContent;
     async function request(path, options) {
@@ -2170,6 +2342,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       $('kmsSupport').checked = !!cfg.kmsSupport;
       $('tryVaapi').checked = !!cfg.tryVaapi;
       $('tryNvenc').checked = !!cfg.tryNvenc;
+      $('controlDisplayManager').checked = cfg.controlDisplayManager !== false;
       $('state').textContent = status.state || '-';
       $('deviceId').textContent = status.deviceId || cfg.deviceId || '-';
       $('tcpAddress').textContent = status.tcpAddress || cfg.tcpAddress || '-';
@@ -2192,7 +2365,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       await call('/api/desktop-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 1701), accessCode: $('accessCode').value || null,
         kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked,
-        tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked
+        tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, controlDisplayManager: $('controlDisplayManager').checked
       }) }, '桌面配置已保存，重启桌面服务后生效');
     }
     async function startAgent() { await call('/api/start', { method: 'POST' }, '连接已启动'); }

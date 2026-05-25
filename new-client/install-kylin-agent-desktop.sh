@@ -9,7 +9,6 @@ BIND_ADDRESS="${BIND_ADDRESS:-0.0.0.0}"
 WEB_PORT="${WEB_PORT:-1701}"
 MGMT_PORT="${MGMT_PORT:-18765}"
 BUILD_MODE="${BUILD_MODE:-system}"
-FLTK_MODE="${FLTK_MODE:-source}"
 DISPLAY_VALUE="${DISPLAY_VALUE:-:0}"
 LOGIN_USER="${LOGIN_USER:-${SUDO_USER:-$(logname 2>/dev/null || id -un)}}"
 XAUTHORITY_VALUE="${XAUTHORITY_VALUE:-/home/$LOGIN_USER/.Xauthority}"
@@ -60,10 +59,8 @@ say "AuroraOps Agent 安装脚本启动"
 say "日志文件：$LOG_FILE"
 say "配置：SERVER_HOST=$SERVER_HOST HTTP_BASE=$HTTP_BASE TCP_ADDRESS=$TCP_ADDRESS DEVICE_NAME=$DEVICE_NAME"
 say "编译模式：$BUILD_MODE"
-say "FLTK 模式：$FLTK_MODE"
 say "桌面环境：DISPLAY=$DISPLAY_VALUE XAUTHORITY=$XAUTHORITY_VALUE LOGIN_USER=$LOGIN_USER"
 say "说明：Linux 下 glibc、X11、DBus、GStreamer 等系统库仍会动态链接；脚本会使用 Rust release/LTO、rustls，并默认链接系统 FFmpeg。"
-say "默认 FLTK_MODE=source，会用 cmake 本地编译 FLTK，避免从 GitHub 下载 fltk-bundled 预编译包。"
 say "如需尝试内置 FFmpeg，可用 BUILD_MODE=bundled-ffmpeg 重新运行，但耗时明显更长。"
 
 say "安装系统编译依赖"
@@ -181,19 +178,6 @@ else
   exit 1
 fi
 
-if [ "$FLTK_MODE" = "source" ]; then
-  command -v cmake >/dev/null || { echo "FLTK_MODE=source 需要 cmake，请先安装 cmake" >&2; exit 1; }
-elif [ "$FLTK_MODE" = "bundled" ]; then
-  say "使用 fltk-bundled，会从 GitHub 下载预编译 cfltk 包；国内网络不稳定时不推荐。"
-  features+=(fltk/fltk-bundled)
-elif [ "$FLTK_MODE" = "config" ]; then
-  command -v fltk-config >/dev/null || { echo "FLTK_MODE=config 需要 fltk-config，请先安装 FLTK 开发包" >&2; exit 1; }
-  features+=(fltk/fltk-config)
-else
-  echo "未知 FLTK_MODE：$FLTK_MODE，可用 source、bundled 或 config" >&2
-  exit 1
-fi
-
 if [ "${#features[@]}" -gt 0 ]; then
   cargo build --release --features "${features[*]}" --bin auroraops-agent
 else
@@ -204,8 +188,12 @@ say "编译产物依赖"
 ldd target/release/auroraops-agent || true
 
 say "安装二进制、配置和 systemd 服务"
-run_sudo install -d /usr/local/bin /etc/auroraops /etc/systemd/system
+run_sudo install -d /usr/local/bin /opt/auroraops /etc/auroraops /etc/systemd/system
 run_sudo install -m 0755 target/release/auroraops-agent /usr/local/bin/auroraops-agent
+if [ -f "$SRC_DIR/auroraops-uinput-setup" ]; then
+  run_sudo install -m 0755 "$SRC_DIR/auroraops-uinput-setup" /opt/auroraops/auroraops-uinput-setup
+  run_sudo /opt/auroraops/auroraops-uinput-setup || true
+fi
 
 if command -v xhost >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then
   say "授权 root 访问当前 X server"
@@ -228,7 +216,8 @@ cat > "$tmp_config" <<JSON
   "httpBase": "$HTTP_BASE",
   "bindAddress": "$BIND_ADDRESS",
   "webPort": $WEB_PORT,
-  "tcpAddress": "$TCP_ADDRESS"
+  "tcpAddress": "$TCP_ADDRESS",
+  "controlDisplayManager": true
 }
 JSON
 run_sudo install -m 0644 "$tmp_config" /etc/auroraops/agent-config.json
@@ -243,6 +232,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+ExecStartPre=-/opt/auroraops/auroraops-uinput-setup
 Environment=DISPLAY=$DISPLAY_VALUE
 Environment=XAUTHORITY=$XAUTHORITY_VALUE
 Environment=XDG_RUNTIME_DIR=/run/user/$(id -u "$LOGIN_USER" 2>/dev/null || echo 1000)

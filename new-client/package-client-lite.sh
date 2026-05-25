@@ -27,6 +27,7 @@ install -d "${DIST_DIR}"
 install -m 0755 "${BIN_SOURCE}" "${STAGE}/opt/auroraops/auroraops-agent"
 install -m 0755 "${ROOT_DIR}/auroraops-client-launcher" "${STAGE}/opt/auroraops/auroraops-client-launcher"
 install -m 0755 "${ROOT_DIR}/auroraops-client-config" "${STAGE}/opt/auroraops/auroraops-client-config"
+install -m 0755 "${ROOT_DIR}/auroraops-uinput-setup" "${STAGE}/opt/auroraops/auroraops-uinput-setup"
 install -m 0644 "${ROOT_DIR}/auroraops-agent.desktop" "${STAGE}/usr/share/applications/auroraops-agent.desktop"
 
 cat > "${STAGE}/etc/auroraops/agent-config.json" <<'EOF'
@@ -41,7 +42,8 @@ cat > "${STAGE}/etc/auroraops/agent-config.json" <<'EOF'
   "tryNvenc": false,
   "waylandSupport": false,
   "kmsSupport": false,
-  "kmsDevice": null
+  "kmsDevice": null,
+  "controlDisplayManager": true
 }
 EOF
 
@@ -53,6 +55,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+ExecStartPre=-/opt/auroraops/auroraops-uinput-setup
 ExecStart=/opt/auroraops/auroraops-agent --config /etc/auroraops/agent-config.json --port 18765
 Restart=always
 RestartSec=5
@@ -89,6 +92,7 @@ cat > "${STAGE}/DEBIAN/postinst" <<'EOF'
 set -e
 
 if command -v systemctl >/dev/null 2>&1; then
+  /opt/auroraops/auroraops-uinput-setup || true
   systemctl daemon-reload || true
   systemctl enable auroraops-agent.service || true
   systemctl restart auroraops-agent.service || systemctl start auroraops-agent.service || true
