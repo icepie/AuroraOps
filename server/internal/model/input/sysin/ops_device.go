@@ -51,6 +51,9 @@ func (in *OpsDeviceEditInp) Filter(ctx context.Context) (err error) {
 	if verr := g.Validator().Rules("required").Data(in.Hostname).Messages("主机名不能为空").Run(ctx); verr != nil {
 		return verr.Current()
 	}
+	if in.DeviceType != "" && in.DeviceType != "physical" && in.DeviceType != "virtual" {
+		return gerror.New("设备类型只能为物理机或虚拟机")
+	}
 	if verr := g.Validator().Rules("required").Data(in.Sort).Messages("排序不能为空").Run(ctx); verr != nil {
 		return verr.Current()
 	}
@@ -118,22 +121,45 @@ type OpsDeviceListModel struct {
 }
 
 type OpsDeviceMonitorView struct {
-	CpuPercent       float64 `json:"cpuPercent"       dc:"CPU使用率"`
-	MemoryPercent    float64 `json:"memoryPercent"    dc:"内存使用率"`
-	SwapPercent      float64 `json:"swapPercent"      dc:"交换分区使用率"`
-	SwapEnabled      bool    `json:"swapEnabled"      dc:"是否启用交换分区"`
-	DiskPercent      float64 `json:"diskPercent"      dc:"磁盘使用率"`
-	NetRxRateBytes   float64 `json:"netRxRateBytes"   dc:"网络下行速率"`
-	NetTxRateBytes   float64 `json:"netTxRateBytes"   dc:"网络上行速率"`
-	NetRxBytes       uint64  `json:"netRxBytes"       dc:"网络累计下行流量"`
-	NetTxBytes       uint64  `json:"netTxBytes"       dc:"网络累计上行流量"`
-	CpuCores         int     `json:"cpuCores"         dc:"CPU核心数"`
-	MemoryTotalBytes uint64  `json:"memoryTotalBytes" dc:"内存总量"`
-	DiskTotalBytes   uint64  `json:"diskTotalBytes"   dc:"磁盘总量"`
-	Load1            float64 `json:"load1"            dc:"1分钟负载"`
-	Load5            float64 `json:"load5"            dc:"5分钟负载"`
-	Load15           float64 `json:"load15"           dc:"15分钟负载"`
-	UptimeSeconds    uint64  `json:"uptimeSeconds"    dc:"在线时长"`
+	System             string                     `json:"system"             dc:"系统名称"`
+	Architecture       string                     `json:"architecture"       dc:"系统架构"`
+	CpuModel           string                     `json:"cpuModel"           dc:"CPU型号"`
+	GpuModels          []string                   `json:"gpuModels"          dc:"GPU型号列表"`
+	CpuPercent         float64                    `json:"cpuPercent"         dc:"CPU使用率"`
+	MemoryPercent      float64                    `json:"memoryPercent"      dc:"内存使用率"`
+	SwapPercent        float64                    `json:"swapPercent"        dc:"交换分区使用率"`
+	SwapEnabled        bool                       `json:"swapEnabled"        dc:"是否启用交换分区"`
+	DiskPercent        float64                    `json:"diskPercent"        dc:"磁盘使用率"`
+	NetRxRateBytes     float64                    `json:"netRxRateBytes"     dc:"网络下行速率"`
+	NetTxRateBytes     float64                    `json:"netTxRateBytes"     dc:"网络上行速率"`
+	NetRxBytes         uint64                     `json:"netRxBytes"         dc:"网络累计下行流量"`
+	NetTxBytes         uint64                     `json:"netTxBytes"         dc:"网络累计上行流量"`
+	CpuCores           int                        `json:"cpuCores"           dc:"CPU核心数"`
+	CpuPhysicalCores   int                        `json:"cpuPhysicalCores"   dc:"CPU物理核心数"`
+	MemoryUsedBytes    uint64                     `json:"memoryUsedBytes"    dc:"内存已用量"`
+	MemoryTotalBytes   uint64                     `json:"memoryTotalBytes"   dc:"内存总量"`
+	SwapUsedBytes      uint64                     `json:"swapUsedBytes"      dc:"交换分区已用量"`
+	SwapTotalBytes     uint64                     `json:"swapTotalBytes"     dc:"交换分区总量"`
+	DiskUsedBytes      uint64                     `json:"diskUsedBytes"      dc:"磁盘已用量"`
+	DiskTotalBytes     uint64                     `json:"diskTotalBytes"     dc:"磁盘总量"`
+	Load1              float64                    `json:"load1"              dc:"1分钟负载"`
+	Load5              float64                    `json:"load5"              dc:"5分钟负载"`
+	Load15             float64                    `json:"load15"             dc:"15分钟负载"`
+	ProcessCount       int                        `json:"processCount"       dc:"进程数"`
+	TcpConnectionCount int                        `json:"tcpConnectionCount" dc:"TCP连接数"`
+	UdpConnectionCount int                        `json:"udpConnectionCount" dc:"UDP连接数"`
+	Temperatures       []OpsDeviceTemperatureView `json:"temperatures"       dc:"温度列表"`
+	BootTimeSeconds    uint64                     `json:"bootTimeSeconds"    dc:"系统启动时间"`
+	UptimeSeconds      uint64                     `json:"uptimeSeconds"      dc:"在线时长"`
+	AgentVersion       string                     `json:"agentVersion"       dc:"Agent版本"`
+}
+
+type OpsDeviceTemperatureView struct {
+	Name     string   `json:"name"     dc:"传感器名称"`
+	Value    float64  `json:"value"    dc:"当前温度"`
+	Kind     string   `json:"kind"     dc:"传感器类型"`
+	Max      *float64 `json:"max"      dc:"最高温度"`
+	Critical *float64 `json:"critical" dc:"临界温度"`
 }
 
 type OpsDeviceMaxSortInp struct{}
@@ -182,6 +208,9 @@ func (in *OpsDeviceClientRegisterInp) Filter(ctx context.Context) (err error) {
 	}
 	if verr := g.Validator().Rules("required").Data(in.Hostname).Messages("主机名不能为空").Run(ctx); verr != nil {
 		return verr.Current()
+	}
+	if in.DeviceType != "" && in.DeviceType != "physical" && in.DeviceType != "virtual" {
+		return gerror.New("设备类型只能为物理机或虚拟机")
 	}
 	return
 }

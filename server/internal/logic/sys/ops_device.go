@@ -150,6 +150,15 @@ func normalizeDeviceLocation(value string) string {
 	return value
 }
 
+func normalizeDeviceType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "virtual", "vm", "virtual_machine", "virtual-machine", "hypervisor", "cloud":
+		return "virtual"
+	default:
+		return "physical"
+	}
+}
+
 func isArchitectureValue(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "aarch64", "arm64", "amd64", "x86_64", "i386", "i686", "loongarch64", "mips64", "mips64el", "sw_64", "riscv64":
@@ -175,7 +184,7 @@ func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (e
 		Name:         in.Name,
 		Hostname:     in.Hostname,
 		Ip:           in.Ip,
-		DeviceType:   in.DeviceType,
+		DeviceType:   normalizeDeviceType(in.DeviceType),
 		OsName:       in.OsName,
 		Architecture: normalizeDeviceArchitecture(in.Architecture),
 		Location:     in.Location,
@@ -339,10 +348,7 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 		Ip:       in.Ip,
 	}
 
-	deviceType := in.DeviceType
-	if deviceType == "" {
-		deviceType = "physical"
-	}
+	deviceType := normalizeDeviceType(in.DeviceType)
 
 	architecture := normalizeDeviceArchitecture(in.Architecture, in.Location)
 	location := normalizeDeviceLocation(in.Location)
@@ -366,6 +372,7 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 				Name:         in.Name,
 				Hostname:     in.Hostname,
 				Ip:           in.Ip,
+				DeviceType:   deviceType,
 				OsName:       in.OsName,
 				Architecture: architecture,
 			}

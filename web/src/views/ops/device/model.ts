@@ -43,19 +43,23 @@ export interface DeviceMonitor {
   processCount?: number;
   tcpConnectionCount?: number;
   udpConnectionCount?: number;
+  temperatures?: DeviceTemperature[];
   bootTimeSeconds?: number;
   uptimeSeconds?: number;
   agentVersion?: string;
 }
 
+export interface DeviceTemperature {
+  name?: string;
+  value?: number;
+  kind?: string;
+  max?: number | null;
+  critical?: number | null;
+}
+
 export const deviceTypeOptions = [
   { label: '物理机', value: 'physical', key: 'physical' },
   { label: '虚拟机', value: 'virtual', key: 'virtual' },
-  { label: '交换机', value: 'switch', key: 'switch' },
-  { label: '路由器', value: 'router', key: 'router' },
-  { label: '防火墙', value: 'firewall', key: 'firewall' },
-  { label: '存储设备', value: 'storage', key: 'storage' },
-  { label: '其他', value: 'other', key: 'other' },
 ];
 
 export class State {
@@ -254,6 +258,137 @@ function formatBytePair(used?: number, total?: number) {
   return `${formatBytes(used)} / ${formatBytes(total)}`;
 }
 
+function formatTemperature(value?: number | null) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '-';
+  return `${num.toFixed(1)}°C`;
+}
+
+function normalizeTemperatureName(value?: string) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isFiniteTemperature(value?: number | null) {
+  const num = Number(value);
+  return Number.isFinite(num);
+}
+
+function isUsefulTemperatureLimit(value?: number | null) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0;
+}
+
+function getTemperatureValue(item: DeviceTemperature) {
+  return Number(item.value);
+}
+
+function isTemperatureKind(item: DeviceTemperature, kind: string) {
+  return String(item.kind || '').toLowerCase() === kind;
+}
+
+function pickHottestTemperature(items: DeviceTemperature[]) {
+  return items
+    .filter((item) => isFiniteTemperature(item.value))
+    .slice()
+    .sort((a, b) => getTemperatureValue(b) - getTemperatureValue(a))[0];
+}
+
+function formatTemperatureLimitText(item?: DeviceTemperature) {
+  if (!item) return '';
+  const parts = [
+    isUsefulTemperatureLimit(item.max) ? `最高 ${formatTemperature(item.max)}` : '',
+    isUsefulTemperatureLimit(item.critical) ? `临界 ${formatTemperature(item.critical)}` : '',
+  ].filter(Boolean);
+  return parts.length ? ` (${parts.join(' / ')})` : '';
+}
+
+function shortenTemperatureName(name?: string) {
+  const value = normalizeTemperatureName(name)
+    .replace(/^coretemp\s+/i, '')
+    .replace(/^nvme\s+/i, '')
+    .replace(/^amdgpu\s+/i, 'AMD GPU ')
+    .replace(/^nct6687\s+/i, '');
+  return value || '传感器';
+}
+
+function formatTemperatureRows(monitor: DeviceMonitor) {
+  const temperatures = (Array.isArray(monitor.temperatures) ? monitor.temperatures : []).filter(
+    (item) => isFiniteTemperature(item?.value)
+  );
+  if (!temperatures.length) return [{ label: '传感器', value: '暂无' }];
+
+  const rows: Array<{ label: string; value: string }> = [];
+  const cpuReadings = temperatures.filter((item) => isTemperatureKind(item, 'cpu'));
+  const gpuReadings = temperatures.filter((item) => isTemperatureKind(item, 'gpu'));
+  const diskReadings = temperatures.filter((item) => isTemperatureKind(item, 'disk'));
+  const boardReadings = temperatures.filter((item) => isTemperatureKind(item, 'board'));
+  const sensorReadings = temperatures.filter((item) => isTemperatureKind(item, 'sensor'));
+
+  const cpuPackage =
+    cpuReadings.find((item) => /package|tctl|tdie/i.test(normalizeTemperatureName(item.name))) ||
+    pickHottestTemperature(cpuReadings);
+  const cpuHottest = pickHottestTemperature(cpuReadings);
+  if (cpuPackage) {
+    const parts = [`封装 ${formatTemperature(cpuPackage.value)}`];
+    if (
+      cpuHottest &&
+      normalizeTemperatureName(cpuHottest.name) !== normalizeTemperatureName(cpuPackage.name)
+    ) {
+      parts.push(`最高核心 ${formatTemperature(cpuHottest.value)}`);
+    }
+    rows.push({
+      label: 'CPU',
+      value: `${parts.join(' / ')}${formatTemperatureLimitText(cpuPackage)}`,
+    });
+  }
+
+  gpuReadings
+    .slice()
+    .sort((a, b) => getTemperatureValue(b) - getTemperatureValue(a))
+    .slice(0, 2)
+    .forEach((item) => {
+      rows.push({
+        label: 'GPU',
+        value: `${shortenTemperatureName(item.name)} ${formatTemperature(item.value)}${formatTemperatureLimitText(item)}`,
+      });
+    });
+
+  diskReadings
+    .filter((item) => /composite|sensor\s*1|temp/i.test(normalizeTemperatureName(item.name)))
+    .slice()
+    .sort((a, b) => getTemperatureValue(b) - getTemperatureValue(a))
+    .slice(0, 3)
+    .forEach((item) => {
+      rows.push({
+        label: '磁盘',
+        value: `${shortenTemperatureName(item.name)} ${formatTemperature(item.value)}${formatTemperatureLimitText(item)}`,
+      });
+    });
+
+  const board = pickHottestTemperature(boardReadings);
+  if (board) {
+    rows.push({
+      label: '主板',
+      value: `${shortenTemperatureName(board.name)} ${formatTemperature(board.value)}${formatTemperatureLimitText(board)}`,
+    });
+  }
+
+  const other = sensorReadings
+    .filter((item) => !/core|package|nvme|amdgpu/i.test(normalizeTemperatureName(item.name)))
+    .slice()
+    .sort((a, b) => getTemperatureValue(b) - getTemperatureValue(a))[0];
+  if (other && rows.length < 8) {
+    rows.push({
+      label: '其它',
+      value: `${shortenTemperatureName(other.name)} ${formatTemperature(other.value)}${formatTemperatureLimitText(other)}`,
+    });
+  }
+
+  return rows.length ? rows.slice(0, 8) : [{ label: '传感器', value: '暂无' }];
+}
+
 function formatCpuDetail(monitor: DeviceMonitor) {
   const model = String(monitor.cpuModel || '').trim() || 'CPU';
   const physical = Number(monitor.cpuPhysicalCores || 0);
@@ -283,22 +418,54 @@ export const columns = [
         return h('div', { class: 'device-monitor-empty' }, '暂无监视数据，等待客户端上报');
       }
       const metrics = [
-        { label: 'CPU', value: percentText(monitor.cpuPercent), percent: percentValue(monitor.cpuPercent), type: 'info' },
-        { label: '内存', value: percentText(monitor.memoryPercent), percent: percentValue(monitor.memoryPercent), type: percentValue(monitor.memoryPercent) >= 90 ? 'error' : 'success' },
-        { label: '交换', value: monitor.swapEnabled ? percentText(monitor.swapPercent) : 'OFF', percent: monitor.swapEnabled ? percentValue(monitor.swapPercent) : 0, type: 'warning' },
-        { label: '硬盘', value: percentText(monitor.diskPercent), percent: percentValue(monitor.diskPercent), type: percentValue(monitor.diskPercent) >= 90 ? 'error' : 'info' },
+        {
+          label: 'CPU',
+          value: percentText(monitor.cpuPercent),
+          percent: percentValue(monitor.cpuPercent),
+          type: 'info',
+        },
+        {
+          label: '内存',
+          value: percentText(monitor.memoryPercent),
+          percent: percentValue(monitor.memoryPercent),
+          type: percentValue(monitor.memoryPercent) >= 90 ? 'error' : 'success',
+        },
+        {
+          label: '交换',
+          value: monitor.swapEnabled ? percentText(monitor.swapPercent) : 'OFF',
+          percent: monitor.swapEnabled ? percentValue(monitor.swapPercent) : 0,
+          type: 'warning',
+        },
+        {
+          label: '硬盘',
+          value: percentText(monitor.diskPercent),
+          percent: percentValue(monitor.diskPercent),
+          type: percentValue(monitor.diskPercent) >= 90 ? 'error' : 'info',
+        },
       ];
       const summaryRows = [
-        { label: '网速', value: `${formatRate(monitor.netRxRateBytes)} / ${formatRate(monitor.netTxRateBytes)}` },
-        { label: '流量', value: `${formatBytes(monitor.netRxBytes)} / ${formatBytes(monitor.netTxBytes)}` },
+        {
+          label: '网速',
+          value: `${formatRate(monitor.netRxRateBytes)} / ${formatRate(monitor.netTxRateBytes)}`,
+        },
+        {
+          label: '流量',
+          value: `${formatBytes(monitor.netRxBytes)} / ${formatBytes(monitor.netTxBytes)}`,
+        },
         { label: '在线', value: formatDuration(monitor.uptimeSeconds) },
-        { label: '负载', value: `${Number(monitor.load1 || 0).toFixed(2)} / ${Number(monitor.load5 || 0).toFixed(2)} / ${Number(monitor.load15 || 0).toFixed(2)}` },
+        {
+          label: '负载',
+          value: `${Number(monitor.load1 || 0).toFixed(2)} / ${Number(monitor.load5 || 0).toFixed(2)} / ${Number(monitor.load15 || 0).toFixed(2)}`,
+        },
       ];
       const detailGroups = [
         {
           title: '系统',
           rows: [
-            { label: '系统', value: `${monitor.system || row.osName || '-'} - [${monitor.architecture || getArchitectureLabel(row)}]` },
+            {
+              label: '系统',
+              value: `${monitor.system || row.osName || '-'} - [${monitor.architecture || getArchitectureLabel(row)}]`,
+            },
             { label: 'CPU', value: formatCpuDetail(monitor) },
             { label: 'GPU', value: formatGpuDetail(monitor) },
           ],
@@ -307,63 +474,107 @@ export const columns = [
           title: '资源',
           rows: [
             { label: '硬盘', value: formatBytePair(monitor.diskUsedBytes, monitor.diskTotalBytes) },
-            { label: '内存', value: formatBytePair(monitor.memoryUsedBytes, monitor.memoryTotalBytes) },
-            { label: '交换', value: monitor.swapEnabled ? formatBytePair(monitor.swapUsedBytes, monitor.swapTotalBytes) : 'OFF' },
+            {
+              label: '内存',
+              value: formatBytePair(monitor.memoryUsedBytes, monitor.memoryTotalBytes),
+            },
+            {
+              label: '交换',
+              value: monitor.swapEnabled
+                ? formatBytePair(monitor.swapUsedBytes, monitor.swapTotalBytes)
+                : 'OFF',
+            },
           ],
         },
         {
           title: '运行',
           rows: [
             { label: '进程数', value: String(monitor.processCount ?? '-') },
-            { label: '连接数', value: `TCP ${monitor.tcpConnectionCount ?? 0} / UDP ${monitor.udpConnectionCount ?? 0}` },
+            {
+              label: '连接数',
+              value: `TCP ${monitor.tcpConnectionCount ?? 0} / UDP ${monitor.udpConnectionCount ?? 0}`,
+            },
             { label: '启动', value: formatTimestamp(monitor.bootTimeSeconds) },
             { label: '活动', value: row.monitorReportedAt || '-' },
             { label: '版本', value: monitor.agentVersion || '-' },
           ],
         },
+        {
+          title: '温度',
+          rows: formatTemperatureRows(monitor),
+        },
       ];
 
       return h('div', { class: 'device-monitor-panel' }, [
         h('div', { class: 'device-monitor-panel__head' }, [
-          h(NSpace, { align: 'center', size: 8 }, {
-            default: () => [
-              h(NIcon, { size: 16 }, { default: () => h(BarChartOutlined) }),
-              h('span', { class: 'device-monitor-panel__title' }, '监视'),
-              h('span', { class: 'device-monitor-panel__time' }, row.monitorReportedAt || ''),
-            ],
-          }),
+          h(
+            NSpace,
+            { align: 'center', size: 8 },
+            {
+              default: () => [
+                h(NIcon, { size: 16 }, { default: () => h(BarChartOutlined) }),
+                h('span', { class: 'device-monitor-panel__title' }, '监视'),
+                h('span', { class: 'device-monitor-panel__time' }, row.monitorReportedAt || ''),
+              ],
+            }
+          ),
         ]),
         h('div', { class: 'device-monitor-summary' }, [
-          h('div', { class: 'device-monitor-bars' }, metrics.map((item) =>
-            h('div', { class: 'device-monitor-bar' }, [
-              h('div', { class: 'device-monitor-bar__label' }, item.label),
-              h(NProgress, {
-                type: 'line',
-                percentage: item.percent,
-                indicatorPlacement: 'inside',
-                processing: false,
-                status: item.type as any,
-              }, { default: () => item.value }),
-            ])
-          )),
-          h('div', { class: 'device-monitor-facts' }, summaryRows.map((item) =>
-            h('div', { class: 'device-monitor-fact' }, [
-              h('span', item.label),
-              h('b', item.value),
-            ])
-          )),
-        ]),
-        h('div', { class: 'device-monitor-detail' }, detailGroups.map((group) =>
-          h('div', { class: 'device-monitor-detail__group' }, [
-            h('div', { class: 'device-monitor-detail__title' }, group.title),
-            ...group.rows.map((item) =>
-              h('div', { class: 'device-monitor-detail__row' }, [
-                h('span', { class: 'device-monitor-detail__label' }, item.label),
-                h('b', { class: 'device-monitor-detail__value' }, item.value),
+          h(
+            'div',
+            { class: 'device-monitor-bars' },
+            metrics.map((item) =>
+              h('div', { class: 'device-monitor-bar' }, [
+                h('div', { class: 'device-monitor-bar__label' }, item.label),
+                h(
+                  NProgress,
+                  {
+                    type: 'line',
+                    percentage: item.percent,
+                    indicatorPlacement: 'inside',
+                    processing: false,
+                    status: item.type as any,
+                  },
+                  { default: () => item.value }
+                ),
               ])
-            ),
-          ])
-        )),
+            )
+          ),
+          h(
+            'div',
+            { class: 'device-monitor-facts' },
+            summaryRows.map((item) =>
+              h('div', { class: 'device-monitor-fact' }, [
+                h('span', item.label),
+                h('b', item.value),
+              ])
+            )
+          ),
+        ]),
+        h(
+          'div',
+          { class: 'device-monitor-detail' },
+          detailGroups.map((group) =>
+            h(
+              'div',
+              {
+                class: [
+                  'device-monitor-detail__group',
+                  group.title === '温度' ? 'device-monitor-detail__temperature' : '',
+                ],
+              },
+              [
+                h('div', { class: 'device-monitor-detail__title' }, group.title),
+                ...group.rows.map((item) =>
+                  h('div', { class: 'device-monitor-detail__row' }, [
+                    h('span', { class: 'device-monitor-detail__label' }, item.label),
+                    h('b', { class: 'device-monitor-detail__value' }, item.value),
+                  ])
+                ),
+              ]
+            )
+          )
+        ),
       ]);
     },
   },

@@ -33,7 +33,7 @@ use hyper_util::rt::TokioIo;
 use libc::free;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sysinfo::{Disks, Networks, System};
+use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tracing::{error, info, warn};
@@ -1176,21 +1176,39 @@ struct MonitorSnapshot {
     process_count: usize,
     tcp_connection_count: usize,
     udp_connection_count: usize,
+    temperatures: Vec<TemperatureReading>,
     boot_time_seconds: u64,
     uptime_seconds: u64,
     agent_version: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TemperatureReading {
+    name: String,
+    value: f64,
+    kind: String,
+    max: Option<f64>,
+    critical: Option<f64>,
 }
 
 struct MonitorCollector {
     system: System,
     networks: Networks,
     disks: Disks,
+    components: Components,
     last_sample_at: std::time::Instant,
     os_name: String,
     architecture: String,
     cpu_model: String,
     gpu_models: Vec<String>,
     cpu_physical_cores: usize,
+    #[cfg(target_os = "windows")]
+    load1: f64,
+    #[cfg(target_os = "windows")]
+    load5: f64,
+    #[cfg(target_os = "windows")]
+    load15: f64,
 }
 
 impl MonitorCollector {
@@ -1211,12 +1229,19 @@ impl MonitorCollector {
             system,
             networks: Networks::new_with_refreshed_list(),
             disks: Disks::new_with_refreshed_list(),
+            components: Components::new_with_refreshed_list(),
             last_sample_at: std::time::Instant::now(),
             os_name: detect_os_name(),
             architecture: std::env::consts::ARCH.to_string(),
             cpu_model,
             gpu_models: detect_gpu_models(),
             cpu_physical_cores,
+            #[cfg(target_os = "windows")]
+            load1: 0.0,
+            #[cfg(target_os = "windows")]
+            load5: 0.0,
+            #[cfg(target_os = "windows")]
+            load15: 0.0,
         }
     }
 
@@ -1230,8 +1255,10 @@ impl MonitorCollector {
 
         self.system.refresh_cpu_usage();
         self.system.refresh_memory();
+        self.system.refresh_processes(ProcessesToUpdate::All, true);
         self.networks.refresh(true);
         self.disks.refresh(true);
+        self.components.refresh(true);
 
         let total_memory = self.system.total_memory();
         let used_memory = self.system.used_memory();
@@ -1260,9 +1287,10 @@ impl MonitorCollector {
                 )
             },
         );
-        let load = System::load_average();
+        let (load1, load5, load15) = self.load_average(self.system.global_cpu_usage() as f64);
 
         let (tcp_connection_count, udp_connection_count) = network_connection_counts();
+        let temperatures = collect_temperature_readings(&self.components);
 
         MonitorSnapshot {
             system: self.os_name.clone(),
@@ -1286,16 +1314,33 @@ impl MonitorCollector {
             swap_total_bytes: total_swap,
             disk_used_bytes: disk_used,
             disk_total_bytes: disk_total,
-            load1: round2(load.one),
-            load5: round2(load.five),
-            load15: round2(load.fifteen),
-            process_count: process_count(),
+            load1,
+            load5,
+            load15,
+            process_count: process_count(&self.system),
             tcp_connection_count,
             udp_connection_count,
+            temperatures,
             boot_time_seconds: System::boot_time(),
             uptime_seconds: System::uptime(),
             agent_version: env!("CARGO_PKG_VERSION").to_string(),
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn load_average(&mut self, cpu_percent: f64) -> (f64, f64, f64) {
+        let core_count = self.system.cpus().len().max(1) as f64;
+        let current = (cpu_percent / 100.0) * core_count;
+        self.load1 = smooth_load(self.load1, current, 60.0);
+        self.load5 = smooth_load(self.load5, current, 300.0);
+        self.load15 = smooth_load(self.load15, current, 900.0);
+        (round2(self.load1), round2(self.load5), round2(self.load15))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn load_average(&mut self, _cpu_percent: f64) -> (f64, f64, f64) {
+        let load = System::load_average();
+        (round2(load.one), round2(load.five), round2(load.fifteen))
     }
 }
 
@@ -1313,6 +1358,75 @@ fn round2(value: f64) -> f64 {
     (value * 100.0).round() / 100.0
 }
 
+fn collect_temperature_readings(components: &Components) -> Vec<TemperatureReading> {
+    components
+        .iter()
+        .filter_map(|component| {
+            let value = component.temperature().map(f64::from)?;
+            if !value.is_finite() {
+                return None;
+            }
+            let name = component.label().trim();
+            if name.is_empty() {
+                return None;
+            }
+            Some(TemperatureReading {
+                name: name.to_string(),
+                value: round2(value),
+                kind: classify_temperature_kind(name).to_string(),
+                max: sanitize_temperature(component.max().map(f64::from)),
+                critical: sanitize_temperature(component.critical().map(f64::from)),
+            })
+        })
+        .collect()
+}
+
+fn sanitize_temperature(value: Option<f64>) -> Option<f64> {
+    value.filter(|value| value.is_finite()).map(round2)
+}
+
+fn classify_temperature_kind(name: &str) -> &'static str {
+    let lower = name.to_ascii_lowercase();
+    if lower.contains("gpu")
+        || lower.contains("nvidia")
+        || lower.contains("radeon")
+        || lower.contains("amdgpu")
+    {
+        "gpu"
+    } else if lower.contains("nvme")
+        || lower.contains("ssd")
+        || lower.contains("hdd")
+        || lower.contains("disk")
+        || lower.contains("drive")
+    {
+        "disk"
+    } else if lower.contains("cpu")
+        || lower.contains("core")
+        || lower.contains("package")
+        || lower.contains("tctl")
+        || lower.contains("tdie")
+    {
+        "cpu"
+    } else if lower.contains("board")
+        || lower.contains("motherboard")
+        || lower.contains("pch")
+        || lower.contains("acpi")
+    {
+        "board"
+    } else {
+        "sensor"
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn smooth_load(previous: f64, current: f64, window_secs: f64) -> f64 {
+    if previous <= 0.0 {
+        return current;
+    }
+    let alpha = 1.0 - (-1.0_f64 / window_secs).exp();
+    previous + alpha * (current - previous)
+}
+
 fn network_connection_counts() -> (usize, usize) {
     #[cfg(target_os = "linux")]
     {
@@ -1325,32 +1439,31 @@ fn network_connection_counts() -> (usize, usize) {
     }
     #[cfg(not(target_os = "linux"))]
     {
-        (0, 0)
+        platform_network_connection_counts()
     }
 }
 
-fn process_count() -> usize {
-    #[cfg(target_os = "linux")]
-    {
-        fs::read_dir("/proc")
-            .map(|entries| {
-                entries
-                    .flatten()
-                    .filter(|entry| {
-                        entry
-                            .file_name()
-                            .to_string_lossy()
-                            .chars()
-                            .all(|ch| ch.is_ascii_digit())
-                    })
-                    .count()
-            })
-            .unwrap_or(0)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        0
-    }
+#[cfg(target_os = "linux")]
+fn process_count(_system: &System) -> usize {
+    fs::read_dir("/proc")
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .chars()
+                        .all(|ch| ch.is_ascii_digit())
+                })
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn process_count(system: &System) -> usize {
+    system.processes().len()
 }
 
 #[cfg(target_os = "linux")]
@@ -1364,6 +1477,64 @@ fn proc_net_connection_count(path: &str) -> usize {
                 .count()
         })
         .unwrap_or(0)
+}
+
+#[cfg(target_os = "windows")]
+fn platform_network_connection_counts() -> (usize, usize) {
+    let output = match Command::new("netstat").arg("-ano").output() {
+        Ok(output) if output.status.success() => output,
+        _ => return (0, 0),
+    };
+    count_netstat_protocol_lines(&String::from_utf8_lossy(&output.stdout))
+}
+
+#[cfg(target_os = "macos")]
+fn platform_network_connection_counts() -> (usize, usize) {
+    let tcp = std::process::Command::new("netstat")
+        .args(["-an", "-p", "tcp"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| count_netstat_protocol_lines(&String::from_utf8_lossy(&output.stdout)).0)
+        .unwrap_or(0);
+    let udp = std::process::Command::new("netstat")
+        .args(["-an", "-p", "udp"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| count_netstat_protocol_lines(&String::from_utf8_lossy(&output.stdout)).1)
+        .unwrap_or(0);
+    (tcp, udp)
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+fn count_netstat_protocol_lines(content: &str) -> (usize, usize) {
+    let mut tcp = 0_usize;
+    let mut udp = 0_usize;
+    for line in content.lines() {
+        let proto = line.split_whitespace().next().unwrap_or("");
+        if proto.eq_ignore_ascii_case("tcp")
+            || proto.eq_ignore_ascii_case("tcp4")
+            || proto.eq_ignore_ascii_case("tcp6")
+        {
+            tcp += 1;
+        } else if proto.eq_ignore_ascii_case("udp")
+            || proto.eq_ignore_ascii_case("udp4")
+            || proto.eq_ignore_ascii_case("udp6")
+        {
+            udp += 1;
+        }
+    }
+    (tcp, udp)
+}
+
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "windows"),
+    not(target_os = "macos")
+))]
+fn platform_network_connection_counts() -> (usize, usize) {
+    (0, 0)
 }
 
 fn detect_gpu_models() -> Vec<String> {
@@ -1482,7 +1653,7 @@ fn register_device(
         name: cfg.device_name.clone(),
         hostname: hostname.to_string(),
         ip: ip.to_string(),
-        device_type: "physical".to_string(),
+        device_type: detect_device_type(),
         os_name,
         architecture: std::env::consts::ARCH.to_string(),
         location: String::new(),
@@ -4121,6 +4292,110 @@ fn detect_os_name() -> String {
         .or_else(|| std::env::var("PRETTY_NAME").ok())
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| std::env::consts::OS.to_string())
+}
+
+fn detect_device_type() -> String {
+    if detect_virtual_machine() {
+        "virtual".to_string()
+    } else {
+        "physical".to_string()
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn detect_virtual_machine() -> bool {
+    let values = [
+        "/sys/class/dmi/id/product_name",
+        "/sys/class/dmi/id/sys_vendor",
+        "/sys/class/dmi/id/board_vendor",
+        "/sys/class/dmi/id/bios_vendor",
+        "/proc/device-tree/hypervisor/compatible",
+    ]
+    .iter()
+    .filter_map(|path| fs::read_to_string(path).ok())
+    .collect::<Vec<_>>()
+    .join(" ");
+    contains_virtualization_marker(&values)
+}
+
+#[cfg(target_os = "windows")]
+fn detect_virtual_machine() -> bool {
+    let registry_values = [
+        r"HKLM\HARDWARE\DESCRIPTION\System\BIOS",
+        r"HKLM\HARDWARE\DESCRIPTION\System",
+    ]
+    .iter()
+    .filter_map(|key| Command::new("reg").args(["query", key]).output().ok())
+    .filter(|output| output.status.success())
+    .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+    .collect::<Vec<_>>()
+    .join(" ");
+    if contains_virtualization_marker(&registry_values) {
+        return true;
+    }
+    if let Ok(output) = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "(Get-CimInstance Win32_ComputerSystem | Select-Object -ExpandProperty Manufacturer) + ' ' + (Get-CimInstance Win32_ComputerSystem | Select-Object -ExpandProperty Model)",
+        ])
+        .output()
+    {
+        if output.status.success()
+            && contains_virtualization_marker(&String::from_utf8_lossy(&output.stdout))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(target_os = "macos")]
+fn detect_virtual_machine() -> bool {
+    if let Ok(output) = std::process::Command::new("sysctl")
+        .args(["-n", "machdep.cpu.features"])
+        .output()
+    {
+        if output.status.success()
+            && contains_virtualization_marker(&String::from_utf8_lossy(&output.stdout))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+fn detect_virtual_machine() -> bool {
+    false
+}
+
+fn contains_virtualization_marker(value: &str) -> bool {
+    let value = value.to_ascii_lowercase();
+    [
+        "kvm",
+        "qemu",
+        "bochs",
+        "xen",
+        "vmware",
+        "virtualbox",
+        "virtual machine",
+        "hyper-v",
+        "microsoft corporation virtual",
+        "parallels",
+        "bhyve",
+        "openstack",
+        "cloudstack",
+        "rhev",
+        "ovirt",
+        "amazon ec2",
+        "google compute engine",
+        "alibaba cloud",
+        "tencent cloud",
+        "azure",
+    ]
+    .iter()
+    .any(|marker| value.contains(marker))
 }
 
 fn parse_os_release_name(content: &str) -> Option<String> {

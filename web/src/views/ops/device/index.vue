@@ -107,7 +107,12 @@
           <template #header>
             <div class="table-header">
               <div class="table-header__toggle-row">
-                <n-button quaternary size="small" class="table-header__toggle" @click="toggleGroupPanel">
+                <n-button
+                  quaternary
+                  size="small"
+                  class="table-header__toggle"
+                  @click="toggleGroupPanel"
+                >
                   <template #icon>
                     <n-icon>
                       <component :is="groupCollapsed ? MenuUnfoldOutlined : MenuFoldOutlined" />
@@ -320,11 +325,11 @@
                           { size: 16 },
                           {
                             default: () => h(EllipsisOutlined),
-                          },
+                          }
                         ),
-                    },
+                    }
                   ),
-              },
+              }
             )
           : null,
       ]);
@@ -1024,9 +1029,8 @@
 
   :deep(.device-monitor-detail) {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 320px));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px 28px;
-    justify-content: start;
     min-width: 0;
     padding-top: 12px;
     border-top: 1px solid rgba(148, 163, 184, 0.18);
@@ -1047,8 +1051,8 @@
 
   :deep(.device-monitor-detail__row) {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 8px;
     min-width: 0;
     align-items: start;
     color: #334155;
@@ -1066,7 +1070,18 @@
     min-width: 0;
     color: #0f172a;
     font-weight: 600;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  :deep(.device-monitor-detail__temperature .device-monitor-detail__row) {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  :deep(.device-monitor-detail__temperature .device-monitor-detail__value) {
+    color: #1e293b;
+    font-size: 12px;
+    line-height: 19px;
   }
 
   @media (max-width: 768px) {
@@ -1098,6 +1113,10 @@
     :deep(.device-monitor-facts),
     :deep(.device-monitor-detail) {
       grid-template-columns: 1fr;
+    }
+
+    :deep(.device-monitor-detail) {
+      gap: 14px;
     }
 
     :deep(.device-monitor-panel) {

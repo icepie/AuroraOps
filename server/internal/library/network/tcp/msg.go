@@ -106,36 +106,45 @@ type DeviceHeartbeatRes struct {
 }
 
 type DeviceMonitorSnapshot struct {
-	System             string   `json:"system"           description:"系统名称"`
-	Architecture       string   `json:"architecture"     description:"系统架构"`
-	CpuModel           string   `json:"cpuModel"         description:"CPU型号"`
-	GpuModels          []string `json:"gpuModels"        description:"GPU型号列表"`
-	CpuPercent         float64  `json:"cpuPercent"       description:"CPU使用率"`
-	MemoryPercent      float64  `json:"memoryPercent"    description:"内存使用率"`
-	SwapPercent        float64  `json:"swapPercent"      description:"交换分区使用率"`
-	SwapEnabled        bool     `json:"swapEnabled"      description:"是否启用交换分区"`
-	DiskPercent        float64  `json:"diskPercent"      description:"磁盘使用率"`
-	NetRxRateBytes     float64  `json:"netRxRateBytes"   description:"网络下行速率"`
-	NetTxRateBytes     float64  `json:"netTxRateBytes"   description:"网络上行速率"`
-	NetRxBytes         uint64   `json:"netRxBytes"       description:"网络累计下行流量"`
-	NetTxBytes         uint64   `json:"netTxBytes"       description:"网络累计上行流量"`
-	CpuCores           int      `json:"cpuCores"         description:"CPU核心数"`
-	CpuPhysicalCores   int      `json:"cpuPhysicalCores" description:"CPU物理核心数"`
-	MemoryUsedBytes    uint64   `json:"memoryUsedBytes"  description:"内存已用量"`
-	MemoryTotalBytes   uint64   `json:"memoryTotalBytes" description:"内存总量"`
-	SwapUsedBytes      uint64   `json:"swapUsedBytes"    description:"交换分区已用量"`
-	SwapTotalBytes     uint64   `json:"swapTotalBytes"   description:"交换分区总量"`
-	DiskUsedBytes      uint64   `json:"diskUsedBytes"    description:"磁盘已用量"`
-	DiskTotalBytes     uint64   `json:"diskTotalBytes"   description:"磁盘总量"`
-	Load1              float64  `json:"load1"            description:"1分钟负载"`
-	Load5              float64  `json:"load5"            description:"5分钟负载"`
-	Load15             float64  `json:"load15"           description:"15分钟负载"`
-	ProcessCount       int      `json:"processCount"     description:"进程数"`
-	TcpConnectionCount int      `json:"tcpConnectionCount" description:"TCP连接数"`
-	UdpConnectionCount int      `json:"udpConnectionCount" description:"UDP连接数"`
-	BootTimeSeconds    uint64   `json:"bootTimeSeconds"  description:"系统启动时间"`
-	UptimeSeconds      uint64   `json:"uptimeSeconds"    description:"在线时长"`
-	AgentVersion       string   `json:"agentVersion"     description:"Agent版本"`
+	System             string                      `json:"system"           description:"系统名称"`
+	Architecture       string                      `json:"architecture"     description:"系统架构"`
+	CpuModel           string                      `json:"cpuModel"         description:"CPU型号"`
+	GpuModels          []string                    `json:"gpuModels"        description:"GPU型号列表"`
+	CpuPercent         float64                     `json:"cpuPercent"       description:"CPU使用率"`
+	MemoryPercent      float64                     `json:"memoryPercent"    description:"内存使用率"`
+	SwapPercent        float64                     `json:"swapPercent"      description:"交换分区使用率"`
+	SwapEnabled        bool                        `json:"swapEnabled"      description:"是否启用交换分区"`
+	DiskPercent        float64                     `json:"diskPercent"      description:"磁盘使用率"`
+	NetRxRateBytes     float64                     `json:"netRxRateBytes"   description:"网络下行速率"`
+	NetTxRateBytes     float64                     `json:"netTxRateBytes"   description:"网络上行速率"`
+	NetRxBytes         uint64                      `json:"netRxBytes"       description:"网络累计下行流量"`
+	NetTxBytes         uint64                      `json:"netTxBytes"       description:"网络累计上行流量"`
+	CpuCores           int                         `json:"cpuCores"         description:"CPU核心数"`
+	CpuPhysicalCores   int                         `json:"cpuPhysicalCores" description:"CPU物理核心数"`
+	MemoryUsedBytes    uint64                      `json:"memoryUsedBytes"  description:"内存已用量"`
+	MemoryTotalBytes   uint64                      `json:"memoryTotalBytes" description:"内存总量"`
+	SwapUsedBytes      uint64                      `json:"swapUsedBytes"    description:"交换分区已用量"`
+	SwapTotalBytes     uint64                      `json:"swapTotalBytes"   description:"交换分区总量"`
+	DiskUsedBytes      uint64                      `json:"diskUsedBytes"    description:"磁盘已用量"`
+	DiskTotalBytes     uint64                      `json:"diskTotalBytes"   description:"磁盘总量"`
+	Load1              float64                     `json:"load1"            description:"1分钟负载"`
+	Load5              float64                     `json:"load5"            description:"5分钟负载"`
+	Load15             float64                     `json:"load15"           description:"15分钟负载"`
+	ProcessCount       int                         `json:"processCount"     description:"进程数"`
+	TcpConnectionCount int                         `json:"tcpConnectionCount" description:"TCP连接数"`
+	UdpConnectionCount int                         `json:"udpConnectionCount" description:"UDP连接数"`
+	Temperatures       []DeviceTemperatureSnapshot `json:"temperatures"     description:"温度列表"`
+	BootTimeSeconds    uint64                      `json:"bootTimeSeconds"  description:"系统启动时间"`
+	UptimeSeconds      uint64                      `json:"uptimeSeconds"    description:"在线时长"`
+	AgentVersion       string                      `json:"agentVersion"     description:"Agent版本"`
+}
+
+type DeviceTemperatureSnapshot struct {
+	Name     string   `json:"name"     description:"传感器名称"`
+	Value    float64  `json:"value"    description:"当前温度"`
+	Kind     string   `json:"kind"     description:"传感器类型"`
+	Max      *float64 `json:"max"      description:"最高温度"`
+	Critical *float64 `json:"critical" description:"临界温度"`
 }
 
 type DeviceMonitorReportReq struct {
