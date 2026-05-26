@@ -88,6 +88,7 @@ fn main() {
         ] {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
+        // Cargo has no `weak_framework` link-lib kind; pass it through to ld.
         for framework in ["CoreDisplay", "DisplayServices", "MediaRemote"] {
             println!("cargo:rustc-link-arg=-Wl,-weak_framework,{framework}");
         }
