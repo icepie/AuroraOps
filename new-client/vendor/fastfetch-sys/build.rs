@@ -89,7 +89,7 @@ fn main() {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
         for framework in ["CoreDisplay", "DisplayServices", "MediaRemote"] {
-            println!("cargo:rustc-link-lib=weak_framework={framework}");
+            println!("cargo:rustc-link-arg=-Wl,-weak_framework,{framework}");
         }
     }
 }

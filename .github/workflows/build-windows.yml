@@ -42,6 +42,10 @@ jobs:
       - name: Install TypeScript compiler
         run: npm install -g typescript
 
+      - name: Add MinGW to PATH
+        shell: pwsh
+        run: echo "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
+
       - name: Build AuroraOps client
         working-directory: new-client
         env:
@@ -51,7 +55,6 @@ jobs:
           CC: C:\msys64\mingw64\bin\gcc.exe
           CXX: C:\msys64\mingw64\bin\g++.exe
           LIBCLANG_PATH: C:\msys64\mingw64\bin
-          PATH: C:\msys64\mingw64\bin;${{ env.PATH }}
         run: cargo build --release --target x86_64-pc-windows-gnu --bin auroraops-agent
 
       - name: Install NSIS
