@@ -54,6 +54,12 @@ pub struct WinCtx {
     union_rect: RECT,
 }
 
+#[derive(Clone)]
+pub struct WinOutput {
+    pub capture_id: u8,
+    pub desc: DXGI_OUTPUT_DESC,
+}
+
 impl WinCtx {
     pub fn new() -> WinCtx {
         let mut desktops: Vec<DXGI_OUTPUT_DESC> = Vec::new();
@@ -82,10 +88,27 @@ impl WinCtx {
             union_rect: union,
         }
     }
-    pub fn get_outputs(&self) -> &Vec<DXGI_OUTPUT_DESC> {
-        &self.outputs
+    pub fn get_capture_outputs(&self) -> Vec<WinOutput> {
+        let mut outputs = self.outputs.clone();
+        outputs.sort_by_key(|desc| if is_primary(desc.Monitor) { 0 } else { 1 });
+        outputs
+            .into_iter()
+            .enumerate()
+            .map(|(index, desc)| WinOutput {
+                capture_id: index as u8,
+                desc,
+            })
+            .collect()
     }
     pub fn get_union_rect(&self) -> &RECT {
         &self.union_rect
+    }
+}
+
+fn is_primary(monitor: HMONITOR) -> bool {
+    unsafe {
+        let mut info: MONITORINFO = mem::zeroed();
+        info.cbSize = mem::size_of::<MONITORINFO>() as u32;
+        GetMonitorInfoW(monitor, &mut info) != 0 && (info.dwFlags & MONITORINFOF_PRIMARY) != 0
     }
 }

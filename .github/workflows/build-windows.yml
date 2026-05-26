@@ -1,0 +1,58 @@
+name: build-windows-client
+
+on:
+  push:
+    branches: [main, v2.0]
+    paths:
+      - 'new-client/**'
+      - '.github/workflows/build-windows.yml'
+  pull_request:
+    paths:
+      - 'new-client/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: windows-x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install TypeScript compiler
+        run: npm install -g typescript
+
+      - name: Build AuroraOps client
+        working-directory: new-client
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: cargo build --release --bin auroraops-agent
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Build setup exe
+        working-directory: new-client
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          makensis.exe /DVERSION=$version /DSOURCE_EXE="$PWD\target\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
+
+      - name: Stage artifacts
+        working-directory: new-client
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\windows | Out-Null
+          Copy-Item target\release\auroraops-agent.exe dist\windows\auroraops-agent-windows-x64.exe
+          Copy-Item AuroraOps-Client-Setup-*-x64.exe dist\windows\
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auroraops-client-windows-x64
+          path: new-client/dist/windows/*

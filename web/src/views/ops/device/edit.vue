@@ -28,6 +28,7 @@
                     clearable
                     filterable
                     placeholder="请选择设备分组"
+                    :render-label="renderGroupLabel"
                   />
                 </n-form-item>
               </n-gi>
@@ -54,6 +55,11 @@
               <n-gi span="1">
                 <n-form-item label="操作系统" path="osName">
                   <n-input v-model:value="formValue.osName" placeholder="如 Ubuntu 24.04" />
+                </n-form-item>
+              </n-gi>
+              <n-gi span="1">
+                <n-form-item label="系统架构" path="architecture">
+                  <n-input v-model:value="formValue.architecture" placeholder="如 x86_64 / aarch64" />
                 </n-form-item>
               </n-gi>
               <n-gi span="2">
@@ -149,6 +155,13 @@
     loading.value = false;
   }
 
+  function renderGroupLabel(option) {
+    if (option?.value === 0) {
+      return '未分组';
+    }
+    return option?.label || option?.value || '-';
+  }
+
   function openModal(state: State) {
     showModal.value = true;
 
@@ -168,7 +181,9 @@
     loading.value = true;
     View({ id: state.id })
       .then((res) => {
-        formValue.value = newState(res);
+        const next = newState(res);
+        next.groupId = next.groupId ? next.groupId : 0;
+        formValue.value = next;
       })
       .finally(() => {
         loading.value = false;

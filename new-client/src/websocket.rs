@@ -13,7 +13,7 @@ use crate::capturable::{get_capturables, Capturable, Recorder};
 use crate::input::device::{InputDevice, InputDeviceType};
 use crate::protocol::{
     ClientConfiguration, KeyboardEvent, MessageInbound, MessageOutbound, PointerEvent,
-    WeylusReceiver, WeylusSender, WheelEvent,
+    RuntimeStatus, WeylusReceiver, WeylusSender, WheelEvent,
 };
 
 use crate::cerror::CErrorCode;
@@ -41,6 +41,54 @@ where
     if let Err(err) = sender.send_message(message) {
         warn!("Failed to send message to client: {err}");
     }
+}
+
+fn send_runtime_status<S>(sender: &mut S, capture_backend: &str, encoder_backend: &str)
+where
+    S: WeylusSender,
+{
+    send_message(
+        sender,
+        MessageOutbound::RuntimeStatus(RuntimeStatus {
+            capture_backend: Some(capture_backend.to_string()),
+            encoder_backend: Some(encoder_backend.to_string()),
+            input_backend: None,
+            pointer_backend: None,
+            keyboard_backend: None,
+        }),
+    );
+}
+
+fn send_input_status<S>(sender: &mut S, input_backend: &str)
+where
+    S: WeylusSender,
+{
+    send_message(
+        sender,
+        MessageOutbound::RuntimeStatus(RuntimeStatus {
+            capture_backend: None,
+            encoder_backend: None,
+            input_backend: Some(input_backend.to_string()),
+            pointer_backend: None,
+            keyboard_backend: None,
+        }),
+    );
+}
+
+fn send_pointer_status<S>(sender: &mut S, pointer_backend: impl Into<String>)
+where
+    S: WeylusSender,
+{
+    send_message(
+        sender,
+        MessageOutbound::RuntimeStatus(RuntimeStatus {
+            capture_backend: None,
+            encoder_backend: None,
+            input_backend: None,
+            pointer_backend: Some(pointer_backend.into()),
+            keyboard_backend: None,
+        }),
+    );
 }
 
 #[cfg(target_os = "linux")]
@@ -185,23 +233,73 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         }
     }
 
-    fn process_pointer_event(&mut self, event: &PointerEvent) {
+    fn process_pointer_event(&mut self, event: &PointerEvent)
+    where
+        S: WeylusSender,
+    {
         if self.input_device.is_some() {
             self.input_device
                 .as_mut()
                 .unwrap()
-                .send_pointer_event(event)
+                .send_pointer_event(event);
+            if !matches!(event.event_type, crate::protocol::PointerEventType::MOVE) {
+                send_pointer_status(
+                    &mut self.sender,
+                    format!(
+                        "agent recv {:?} type={:?} button={:?} buttons={:?} x={:.4} y={:.4}",
+                        event.event_type,
+                        event.pointer_type,
+                        event.button,
+                        event.buttons,
+                        event.x,
+                        event.y
+                    ),
+                );
+            }
         } else {
             warn!("Input device is not initalized, can not process PointerEvent!");
         }
     }
 
-    fn process_keyboard_event(&mut self, event: &KeyboardEvent) {
+    fn process_keyboard_event(&mut self, event: &KeyboardEvent)
+    where
+        S: WeylusSender,
+    {
         if self.input_device.is_some() {
-            self.input_device
-                .as_mut()
-                .unwrap()
-                .send_keyboard_event(event)
+            let keyboard_backend = format!(
+                "agent recv {} code={} key={}",
+                match event.event_type {
+                    crate::protocol::KeyboardEventType::DOWN => "down",
+                    crate::protocol::KeyboardEventType::UP => "up",
+                    crate::protocol::KeyboardEventType::REPEAT => "repeat",
+                },
+                event.code,
+                event.key
+            );
+            let mut statuses = self.input_device.as_mut().unwrap().drain_keyboard_status();
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.input_device
+                    .as_mut()
+                    .unwrap()
+                    .send_keyboard_event(event)
+            }));
+            if result.is_err() {
+                warn!(
+                    "Keyboard input handler panicked; event skipped: code={} key={}",
+                    event.code, event.key
+                );
+            }
+            statuses.insert(0, keyboard_backend);
+            statuses.append(&mut self.input_device.as_mut().unwrap().drain_keyboard_status());
+            for status in statuses {
+                self.send_message(MessageOutbound::RuntimeStatus(RuntimeStatus {
+                    capture_backend: None,
+                    encoder_backend: None,
+                    input_backend: None,
+                    pointer_backend: None,
+                    keyboard_backend: Some(status),
+                }));
+            }
         } else {
             warn!("Input device is not initalized, can not process KeyboardEvent!");
         }
@@ -408,6 +506,19 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                     .map(|d| d.set_capturable(capturable.clone()));
             }
 
+            let input_backend = self
+                .input_device
+                .as_ref()
+                .map(|device| {
+                    #[cfg(target_os = "windows")]
+                    if device.device_type() == InputDeviceType::WindowsInput {
+                        return crate::input::autopilot_device_win::input_backend_label();
+                    }
+                    device.device_type().label().to_string()
+                })
+                .unwrap_or_else(|| "不可用".to_string());
+            send_input_status(&mut self.sender, &input_backend);
+
             self.video_sender
                 .send(VideoCommands::Start(VideoConfig {
                     capturable,
@@ -430,6 +541,8 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
 
     let mut recorder: Option<Box<dyn Recorder>> = None;
     let mut video_encoder: Option<Box<VideoEncoder>> = None;
+    let mut capture_backend = "未启动".to_string();
+    let mut encoder_backend = "未启动".to_string();
 
     let mut max_width = 1920;
     let mut max_height = 1080;
@@ -479,17 +592,24 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                 }
                 match result {
                     Ok(r) => {
+                        capture_backend = r.backend_name().to_string();
+                        encoder_backend = "等待视频流".to_string();
                         recorder = Some(r);
+                        video_encoder = None;
                         max_width = config.max_width;
                         max_height = config.max_height;
                         send_message(&mut sender, MessageOutbound::ConfigOk);
+                        send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
                     }
                     Err(err) => {
+                        capture_backend = "初始化失败".to_string();
+                        encoder_backend = "未启动".to_string();
                         warn!("Failed to init screen cast: {}!", err);
                         send_message(
                             &mut sender,
-                            MessageOutbound::Error("Failed to init screen cast!".into()),
-                        )
+                            MessageOutbound::Error(format!("Failed to init screen cast: {err}!")),
+                        );
+                        send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
                     }
                 }
                 last_frame = Instant::now();
@@ -513,6 +633,8 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
             }
             Ok(VideoCommands::Restart) => {
                 video_encoder = None;
+                encoder_backend = "重启中".to_string();
+                send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
             }
             Err(RecvTimeoutError::Timeout) => {
                 if recorder.is_none() {
@@ -545,22 +667,28 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                         .check_size(width_in, height_in, width_out, height_out)
                 {
                     send_message(&mut sender, MessageOutbound::NewVideo);
-                    let mut sender = sender.clone();
+                    let mut video_sender = sender.clone();
                     let res = VideoEncoder::new(
                         width_in,
                         height_in,
                         width_out,
                         height_out,
                         move |data| {
-                            if let Err(err) = sender.send_video(data) {
+                            if let Err(err) = video_sender.send_video(data) {
                                 warn!("Failed to send video frame: {err}!");
                             }
                         },
                         encoder_options,
                     );
                     match res {
-                        Ok(r) => video_encoder = Some(r),
+                        Ok(r) => {
+                            encoder_backend = r.codec_name();
+                            video_encoder = Some(r);
+                            send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
+                        }
                         Err(e) => {
+                            encoder_backend = "初始化失败".to_string();
+                            send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
                             warn!("{}", e);
                             continue;
                         }

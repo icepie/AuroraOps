@@ -6,24 +6,32 @@
         <span class="desktop-state" :class="stateClass">{{ statusText }}</span>
       </div>
       <n-space align="center" :size="8">
-        <n-button class="desktop-action desktop-action-secondary" size="tiny" quaternary @click="reload">
+        <n-button
+          class="desktop-action desktop-action-secondary"
+          size="tiny"
+          quaternary
+          @mousedown.prevent
+          @click="reload"
+        >
           刷新
         </n-button>
         <n-button
           class="desktop-action desktop-action-primary"
           size="tiny"
           type="primary"
+          @mousedown.prevent
           @click="openStandalone"
         >
           新窗口
         </n-button>
       </n-space>
     </div>
-    <div class="desktop-frame-wrap">
+    <div class="desktop-frame-wrap" @pointerdown="focusFrame" @click="focusFrame">
       <iframe
         ref="frameRef"
         class="desktop-frame"
         :src="weylusUrl"
+        tabindex="0"
         title="AuroraOps 远程桌面"
         allow="fullscreen; clipboard-read; clipboard-write"
         @load="handleLoad"
@@ -34,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref, watchEffect } from 'vue';
+  import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
   import { useRoute } from 'vue-router';
   import { NButton, NSpace } from 'naive-ui';
   import { ACCESS_TOKEN } from '@/store/mutation-types';
@@ -76,6 +84,7 @@
   function handleLoad() {
     loaded.value = true;
     failed.value = false;
+    focusFrame();
   }
 
   function handleError() {
@@ -89,11 +98,84 @@
     if (frame) {
       frame.src = weylusUrl.value;
     }
+    focusFrame();
   }
 
   function openStandalone() {
     window.open(weylusUrl.value, '_blank', 'noopener,noreferrer');
   }
+
+  function focusFrame() {
+    window.requestAnimationFrame(() => {
+      const frame = frameRef.value;
+      if (!frame) return;
+      try {
+        frame.focus();
+      } catch {
+        // ignore focus failures for browsers that block iframe focus during navigation.
+      }
+      try {
+        frame.contentWindow?.focus();
+      } catch {
+        // ignore cross-frame focus restrictions.
+      }
+    });
+  }
+
+  function shouldKeepKeyboardLocal(event: KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target) return false;
+    if (target.isContentEditable) return true;
+    const tagName = target.tagName;
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+  }
+
+  function forwardKeyboardToFrame(event: KeyboardEvent) {
+    if (shouldKeepKeyboardLocal(event)) return;
+    const frame = frameRef.value;
+    const frameWindow = frame?.contentWindow;
+    const frameDocument = frame?.contentDocument;
+    if (!frame || !frameWindow || !frameDocument) return;
+
+    try {
+      frame.focus();
+      frameWindow.focus();
+      const forwarded = new KeyboardEvent(event.type, {
+        key: event.key,
+        code: event.code,
+        location: event.location,
+        repeat: event.repeat,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        metaKey: event.metaKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      frameDocument.dispatchEvent(forwarded);
+      event.preventDefault();
+      event.stopPropagation();
+    } catch {
+      // The iframe is same-origin in normal deployments. Ignore transient focus
+      // errors while it is navigating or reloading.
+    }
+  }
+
+  nextTick(() => {
+    focusFrame();
+  });
+
+  onMounted(() => {
+    window.addEventListener('keydown', forwardKeyboardToFrame, true);
+    window.addEventListener('keyup', forwardKeyboardToFrame, true);
+    window.addEventListener('keypress', forwardKeyboardToFrame, true);
+  });
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('keydown', forwardKeyboardToFrame, true);
+    window.removeEventListener('keyup', forwardKeyboardToFrame, true);
+    window.removeEventListener('keypress', forwardKeyboardToFrame, true);
+  });
 </script>
 
 <style scoped lang="less">

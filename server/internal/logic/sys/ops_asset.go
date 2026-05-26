@@ -50,14 +50,29 @@ func (s *sSysOpsAsset) List(ctx context.Context, in *sysin.OpsAssetListInp) (lis
 		"a.brand",
 		"a.model",
 		"a.serial_no",
+		"a.specification",
+		"a.sort",
+		"a.remark",
 		"a.status",
 		"a.created_at",
+	}
+
+	if _, ok := fields[dao.OpsAsset.Columns().UniqueKey]; ok {
+		selectFields = append(selectFields, "a.unique_key")
+	} else {
+		selectFields = append(selectFields, "a.serial_no as unique_key")
 	}
 
 	if _, ok := fields[dao.OpsAsset.Columns().Source]; ok {
 		selectFields = append(selectFields, "a.source")
 	} else {
 		selectFields = append(selectFields, "'manual' as source")
+	}
+
+	if _, ok := fields[dao.OpsAsset.Columns().SyncHash]; ok {
+		selectFields = append(selectFields, "a.sync_hash")
+	} else {
+		selectFields = append(selectFields, "'' as sync_hash")
 	}
 
 	if _, ok := fields[dao.OpsAsset.Columns().LastSeenAt]; ok {
@@ -110,9 +125,21 @@ func (s *sSysOpsAsset) Edit(ctx context.Context, in *sysin.OpsAssetEditInp) (err
 		return gerror.New("所属设备不存在，请重新选择")
 	}
 
+	fields, err := dao.OpsAsset.Ctx(ctx).TableFields(dao.OpsAsset.Table())
+	if err != nil {
+		return gerror.Wrap(err, "读取运维资产表结构失败，请稍后重试！")
+	}
+	schema := opsAssetSchema{
+		HasUniqueKey:  hasTableField(fields, dao.OpsAsset.Columns().UniqueKey),
+		HasSource:     hasTableField(fields, dao.OpsAsset.Columns().Source),
+		HasSyncHash:   hasTableField(fields, dao.OpsAsset.Columns().SyncHash),
+		HasLastSeenAt: hasTableField(fields, dao.OpsAsset.Columns().LastSeenAt),
+	}
+
 	data := do.OpsAsset{
 		DeviceId:      in.DeviceId,
 		AssetType:     in.AssetType,
+		UniqueKey:     firstNonEmpty(in.UniqueKey, in.SerialNo),
 		AssetName:     in.AssetName,
 		Brand:         in.Brand,
 		Model:         in.Model,
@@ -124,11 +151,14 @@ func (s *sSysOpsAsset) Edit(ctx context.Context, in *sysin.OpsAssetEditInp) (err
 		Remark:        in.Remark,
 		Status:        in.Status,
 	}
+	if !schema.HasUniqueKey {
+		data.SerialNo = firstNonEmpty(in.UniqueKey, in.SerialNo)
+	}
 
 	return g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) (err error) {
 		if in.Id > 0 {
 			if _, err = s.Model(ctx).
-				Fields(sysin.OpsAssetUpdateFields{}).
+				Fields(s.assetEditFields(schema)...).
 				WherePri(in.Id).
 				Data(data).
 				Update(); err != nil {
@@ -138,7 +168,7 @@ func (s *sSysOpsAsset) Edit(ctx context.Context, in *sysin.OpsAssetEditInp) (err
 		}
 
 		if _, err = s.Model(ctx, &handler.Option{FilterAuth: false}).
-			Fields(sysin.OpsAssetInsertFields{}).
+			Fields(s.assetEditFields(schema)...).
 			Data(data).
 			OmitEmptyData().
 			Insert(); err != nil {
@@ -197,6 +227,17 @@ func (s *sSysOpsAsset) ClientSync(ctx context.Context, in *sysin.OpsAssetClientS
 		return nil, gerror.New("所属设备不存在，请重新绑定")
 	}
 
+	fields, err := dao.OpsAsset.Ctx(ctx).TableFields(dao.OpsAsset.Table())
+	if err != nil {
+		return nil, gerror.Wrap(err, "读取运维资产表结构失败，请稍后重试！")
+	}
+	schema := opsAssetSchema{
+		HasUniqueKey:  hasTableField(fields, dao.OpsAsset.Columns().UniqueKey),
+		HasSource:     hasTableField(fields, dao.OpsAsset.Columns().Source),
+		HasSyncHash:   hasTableField(fields, dao.OpsAsset.Columns().SyncHash),
+		HasLastSeenAt: hasTableField(fields, dao.OpsAsset.Columns().LastSeenAt),
+	}
+
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) (err error) {
 		var existing []*entity.OpsAsset
 		if err = dao.OpsAsset.Ctx(ctx).
@@ -211,7 +252,7 @@ func (s *sSysOpsAsset) ClientSync(ctx context.Context, in *sysin.OpsAssetClientS
 			if item == nil {
 				continue
 			}
-			key := s.assetSyncKey(item.AssetType, item.SerialNo)
+			key := s.assetSyncKey(item.AssetType, s.assetStoredUniqueKey(item, schema))
 			if _, ok := existingMap[key]; ok {
 				duplicates = append(duplicates, item)
 				continue
@@ -228,7 +269,8 @@ func (s *sSysOpsAsset) ClientSync(ctx context.Context, in *sysin.OpsAssetClientS
 		now := gtime.Now()
 
 		for _, item := range in.Assets {
-			key := s.assetSyncKey(item.AssetType, item.UniqueKey)
+			uniqueKey := s.assetIncomingUniqueKey(item)
+			key := s.assetSyncKey(item.AssetType, uniqueKey)
 			seen[key] = struct{}{}
 			syncHash := s.assetSyncHash(item)
 			assetName := strings.TrimSpace(item.AssetName)
@@ -239,15 +281,19 @@ func (s *sSysOpsAsset) ClientSync(ctx context.Context, in *sysin.OpsAssetClientS
 			payload := do.OpsAsset{
 				DeviceId:      in.DeviceId,
 				AssetType:     item.AssetType,
+				UniqueKey:     uniqueKey,
 				AssetName:     assetName,
 				Brand:         item.Brand,
 				Model:         item.Model,
-				SerialNo:      item.UniqueKey,
+				SerialNo:      item.SerialNo,
 				Specification: item.Specification,
 				Source:        firstNonEmpty(strings.TrimSpace(item.Source), "agent"),
 				SyncHash:      syncHash,
 				LastSeenAt:    now,
 				Remark:        item.Remark,
+			}
+			if !schema.HasUniqueKey {
+				payload.SerialNo = uniqueKey
 			}
 
 			if current, ok := existingMap[key]; ok && current.Id > 0 {
@@ -257,8 +303,8 @@ func (s *sSysOpsAsset) ClientSync(ctx context.Context, in *sysin.OpsAssetClientS
 				}
 				if _, err = dao.OpsAsset.Ctx(ctx).
 					WherePri(current.Id).
+					Fields(s.assetSyncUpdateFields(schema)...).
 					Data(payload).
-					OmitEmptyData().
 					Update(); err != nil {
 					return gerror.Wrap(err, "更新资产失败，请稍后重试！")
 				}
@@ -270,7 +316,7 @@ func (s *sSysOpsAsset) ClientSync(ctx context.Context, in *sysin.OpsAssetClientS
 			payload.Status = consts.StatusEnabled
 			nextSort++
 			if _, err = dao.OpsAsset.Ctx(ctx).
-				Fields(sysin.OpsAssetInsertFields{}).
+				Fields(s.assetSyncInsertFields(schema)...).
 				Data(payload).
 				OmitEmptyData().
 				Insert(); err != nil {
@@ -283,11 +329,14 @@ func (s *sSysOpsAsset) ClientSync(ctx context.Context, in *sysin.OpsAssetClientS
 			if item == nil {
 				continue
 			}
-			key := s.assetSyncKey(item.AssetType, item.SerialNo)
+			key := s.assetSyncKey(item.AssetType, s.assetStoredUniqueKey(item, schema))
 			if _, ok := seen[key]; ok {
 				continue
 			}
 			if item.Status == consts.StatusDisable {
+				continue
+			}
+			if !s.isAutoSyncedAsset(item) {
 				continue
 			}
 			if _, err = dao.OpsAsset.Ctx(ctx).
@@ -326,8 +375,20 @@ func (s *sSysOpsAsset) ClientPull(ctx context.Context, in *sysin.OpsAssetClientP
 		return nil, gerror.New("所属设备不存在，请重新绑定")
 	}
 
+	fields, err := dao.OpsAsset.Ctx(ctx).TableFields(dao.OpsAsset.Table())
+	if err != nil {
+		return nil, gerror.Wrap(err, "读取运维资产表结构失败，请稍后重试！")
+	}
+	schema := opsAssetSchema{
+		HasUniqueKey:  hasTableField(fields, dao.OpsAsset.Columns().UniqueKey),
+		HasSource:     hasTableField(fields, dao.OpsAsset.Columns().Source),
+		HasSyncHash:   hasTableField(fields, dao.OpsAsset.Columns().SyncHash),
+		HasLastSeenAt: hasTableField(fields, dao.OpsAsset.Columns().LastSeenAt),
+	}
+
 	var list []*entity.OpsAsset
 	if err = dao.OpsAsset.Ctx(ctx).
+		Fields(s.assetPullFields(schema)...).
 		Where(dao.OpsAsset.Columns().DeviceId, in.DeviceId).
 		OrderAsc(dao.OpsAsset.Columns().Sort).
 		OrderDesc(dao.OpsAsset.Columns().Id).
@@ -342,7 +403,7 @@ func (s *sSysOpsAsset) ClientPull(ctx context.Context, in *sysin.OpsAssetClientP
 		res.Assets = append(res.Assets, &sysin.OpsAssetClientPullItem{
 			Id:            item.Id,
 			AssetType:     item.AssetType,
-			UniqueKey:     item.SerialNo,
+			UniqueKey:     s.assetStoredUniqueKey(item, schema),
 			AssetName:     item.AssetName,
 			Brand:         item.Brand,
 			Model:         item.Model,
@@ -362,6 +423,147 @@ func (s *sSysOpsAsset) assetSyncKey(assetType, uniqueKey string) string {
 	return strings.TrimSpace(assetType) + "::" + strings.TrimSpace(uniqueKey)
 }
 
+type opsAssetSchema struct {
+	HasUniqueKey  bool
+	HasSource     bool
+	HasSyncHash   bool
+	HasLastSeenAt bool
+}
+
+func hasTableField(fields map[string]*gdb.TableField, name string) bool {
+	_, ok := fields[name]
+	return ok
+}
+
+func (s *sSysOpsAsset) assetIncomingUniqueKey(item *sysin.OpsAssetSyncItem) string {
+	if item == nil {
+		return ""
+	}
+	if value := strings.TrimSpace(item.UniqueKey); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(item.SerialNo); value != "" {
+		return value
+	}
+	return s.assetSyncHash(item)
+}
+
+func (s *sSysOpsAsset) assetStoredUniqueKey(item *entity.OpsAsset, schema opsAssetSchema) string {
+	if item == nil {
+		return ""
+	}
+	if schema.HasUniqueKey {
+		return firstNonEmpty(item.UniqueKey, item.SerialNo)
+	}
+	return item.SerialNo
+}
+
+func (s *sSysOpsAsset) isAutoSyncedAsset(item *entity.OpsAsset) bool {
+	if item == nil {
+		return false
+	}
+	switch strings.TrimSpace(item.Source) {
+	case "agent", "auroraops-agent", "fastfetch-sys":
+		return true
+	}
+	return strings.HasPrefix(strings.TrimSpace(item.Remark), "auto:")
+}
+
+func (s *sSysOpsAsset) assetEditFields(schema opsAssetSchema) []any {
+	fields := []any{
+		dao.OpsAsset.Columns().DeviceId,
+		dao.OpsAsset.Columns().AssetType,
+		dao.OpsAsset.Columns().AssetName,
+		dao.OpsAsset.Columns().Brand,
+		dao.OpsAsset.Columns().Model,
+		dao.OpsAsset.Columns().SerialNo,
+		dao.OpsAsset.Columns().Specification,
+		dao.OpsAsset.Columns().Sort,
+		dao.OpsAsset.Columns().Remark,
+		dao.OpsAsset.Columns().Status,
+	}
+	if schema.HasUniqueKey {
+		fields = append(fields, dao.OpsAsset.Columns().UniqueKey)
+	}
+	if schema.HasSource {
+		fields = append(fields, dao.OpsAsset.Columns().Source)
+	}
+	if schema.HasSyncHash {
+		fields = append(fields, dao.OpsAsset.Columns().SyncHash)
+	}
+	return fields
+}
+
+func (s *sSysOpsAsset) assetPullFields(schema opsAssetSchema) []any {
+	fields := []any{
+		dao.OpsAsset.Columns().Id,
+		dao.OpsAsset.Columns().DeviceId,
+		dao.OpsAsset.Columns().AssetType,
+		dao.OpsAsset.Columns().AssetName,
+		dao.OpsAsset.Columns().Brand,
+		dao.OpsAsset.Columns().Model,
+		dao.OpsAsset.Columns().SerialNo,
+		dao.OpsAsset.Columns().Specification,
+		dao.OpsAsset.Columns().Sort,
+		dao.OpsAsset.Columns().Remark,
+		dao.OpsAsset.Columns().Status,
+	}
+	if schema.HasUniqueKey {
+		fields = append(fields, dao.OpsAsset.Columns().UniqueKey)
+	}
+	if schema.HasSource {
+		fields = append(fields, dao.OpsAsset.Columns().Source)
+	}
+	if schema.HasSyncHash {
+		fields = append(fields, dao.OpsAsset.Columns().SyncHash)
+	}
+	if schema.HasLastSeenAt {
+		fields = append(fields, dao.OpsAsset.Columns().LastSeenAt)
+	}
+	return fields
+}
+
+func (s *sSysOpsAsset) assetSyncInsertFields(schema opsAssetSchema) []any {
+	fields := s.assetSyncWriteFields(schema)
+	fields = append(fields,
+		dao.OpsAsset.Columns().Sort,
+		dao.OpsAsset.Columns().Status,
+	)
+	return fields
+}
+
+func (s *sSysOpsAsset) assetSyncUpdateFields(schema opsAssetSchema) []any {
+	fields := s.assetSyncWriteFields(schema)
+	fields = append(fields, dao.OpsAsset.Columns().Status)
+	return fields
+}
+
+func (s *sSysOpsAsset) assetSyncWriteFields(schema opsAssetSchema) []any {
+	fields := []any{
+		dao.OpsAsset.Columns().DeviceId,
+		dao.OpsAsset.Columns().AssetType,
+		dao.OpsAsset.Columns().AssetName,
+		dao.OpsAsset.Columns().Brand,
+		dao.OpsAsset.Columns().Model,
+		dao.OpsAsset.Columns().SerialNo,
+		dao.OpsAsset.Columns().Specification,
+		dao.OpsAsset.Columns().Remark,
+	}
+	if schema.HasUniqueKey {
+		fields = append(fields, dao.OpsAsset.Columns().UniqueKey)
+	}
+	if schema.HasSource {
+		fields = append(fields, dao.OpsAsset.Columns().Source)
+	}
+	if schema.HasSyncHash {
+		fields = append(fields, dao.OpsAsset.Columns().SyncHash)
+	}
+	if schema.HasLastSeenAt {
+		fields = append(fields, dao.OpsAsset.Columns().LastSeenAt)
+	}
+	return fields
+}
+
 func (s *sSysOpsAsset) assetSyncHash(item *sysin.OpsAssetSyncItem) string {
 	if item == nil {
 		return ""
@@ -372,7 +574,10 @@ func (s *sSysOpsAsset) assetSyncHash(item *sysin.OpsAssetSyncItem) string {
 		strings.TrimSpace(item.AssetName),
 		strings.TrimSpace(item.Brand),
 		strings.TrimSpace(item.Model),
+		strings.TrimSpace(item.SerialNo),
 		strings.TrimSpace(item.Specification),
+		strings.TrimSpace(item.Source),
+		strings.TrimSpace(item.Remark),
 	}, "|")
 	sum := sha1.Sum([]byte(raw))
 	return hex.EncodeToString(sum[:])

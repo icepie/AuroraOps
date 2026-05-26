@@ -21,38 +21,44 @@ type OpsDeviceDao struct {
 
 // OpsDeviceColumns defines and stores column names for the table hg_ops_device.
 type OpsDeviceColumns struct {
-	Id         string // 设备ID
-	GroupId    string // 分组ID
-	Name       string // 设备名称
-	Hostname   string // 主机名
-	Ip         string // IP地址
-	DeviceType string // 设备类型
-	OsName     string // 操作系统
-	Location   string // 部署位置
-	Sort       string // 排序
-	Remark     string // 备注
-	Status     string // 状态，1正常，2停用
-	CreatedAt  string // 创建时间
-	UpdatedAt  string // 更新时间
-	DeletedAt  string // 删除时间
+	Id                string // 设备ID
+	GroupId           string // 分组ID
+	Name              string // 设备名称
+	Hostname          string // 主机名
+	Ip                string // IP地址
+	DeviceType        string // 设备类型
+	OsName            string // 操作系统
+	Architecture      string // 系统架构
+	Location          string // 部署位置
+	MonitorSnapshot   string // 监视快照
+	MonitorReportedAt string // 监视上报时间
+	Sort              string // 排序
+	Remark            string // 备注
+	Status            string // 状态，1正常，2停用
+	CreatedAt         string // 创建时间
+	UpdatedAt         string // 更新时间
+	DeletedAt         string // 删除时间
 }
 
 // opsDeviceColumns holds the columns for the table hg_ops_device.
 var opsDeviceColumns = OpsDeviceColumns{
-	Id:         "id",
-	GroupId:    "group_id",
-	Name:       "name",
-	Hostname:   "hostname",
-	Ip:         "ip",
-	DeviceType: "device_type",
-	OsName:     "os_name",
-	Location:   "location",
-	Sort:       "sort",
-	Remark:     "remark",
-	Status:     "status",
-	CreatedAt:  "created_at",
-	UpdatedAt:  "updated_at",
-	DeletedAt:  "deleted_at",
+	Id:                "id",
+	GroupId:           "group_id",
+	Name:              "name",
+	Hostname:          "hostname",
+	Ip:                "ip",
+	DeviceType:        "device_type",
+	OsName:            "os_name",
+	Architecture:      "architecture",
+	Location:          "location",
+	MonitorSnapshot:   "monitor_snapshot",
+	MonitorReportedAt: "monitor_reported_at",
+	Sort:              "sort",
+	Remark:            "remark",
+	Status:            "status",
+	CreatedAt:         "created_at",
+	UpdatedAt:         "updated_at",
+	DeletedAt:         "deleted_at",
 }
 
 // NewOpsDeviceDao creates and returns a new DAO object for table data access.

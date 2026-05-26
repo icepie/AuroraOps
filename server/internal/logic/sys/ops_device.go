@@ -14,6 +14,7 @@ import (
 	"auroraops/utility/encrypt"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -48,6 +49,10 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 			fmt.Sprintf("%s g", dao.OpsDeviceGroup.Table()),
 			fmt.Sprintf("d.%s = g.%s", dao.OpsDevice.Columns().GroupId, dao.OpsDeviceGroup.Columns().Id),
 		).
+		LeftJoin(
+			fmt.Sprintf("%s host_asset", dao.OpsAsset.Table()),
+			"host_asset.device_id = d.id AND host_asset.asset_type = 'host' AND host_asset.deleted_at IS NULL AND host_asset.status = 1",
+		).
 		Fields(
 			"d.id",
 			"d.group_id",
@@ -57,7 +62,10 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 			"d.ip",
 			"d.device_type",
 			"d.os_name",
+			"COALESCE(NULLIF(d.architecture, ''), host_asset.model) as architecture",
 			"d.location",
+			"d.monitor_snapshot",
+			"d.monitor_reported_at",
 			"d.status",
 			"d.created_at",
 		)
@@ -101,8 +109,55 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 			continue
 		}
 		_, item.Online = onlineSet[item.Id]
+		s.normalizeDeviceListFields(item)
 	}
 	return
+}
+
+func (s *sSysOpsDevice) normalizeDeviceListFields(item *sysin.OpsDeviceListModel) {
+	item.Architecture = normalizeDeviceArchitecture(item.Architecture, item.Location)
+	item.Location = normalizeDeviceLocation(item.Location)
+	item.Monitor = parseDeviceMonitorSnapshot(item.MonitorSnapshot)
+	item.MonitorSnapshot = ""
+}
+
+func parseDeviceMonitorSnapshot(value string) *sysin.OpsDeviceMonitorView {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	var monitor sysin.OpsDeviceMonitorView
+	if err := json.Unmarshal([]byte(value), &monitor); err != nil {
+		return nil
+	}
+	return &monitor
+}
+
+func normalizeDeviceArchitecture(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if isArchitectureValue(value) {
+			return value
+		}
+	}
+	return ""
+}
+
+func normalizeDeviceLocation(value string) string {
+	value = strings.TrimSpace(value)
+	if isArchitectureValue(value) {
+		return ""
+	}
+	return value
+}
+
+func isArchitectureValue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "aarch64", "arm64", "amd64", "x86_64", "i386", "i686", "loongarch64", "mips64", "mips64el", "sw_64", "riscv64":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *sSysOpsDevice) getOnlineDeviceIDs() map[uint64]struct{} {
@@ -150,16 +205,17 @@ func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (e
 	}
 
 	data := do.OpsDevice{
-		GroupId:    in.GroupId,
-		Name:       in.Name,
-		Hostname:   in.Hostname,
-		Ip:         in.Ip,
-		DeviceType: in.DeviceType,
-		OsName:     in.OsName,
-		Location:   in.Location,
-		Sort:       in.Sort,
-		Remark:     in.Remark,
-		Status:     in.Status,
+		GroupId:      in.GroupId,
+		Name:         in.Name,
+		Hostname:     in.Hostname,
+		Ip:           in.Ip,
+		DeviceType:   in.DeviceType,
+		OsName:       in.OsName,
+		Architecture: normalizeDeviceArchitecture(in.Architecture),
+		Location:     in.Location,
+		Sort:         in.Sort,
+		Remark:       in.Remark,
+		Status:       in.Status,
 	}
 
 	return g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) (err error) {
@@ -323,7 +379,8 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 		deviceType = "physical"
 	}
 
-	location := in.Location
+	architecture := normalizeDeviceArchitecture(in.Architecture, in.Location)
+	location := normalizeDeviceLocation(in.Location)
 
 	nowText := gtime.Now().Format("Y-m-d H:i:s")
 
@@ -341,10 +398,11 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 
 		if current.Id > 0 {
 			updateData := do.OpsDevice{
-				Name:     in.Name,
-				Hostname: in.Hostname,
-				Ip:       in.Ip,
-				OsName:   in.OsName,
+				Name:         in.Name,
+				Hostname:     in.Hostname,
+				Ip:           in.Ip,
+				OsName:       in.OsName,
+				Architecture: architecture,
 			}
 
 			if _, err = dao.OpsDevice.Ctx(ctx).
@@ -372,15 +430,16 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 		}
 
 		insertData := do.OpsDevice{
-			Name:       in.Name,
-			Hostname:   in.Hostname,
-			Ip:         in.Ip,
-			DeviceType: deviceType,
-			OsName:     in.OsName,
-			Location:   location,
-			Sort:       maxSort.Sort,
-			Status:     consts.StatusEnabled,
-			Remark:     "AuroraOps Client 自动注册",
+			Name:         in.Name,
+			Hostname:     in.Hostname,
+			Ip:           in.Ip,
+			DeviceType:   deviceType,
+			OsName:       in.OsName,
+			Architecture: architecture,
+			Location:     location,
+			Sort:         maxSort.Sort,
+			Status:       consts.StatusEnabled,
+			Remark:       "AuroraOps Client 自动注册",
 		}
 
 		result, err := dao.OpsDevice.Ctx(ctx).
@@ -425,10 +484,11 @@ func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDevice
 	}
 
 	updateData := do.OpsDevice{
-		Hostname: in.Hostname,
-		Ip:       in.Ip,
-		OsName:   in.OsName,
-		Status:   consts.StatusEnabled,
+		Hostname:     in.Hostname,
+		Ip:           in.Ip,
+		OsName:       in.OsName,
+		Architecture: normalizeDeviceArchitecture(in.Architecture, device.Architecture, device.Location),
+		Status:       consts.StatusEnabled,
 	}
 	if _, err = dao.OpsDevice.Ctx(ctx).
 		WherePri(in.Id).

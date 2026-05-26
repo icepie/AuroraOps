@@ -42,6 +42,13 @@ export const columns = [
     ellipsis: { tooltip: true },
   },
   {
+    title: '磁盘',
+    key: 'disk',
+    align: 'left',
+    minWidth: 180,
+    ellipsis: { tooltip: true },
+  },
+  {
     title: '显卡',
     key: 'gpu',
     align: 'left',

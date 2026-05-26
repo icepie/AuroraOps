@@ -13,6 +13,7 @@ type OpsAsset struct {
 	Id            uint64      `json:"id"            orm:"id"            description:"资产ID"`
 	DeviceId      uint64      `json:"deviceId"      orm:"device_id"     description:"所属设备ID"`
 	AssetType     string      `json:"assetType"     orm:"asset_type"    description:"资产类型"`
+	UniqueKey     string      `json:"uniqueKey"     orm:"unique_key"    description:"资产唯一键"`
 	AssetName     string      `json:"assetName"     orm:"asset_name"    description:"资产名称"`
 	Brand         string      `json:"brand"         orm:"brand"         description:"品牌"`
 	Model         string      `json:"model"         orm:"model"         description:"型号"`

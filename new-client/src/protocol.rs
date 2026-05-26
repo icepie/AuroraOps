@@ -30,9 +30,25 @@ pub enum MessageOutbound {
     CapturableList(Vec<String>),
     NewVideo,
     ConfigOk,
+    RuntimeStatus(RuntimeStatus),
     CustomInputAreas(CustomInputAreas),
     ConfigError(String),
     Error(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeStatus {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_backend: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encoder_backend: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_backend: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pointer_backend: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyboard_backend: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
@@ -93,7 +109,7 @@ pub enum PointerEventType {
     OUT,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum KeyboardEventType {
     #[serde(rename = "down")]
     DOWN,
@@ -103,7 +119,7 @@ pub enum KeyboardEventType {
     REPEAT,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum KeyboardLocation {
     STANDARD,
     LEFT,
@@ -145,7 +161,7 @@ fn button_from<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Button, D::
     )
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyboardEvent {
     pub event_type: KeyboardEventType,
     pub code: String,

@@ -10,6 +10,7 @@
           class="terminal-action terminal-action-secondary"
           size="tiny"
           quaternary
+          @mousedown.prevent
           @click="fitTerminal"
         >
           适配
@@ -18,13 +19,20 @@
           class="terminal-action terminal-action-primary"
           size="tiny"
           type="primary"
+          @mousedown.prevent
           @click="reconnect"
         >
           重连
         </n-button>
       </n-space>
     </div>
-    <div ref="terminalRef" class="terminal-container" />
+    <div
+      ref="terminalRef"
+      class="terminal-container"
+      tabindex="0"
+      @pointerdown="focusTerminal"
+      @click="focusTerminal"
+    />
   </div>
 </template>
 
@@ -99,6 +107,13 @@
 
   function socketReady() {
     return socket?.readyState === WebSocket.OPEN;
+  }
+
+  function focusTerminal() {
+    if (!active) return;
+    window.requestAnimationFrame(() => {
+      terminal?.focus();
+    });
   }
 
   function sendPayload(payload: Record<string, unknown>) {
@@ -176,6 +191,8 @@
       if (notifyServer) sendResize();
     } catch {
       // xterm can throw while the container is hidden during route/tab switches.
+    } finally {
+      focusTerminal();
     }
   }
 
@@ -218,7 +235,7 @@
     fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
     terminal.open(terminalRef.value!);
-    terminal.focus();
+    focusTerminal();
 
     terminal.onData((data) => {
       if (!socketReady()) return;
@@ -311,7 +328,7 @@
         nextTick(() => {
           fitTerminal(false);
           sendOpen();
-          terminal?.focus();
+          focusTerminal();
         });
       };
 
@@ -345,8 +362,10 @@
     }
   }
 
-  function reconnect() {
-    connect({ recreateSession: true });
+  async function reconnect() {
+    focusTerminal();
+    await connect({ recreateSession: true });
+    focusTerminal();
   }
 
   function disconnectBrowserSocket() {
@@ -381,6 +400,7 @@
   onMounted(async () => {
     await nextTick();
     initTerminal();
+    focusTerminal();
     active = true;
     connect({ recreateSession: true, silent: true });
 
@@ -396,6 +416,10 @@
   onActivated(() => {
     active = true;
     manualClosing = false;
+    nextTick(() => {
+      fitTerminal(false);
+      focusTerminal();
+    });
     if (!socketReady()) {
       connect({ recreateSession: !sessionId.value, silent: true });
     }

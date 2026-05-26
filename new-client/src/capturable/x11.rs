@@ -326,6 +326,10 @@ impl Drop for RecorderX11 {
 }
 
 impl Recorder for RecorderX11 {
+    fn backend_name(&self) -> &'static str {
+        "X11"
+    }
+
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
         let mut err = CError::new();
         self.capturable.disp.lock();

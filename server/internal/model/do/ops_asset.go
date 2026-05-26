@@ -15,6 +15,7 @@ type OpsAsset struct {
 	Id            any         // 资产ID
 	DeviceId      any         // 所属设备ID
 	AssetType     any         // 资产类型
+	UniqueKey     any         // 资产唯一键
 	AssetName     any         // 资产名称
 	Brand         any         // 品牌
 	Model         any         // 型号

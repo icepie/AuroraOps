@@ -24,6 +24,7 @@ type OpsAssetColumns struct {
 	Id            string // 资产ID
 	DeviceId      string // 所属设备ID
 	AssetType     string // 资产类型
+	UniqueKey     string // 资产唯一键
 	AssetName     string // 资产名称
 	Brand         string // 品牌
 	Model         string // 型号
@@ -45,6 +46,7 @@ var opsAssetColumns = OpsAssetColumns{
 	Id:            "id",
 	DeviceId:      "device_id",
 	AssetType:     "asset_type",
+	UniqueKey:     "unique_key",
 	AssetName:     "asset_name",
 	Brand:         "brand",
 	Model:         "model",

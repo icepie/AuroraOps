@@ -27,7 +27,10 @@ CREATE TABLE IF NOT EXISTS `hg_ops_device` (
   `ip` varchar(64) NOT NULL DEFAULT '' COMMENT 'IP地址',
   `device_type` varchar(64) NOT NULL DEFAULT '' COMMENT '设备类型',
   `os_name` varchar(128) NOT NULL DEFAULT '' COMMENT '操作系统',
+  `architecture` varchar(64) NOT NULL DEFAULT '' COMMENT '系统架构',
   `location` varchar(255) NOT NULL DEFAULT '' COMMENT '部署位置',
+  `monitor_snapshot` json DEFAULT NULL COMMENT '监视快照',
+  `monitor_reported_at` datetime DEFAULT NULL COMMENT '监视上报时间',
   `sort` int NOT NULL DEFAULT '0' COMMENT '排序',
   `remark` varchar(500) NOT NULL DEFAULT '' COMMENT '备注',
   `status` tinyint NOT NULL DEFAULT '1' COMMENT '状态，1正常，2停用',
@@ -74,10 +77,62 @@ PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_device` ADD COLUMN `architecture` varchar(64) NOT NULL DEFAULT '''' COMMENT ''系统架构'' AFTER `os_name`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_device'
+    AND COLUMN_NAME = 'architecture'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_device` ADD COLUMN `monitor_snapshot` json DEFAULT NULL COMMENT ''监视快照'' AFTER `location`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_device'
+    AND COLUMN_NAME = 'monitor_snapshot'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_device` ADD COLUMN `monitor_reported_at` datetime DEFAULT NULL COMMENT ''监视上报时间'' AFTER `monitor_snapshot`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_device'
+    AND COLUMN_NAME = 'monitor_reported_at'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `hg_ops_device`
+SET `architecture` = `location`,
+    `location` = ''
+WHERE `architecture` = ''
+  AND LOWER(`location`) IN ('aarch64', 'arm64', 'amd64', 'x86_64', 'i386', 'i686', 'loongarch64', 'mips64', 'mips64el', 'sw_64', 'riscv64');
+
 CREATE TABLE IF NOT EXISTS `hg_ops_asset` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '资产ID',
   `device_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT '所属设备ID',
   `asset_type` varchar(64) NOT NULL DEFAULT '' COMMENT '资产类型',
+  `unique_key` varchar(191) NOT NULL DEFAULT '' COMMENT '资产唯一键',
   `asset_name` varchar(128) NOT NULL DEFAULT '' COMMENT '资产名称',
   `brand` varchar(128) NOT NULL DEFAULT '' COMMENT '品牌',
   `model` varchar(128) NOT NULL DEFAULT '' COMMENT '型号',
@@ -95,12 +150,48 @@ CREATE TABLE IF NOT EXISTS `hg_ops_asset` (
   PRIMARY KEY (`id`),
   KEY `idx_ops_asset_device_id` (`device_id`),
   KEY `idx_ops_asset_type` (`asset_type`),
+  KEY `idx_ops_asset_device_type_unique` (`device_id`,`asset_type`,`unique_key`),
   KEY `idx_ops_asset_source` (`source`),
   KEY `idx_ops_asset_name` (`asset_name`),
   KEY `idx_ops_asset_status` (`status`),
   KEY `idx_ops_asset_sort` (`sort`),
   KEY `idx_ops_asset_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='运维资产';
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_asset` ADD COLUMN `unique_key` varchar(191) NOT NULL DEFAULT '''' COMMENT ''资产唯一键'' AFTER `asset_type`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_asset'
+    AND COLUMN_NAME = 'unique_key'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `hg_ops_asset`
+SET `unique_key` = `serial_no`
+WHERE `unique_key` = ''
+  AND `serial_no` <> '';
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'CREATE INDEX `idx_ops_asset_device_type_unique` ON `hg_ops_asset` (`device_id`,`asset_type`,`unique_key`)',
+    'SELECT 1'
+  )
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_asset'
+    AND INDEX_NAME = 'idx_ops_asset_device_type_unique'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @stmt := (
   SELECT IF(

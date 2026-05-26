@@ -66,6 +66,38 @@ pub struct Config {
     #[arg(long = "name", help = "AuroraOps device name for service mode.")]
     #[serde(default)]
     pub agent_name: Option<String>,
+    #[arg(
+        long,
+        help = "Install AuroraOps agent as a system service and start it."
+    )]
+    #[serde(skip)]
+    pub install_service: bool,
+    #[arg(long, help = "Uninstall AuroraOps agent system service.")]
+    #[serde(skip)]
+    pub uninstall_service: bool,
+    #[arg(long, help = "Start AuroraOps agent system service.")]
+    #[serde(skip)]
+    pub start_service: bool,
+    #[arg(long, help = "Stop AuroraOps agent system service.")]
+    #[serde(skip)]
+    pub stop_service: bool,
+    #[arg(long, help = "Restart AuroraOps agent system service.")]
+    #[serde(skip)]
+    pub restart_service: bool,
+    #[arg(
+        long,
+        hide = true,
+        help = "Internal flag used when launched by the Windows Service Control Manager."
+    )]
+    #[serde(skip)]
+    pub windows_service: bool,
+    #[arg(
+        long,
+        hide = true,
+        help = "Internal flag used by the Windows service to run in the active desktop session."
+    )]
+    #[serde(skip)]
+    pub session_agent: bool,
     #[cfg(target_os = "linux")]
     #[arg(long, help = "Wayland/PipeWire Support.")]
     #[serde(default)]
@@ -117,15 +149,13 @@ pub struct Config {
 }
 
 pub fn read_config() -> Option<Config> {
-    if let Some(mut config_path) = dirs::config_dir() {
-        config_path.push("weylus");
-        config_path.push("weylus.toml");
+    for config_path in user_config_candidates() {
         match fs::read_to_string(&config_path) {
             Ok(s) => match toml::from_str(&s) {
-                Ok(c) => Some(c),
+                Ok(c) => return Some(c),
                 Err(e) => {
                     warn!("Failed to read configuration file: {}", e);
-                    None
+                    return None;
                 }
             },
             Err(err) => {
@@ -135,25 +165,22 @@ pub fn read_config() -> Option<Config> {
                     }
                     _ => warn!("Failed to read configuration file: {}", err),
                 }
-                None
+                continue;
             }
         }
-    } else {
-        None
     }
+    None
 }
 
 pub fn write_config(conf: &Config) {
-    match dirs::config_dir() {
-        Some(mut config_path) => {
-            config_path.push("weylus");
-            if !config_path.exists() {
-                if let Err(err) = fs::create_dir_all(&config_path) {
+    match user_config_path() {
+        Some(config_path) => {
+            if let Some(parent) = config_path.parent() {
+                if let Err(err) = fs::create_dir_all(parent) {
                     warn!("Failed create directory for configuration: {}", err);
                     return;
                 }
             }
-            config_path.push("weylus.toml");
             if let Err(err) = fs::write(
                 config_path,
                 &toml::to_string_pretty(&conf).expect("Failed to encode config to toml."),
@@ -165,6 +192,25 @@ pub fn write_config(conf: &Config) {
             warn!("Failed to find configuration directory!");
         }
     }
+}
+
+fn user_config_path() -> Option<PathBuf> {
+    dirs::config_dir().map(|base| base.join("auroraops").join("config.toml"))
+}
+
+fn legacy_user_config_path() -> Option<PathBuf> {
+    dirs::config_dir().map(|base| base.join("weylus").join("weylus.toml"))
+}
+
+fn user_config_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(path) = user_config_path() {
+        candidates.push(path);
+    }
+    if let Some(path) = legacy_user_config_path() {
+        candidates.push(path);
+    }
+    candidates
 }
 
 pub fn get_config() -> Config {

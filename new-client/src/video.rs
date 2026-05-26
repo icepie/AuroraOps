@@ -1,4 +1,5 @@
-use std::os::raw::{c_int, c_uchar, c_void};
+use std::ffi::CStr;
+use std::os::raw::{c_char, c_int, c_uchar, c_void};
 use std::time::Instant;
 
 use tracing::warn;
@@ -19,6 +20,7 @@ extern "C" {
     ) -> *mut c_void;
     fn open_video(handle: *mut c_void, err: *mut CError);
     fn destroy_video_encoder(handle: *mut c_void);
+    fn video_encoder_codec_name(handle: *mut c_void) -> *const c_char;
     fn encode_video_frame(handle: *mut c_void, micros: c_int, err: *mut CError);
 
     fn fill_rgb(ctx: *mut c_void, data: *const u8, err: *mut CError);
@@ -159,6 +161,16 @@ impl VideoEncoder {
             && (self.height_in == height_in)
             && (self.width_out == width_out)
             && (self.height_out == height_out)
+    }
+
+    pub fn codec_name(&self) -> String {
+        let codec_name = unsafe { video_encoder_codec_name(self.handle) };
+        if codec_name.is_null() {
+            return "未知".to_string();
+        }
+        unsafe { CStr::from_ptr(codec_name) }
+            .to_string_lossy()
+            .into_owned()
     }
 }
 

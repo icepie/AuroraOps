@@ -113,6 +113,10 @@ fn check_pixelformat(img: &CGImage) -> Result<(), Box<dyn Error>> {
 }
 
 impl Recorder for RecorderCGDisplay {
+    fn backend_name(&self) -> &'static str {
+        "CoreGraphics Display"
+    }
+
     fn capture(&mut self) -> Result<crate::video::PixelProvider, Box<dyn Error>> {
         let img = if self.capture_cursor {
             CGDisplay::screenshot(self.display.bounds(), 0, 0, 0)
@@ -206,6 +210,10 @@ pub struct RecorderCGWindow {
 }
 
 impl Recorder for RecorderCGWindow {
+    fn backend_name(&self) -> &'static str {
+        "CoreGraphics Window"
+    }
+
     fn capture(&mut self) -> Result<crate::video::PixelProvider, Box<dyn Error>> {
         self.win.update_geometry()?;
         let img = CGDisplay::screenshot_from_windows(

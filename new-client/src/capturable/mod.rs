@@ -21,6 +21,10 @@ pub mod win_ctx;
 #[cfg(target_os = "linux")]
 pub mod x11;
 pub trait Recorder {
+    fn backend_name(&self) -> &'static str {
+        "未知"
+    }
+
     fn capture(&mut self) -> Result<crate::video::PixelProvider<'_>, Box<dyn Error>>;
 }
 
@@ -152,11 +156,11 @@ pub fn get_capturables(
         use crate::capturable::captrs_capture::CaptrsCapturable;
         use crate::capturable::win_ctx::WinCtx;
         let winctx = WinCtx::new();
-        for (i, o) in winctx.get_outputs().iter().enumerate() {
+        for output in winctx.get_capture_outputs() {
             let captr = CaptrsCapturable::new(
-                i as u8,
-                String::from_utf16_lossy(o.DeviceName.as_ref()),
-                o.DesktopCoordinates,
+                output.capture_id,
+                String::from_utf16_lossy(output.desc.DeviceName.as_ref()),
+                output.desc.DesktopCoordinates,
                 winctx.get_union_rect().clone(),
             );
             capturables.push(Box::new(captr));

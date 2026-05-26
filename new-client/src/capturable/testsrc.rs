@@ -85,6 +85,10 @@ impl Capturable for TestCapturable {
 }
 
 impl Recorder for TestRecorder {
+    fn backend_name(&self) -> &'static str {
+        "测试源"
+    }
+
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
         const N: usize = 120;
         let dh = self.capturable.height / N;

@@ -145,7 +145,9 @@
             :actionColumn="actionColumn"
             :scroll-x="scrollX"
             :checked-row-keys="checkedIds"
+            :expanded-row-keys="expandedRowKeys"
             @update:checked-row-keys="handleOnCheckedRow"
+            @update:expanded-row-keys="handleExpandedRowKeys"
           >
             <template #tableTitle>
               <n-button
@@ -184,14 +186,17 @@
 
 <script lang="ts" setup>
   import { h, reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue';
+  import type { Component } from 'vue';
   import { useRouter } from 'vue-router';
-  import { useDialog, useMessage, NButton, NIcon, NDropdown } from 'naive-ui';
+  import { useDialog, useMessage, NButton, NIcon, NDropdown, NTooltip } from 'naive-ui';
   import { BasicTable } from '@/components/Table';
   import { BasicForm, useForm } from '@/components/Form/index';
   import { usePermission } from '@/hooks/web/usePermission';
   import { useDictStore } from '@/store/modules/dict';
   import { List, Delete, Status, CreateTerminal, CreateDesktop } from '@/api/opsDevice';
   import { Delete as DeleteGroup, List as GroupList } from '@/api/opsDeviceGroup';
+  import { SocketEnum } from '@/enums/socketEnum';
+  import { addOnMessage, removeOnMessage, sendMsg, WebSocketMessage } from '@/utils/websocket';
   import {
     PlusOutlined,
     DeleteOutlined,
@@ -203,7 +208,15 @@
     MenuFoldOutlined,
     MenuUnfoldOutlined,
   } from '@vicons/antd';
-  import { columns, schemas, loadOptions, State, loadGroupOptions } from './model';
+  import {
+    columns,
+    schemas,
+    loadOptions,
+    State,
+    loadGroupOptions,
+    DEVICE_MONITOR_EVENT,
+    DEVICE_MONITOR_TAG,
+  } from './model';
   import { adaTableScrollX } from '@/utils/hotgo';
   import Edit from './edit.vue';
   import GroupModal from './groupModal.vue';
@@ -222,10 +235,47 @@
   const activeGroupKey = ref<string>('all');
   const groupKeyword = ref('');
   const groupCollapsed = ref(false);
-  let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  const expandedRowKeys = ref<Array<number | string>>([]);
+
+  function renderActionButton(
+    label: string,
+    icon: Component,
+    onClick: () => void,
+    type: 'default' | 'primary' = 'default'
+  ) {
+    return h(
+      NTooltip,
+      { trigger: 'hover' },
+      {
+        trigger: () =>
+          h(
+            NButton,
+            {
+              size: 'small',
+              quaternary: true,
+              circle: true,
+              type,
+              class: 'device-action-cell__button',
+              onClick,
+            },
+            {
+              icon: () =>
+                h(
+                  NIcon,
+                  { size: 15 },
+                  {
+                    default: () => h(icon),
+                  }
+                ),
+            }
+          ),
+        default: () => label,
+      }
+    );
+  }
 
   const actionColumn = reactive({
-    width: 118,
+    width: 128,
     title: '操作',
     key: 'action',
     fixed: 'right',
@@ -233,47 +283,17 @@
       const options = buildActionMenuOptions(record);
 
       return h('div', { class: 'device-action-cell' }, [
-        h(
-          NButton,
-          {
-            size: 'small',
-            quaternary: true,
-            type: record.online === true ? 'primary' : 'default',
-            class: 'device-action-cell__terminal',
-            onClick: handleTerminal.bind(null, record),
-          },
-          {
-            icon: () =>
-              h(
-                NIcon,
-                { size: 14 },
-                {
-                  default: () => h(CodeOutlined),
-                },
-              ),
-            default: () => '终端',
-          },
+        renderActionButton(
+          '远程终端',
+          CodeOutlined,
+          handleTerminal.bind(null, record),
+          record.online === true ? 'primary' : 'default'
         ),
-        h(
-          NButton,
-          {
-            size: 'small',
-            quaternary: true,
-            type: record.online === true ? 'primary' : 'default',
-            class: 'device-action-cell__desktop',
-            onClick: handleDesktop.bind(null, record),
-          },
-          {
-            icon: () =>
-              h(
-                NIcon,
-                { size: 14 },
-                {
-                  default: () => h(DesktopOutlined),
-                },
-              ),
-            default: () => '桌面',
-          },
+        renderActionButton(
+          '远程桌面',
+          DesktopOutlined,
+          handleDesktop.bind(null, record),
+          record.online === true ? 'primary' : 'default'
         ),
         options.length
           ? h(
@@ -291,7 +311,7 @@
                       quaternary: true,
                       circle: true,
                       size: 'small',
-                      class: 'device-action-cell__more',
+                      class: 'device-action-cell__button',
                     },
                     {
                       icon: () =>
@@ -384,8 +404,36 @@
     checkedIds.value = rowKeys;
   }
 
+  function handleExpandedRowKeys(rowKeys) {
+    expandedRowKeys.value = rowKeys;
+  }
+
   function reloadTable() {
     actionRef.value?.reload();
+  }
+
+  function applyMonitorUpdate(payload: any) {
+    const deviceId = Number(payload?.deviceId || 0);
+    if (!deviceId) return;
+
+    const rows = actionRef.value?.getDataSource?.();
+    if (!Array.isArray(rows)) return;
+
+    const index = rows.findIndex((item) => Number(item.id) === deviceId);
+    if (index < 0) return;
+
+    const nextRows = rows.slice();
+    nextRows[index] = {
+      ...nextRows[index],
+      monitor: payload.monitor || null,
+      monitorReportedAt: payload.monitorReportedAt || '',
+      online: true,
+    };
+    actionRef.value?.setTableData?.(nextRows);
+  }
+
+  function joinMonitorChannel() {
+    sendMsg('join', { id: DEVICE_MONITOR_TAG }, false);
   }
 
   async function loadGroups() {
@@ -576,18 +624,22 @@
 
   onMounted(async () => {
     loadOptions();
+    addOnMessage(SocketEnum.EventConnected, joinMonitorChannel);
+    addOnMessage(DEVICE_MONITOR_EVENT, (message: WebSocketMessage) => {
+      if (message.code === SocketEnum.CodeErr) {
+        return;
+      }
+      applyMonitorUpdate(message.data);
+    });
+    joinMonitorChannel();
     await loadGroupOptions();
     await loadGroups();
-    refreshTimer = setInterval(() => {
-      reloadTable();
-    }, 10000);
   });
 
   onBeforeUnmount(() => {
-    if (refreshTimer) {
-      clearInterval(refreshTimer);
-      refreshTimer = null;
-    }
+    sendMsg('quit', { id: DEVICE_MONITOR_TAG }, false);
+    removeOnMessage(SocketEnum.EventConnected);
+    removeOnMessage(DEVICE_MONITOR_EVENT);
   });
 </script>
 
@@ -755,6 +807,29 @@
       flex: 1;
       min-height: 0;
     }
+
+    :deep(.table-toolbar) {
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    :deep(.table-toolbar-left) {
+      min-width: 0;
+      flex: 1 1 auto;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    :deep(.table-toolbar-right) {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    :deep(.n-data-table__pagination) {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
   }
 
   .table-header {
@@ -818,19 +893,180 @@
     align-items: center;
     justify-content: flex-end;
     gap: 4px;
+    white-space: nowrap;
   }
 
-  .device-action-cell__terminal,
-  .device-action-cell__desktop {
-    padding-left: 8px;
-    padding-right: 8px;
-    border-radius: 10px;
+  .device-action-cell :deep(.n-button) {
+    flex: 0 0 auto;
   }
 
-  .device-action-cell__more {
+  .device-action-cell__button {
     width: 28px;
     height: 28px;
+    min-width: 28px;
     border-radius: 10px;
+  }
+
+  :deep(.device-monitor-empty) {
+    padding: 14px 16px;
+    color: #64748b;
+    font-size: 13px;
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 8px;
+  }
+
+  :deep(.device-monitor-panel) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    padding: 14px 18px 16px;
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 8px;
+  }
+
+  :deep(.device-monitor-panel__head) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    color: #334155;
+  }
+
+  :deep(.device-monitor-panel__title) {
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 20px;
+  }
+
+  :deep(.device-monitor-panel__time) {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 18px;
+    word-break: break-word;
+  }
+
+  :deep(.device-monitor-summary) {
+    display: grid;
+    grid-template-columns: minmax(420px, 520px) minmax(300px, 420px);
+    gap: 22px;
+    align-items: start;
+    justify-content: start;
+    min-width: 0;
+  }
+
+  :deep(.device-monitor-bars) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+    min-width: 0;
+  }
+
+  :deep(.device-monitor-bar) {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  :deep(.device-monitor-bar__label) {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+  }
+
+  :deep(.device-monitor-bar .n-progress) {
+    min-width: 0;
+  }
+
+  :deep(.device-monitor-bar .n-progress-graph-line) {
+    overflow: hidden;
+  }
+
+  :deep(.device-monitor-facts) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 16px;
+    min-width: 0;
+  }
+
+  :deep(.device-monitor-fact) {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+    color: #334155;
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  :deep(.device-monitor-fact span) {
+    flex: 0 0 42px;
+    color: #64748b;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  :deep(.device-monitor-fact b) {
+    min-width: 0;
+    color: #0f172a;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  :deep(.device-monitor-detail) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 320px));
+    gap: 14px 28px;
+    justify-content: start;
+    min-width: 0;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+  }
+
+  :deep(.device-monitor-detail__group) {
+    min-width: 0;
+    padding: 0;
+  }
+
+  :deep(.device-monitor-detail__title) {
+    margin-bottom: 6px;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 18px;
+  }
+
+  :deep(.device-monitor-detail__row) {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 10px;
+    min-width: 0;
+    align-items: start;
+    color: #334155;
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  :deep(.device-monitor-detail__label) {
+    color: #64748b;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  :deep(.device-monitor-detail__value) {
+    min-width: 0;
+    color: #0f172a;
+    font-weight: 600;
+    word-break: break-word;
   }
 
   @media (max-width: 768px) {
@@ -855,6 +1091,17 @@
 
     .table-header__toggle {
       padding: 0 10px;
+    }
+
+    :deep(.device-monitor-summary),
+    :deep(.device-monitor-bars),
+    :deep(.device-monitor-facts),
+    :deep(.device-monitor-detail) {
+      grid-template-columns: 1fr;
+    }
+
+    :deep(.device-monitor-panel) {
+      padding: 12px;
     }
   }
 </style>

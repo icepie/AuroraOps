@@ -6,6 +6,7 @@ html {
 
 body {
   font-family:
+    Inter,
     Helvetica Neue,
     Helvetica,
     PingFang SC,
@@ -17,7 +18,7 @@ body {
   line-height: 1.42;
   color: #515a6e;
   font-size: 13px;
-  background-color: #f7f7f7;
+  background-color: #f5f7fb;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -67,8 +68,8 @@ a:hover {
 
 /* 滚动条的宽度 */
 *::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
 }
 
 /* 滚动条的设置 */
@@ -106,6 +107,7 @@ a:hover {
 //antd 卡片样式定制
 body .n-card {
   transition: all 0.2s ease-in-out;
+  border-radius: 8px;
 }
 
 body .n-icon {
@@ -114,18 +116,18 @@ body .n-icon {
 
 body .proCard {
   border-radius: 8px;
-  margin-top: 8px;
+  margin-top: 6px;
 
   .n-card__content {
-    padding: 10px 12px;
+    padding: 8px 10px;
 
     &:first-child {
-      padding-top: 10px;
+      padding-top: 8px;
     }
   }
 
   .n-card-header {
-    padding: 10px 12px;
+    padding: 8px 10px;
   }
 
   .n-card-header__main {
@@ -139,7 +141,7 @@ body .n-modal {
 }
 
 .n-layout-page-header .n-card {
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
 //body .proCardTabs{
@@ -148,36 +150,70 @@ body .n-modal {
 //}
 
 .n-layout-page-header {
-  margin: 6px 0;
+  margin: 4px 0;
 }
 
 body .n-form-item {
-  --n-feedback-height: 18px;
-  --n-label-height: 22px;
+  --n-feedback-height: 16px;
+  --n-label-height: 20px;
+  --n-label-font-size-left-medium: 12px;
+  --n-label-font-size-top-medium: 12px;
 }
 
 body .n-form-item .n-form-item-feedback-wrapper {
-  min-height: 18px;
+  min-height: 16px;
 }
 
 body .n-data-table {
-  --n-font-size: 13px;
-  --n-th-padding-small: 6px 8px;
-  --n-td-padding-small: 5px 8px;
-  --n-th-padding-medium: 7px 9px;
-  --n-td-padding-medium: 6px 9px;
+  --n-font-size: 12px;
+  --n-th-padding-small: 5px 8px;
+  --n-td-padding-small: 4px 8px;
+  --n-th-padding-medium: 6px 9px;
+  --n-td-padding-medium: 5px 9px;
 }
 
 body .n-data-table .n-data-table__pagination {
-  margin-top: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 body .n-button {
   font-size: 13px;
 }
 
+body .n-button .n-button__content {
+  min-width: 0;
+}
+
 body .n-input,
 body .n-select,
-body .n-date-picker {
+body .n-date-picker,
+body .n-input-number {
   font-size: 13px;
+}
+
+body .table-toolbar {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+body .table-toolbar-left {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+body .table-toolbar-right {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+body .table-toolbar-right-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
 }

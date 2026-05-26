@@ -37,8 +37,9 @@
       </n-form-item>
 
       <n-form-item path="code" v-show="codeBase64 !== ''">
-        <n-input-group>
+        <n-input-group class="login-captcha-group">
           <n-input
+            class="login-captcha-input"
             :style="{ width: '100%' }"
             placeholder="验证码"
             @keyup.enter="debounceHandleSubmit"
@@ -53,7 +54,7 @@
           <n-loading-bar-provider :to="loadingBarTargetRef" container-style="position: absolute;">
             <img
               ref="loadingBarTargetRef"
-              style="width: 100px"
+              class="login-captcha-image"
               :src="codeBase64"
               @click="refreshCode"
               loading="lazy"
@@ -316,3 +317,24 @@
     });
   });
 </script>
+
+<style lang="less" scoped>
+  .login-captcha-group {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .login-captcha-input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .login-captcha-image {
+    flex: 0 0 98px;
+    width: 98px;
+    height: 34px;
+    object-fit: cover;
+    cursor: pointer;
+    border-radius: 0 3px 3px 0;
+  }
+</style>

@@ -1002,7 +1002,6 @@ elseif(WIN32)
         src/detection/locale/locale_windows.c
         src/detection/localip/localip_windows.c
         src/detection/gamepad/gamepad_windows.c
-        src/detection/media/media_windows.c
         src/detection/memory/memory_windows.c
         src/detection/mouse/mouse_windows.c
         src/detection/physicalmemory/physicalmemory_linux.c
@@ -1038,6 +1037,11 @@ elseif(WIN32)
         src/util/binary_windows.c
         src/util/debug_windows.c
     )
+    if(FASTFETCH_SYS_WINDOWS_AGENT_BUILD)
+        list(APPEND LIBFASTFETCH_SRC src/detection/media/media_nosupport.c)
+    else()
+        list(APPEND LIBFASTFETCH_SRC src/detection/media/media_windows.c)
+    endif()
 elseif(SunOS)
     list(APPEND LIBFASTFETCH_SRC
         src/common/dbus.c
@@ -1201,9 +1205,11 @@ if(LINUX OR FreeBSD OR WIN32)
     list(APPEND LIBFASTFETCH_SRC src/detection/gpu/gpu_nvidia.c)
     list(APPEND LIBFASTFETCH_SRC src/detection/gpu/gpu_mthreads.c)
 endif()
-if(WIN32)
+if(WIN32 AND NOT FASTFETCH_SYS_WINDOWS_AGENT_BUILD)
     list(APPEND LIBFASTFETCH_SRC src/detection/gpu/gpu_intel.c)
     list(APPEND LIBFASTFETCH_SRC src/detection/gpu/gpu_amd.c)
+elseif(WIN32)
+    list(APPEND LIBFASTFETCH_SRC src/detection/gpu/gpu_windows_agent_stub.c)
 endif()
 include(CheckFunctionExists)
 check_function_exists(wcwidth HAVE_WCWIDTH)

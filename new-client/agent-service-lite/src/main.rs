@@ -4,6 +4,8 @@ mod aurora;
 mod cerror;
 #[path = "../../src/log.rs"]
 mod log;
+#[path = "../../src/service_manager.rs"]
+mod service_manager;
 
 use std::path::PathBuf;
 

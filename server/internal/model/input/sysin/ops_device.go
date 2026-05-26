@@ -13,29 +13,31 @@ import (
 )
 
 type OpsDeviceUpdateFields struct {
-	GroupId    uint64 `json:"groupId"    dc:"设备分组"`
-	Name       string `json:"name"       dc:"设备名称"`
-	Hostname   string `json:"hostname"   dc:"主机名"`
-	Ip         string `json:"ip"         dc:"IP地址"`
-	DeviceType string `json:"deviceType" dc:"设备类型"`
-	OsName     string `json:"osName"     dc:"操作系统"`
-	Location   string `json:"location"   dc:"部署位置"`
-	Sort       int    `json:"sort"       dc:"排序"`
-	Remark     string `json:"remark"     dc:"备注"`
-	Status     int    `json:"status"     dc:"状态"`
+	GroupId      uint64 `json:"groupId"    dc:"设备分组"`
+	Name         string `json:"name"       dc:"设备名称"`
+	Hostname     string `json:"hostname"   dc:"主机名"`
+	Ip           string `json:"ip"         dc:"IP地址"`
+	DeviceType   string `json:"deviceType" dc:"设备类型"`
+	OsName       string `json:"osName"     dc:"操作系统"`
+	Architecture string `json:"architecture" dc:"系统架构"`
+	Location     string `json:"location"   dc:"部署位置"`
+	Sort         int    `json:"sort"       dc:"排序"`
+	Remark       string `json:"remark"     dc:"备注"`
+	Status       int    `json:"status"     dc:"状态"`
 }
 
 type OpsDeviceInsertFields struct {
-	GroupId    uint64 `json:"groupId"    dc:"设备分组"`
-	Name       string `json:"name"       dc:"设备名称"`
-	Hostname   string `json:"hostname"   dc:"主机名"`
-	Ip         string `json:"ip"         dc:"IP地址"`
-	DeviceType string `json:"deviceType" dc:"设备类型"`
-	OsName     string `json:"osName"     dc:"操作系统"`
-	Location   string `json:"location"   dc:"部署位置"`
-	Sort       int    `json:"sort"       dc:"排序"`
-	Remark     string `json:"remark"     dc:"备注"`
-	Status     int    `json:"status"     dc:"状态"`
+	GroupId      uint64 `json:"groupId"    dc:"设备分组"`
+	Name         string `json:"name"       dc:"设备名称"`
+	Hostname     string `json:"hostname"   dc:"主机名"`
+	Ip           string `json:"ip"         dc:"IP地址"`
+	DeviceType   string `json:"deviceType" dc:"设备类型"`
+	OsName       string `json:"osName"     dc:"操作系统"`
+	Architecture string `json:"architecture" dc:"系统架构"`
+	Location     string `json:"location"   dc:"部署位置"`
+	Sort         int    `json:"sort"       dc:"排序"`
+	Remark       string `json:"remark"     dc:"备注"`
+	Status       int    `json:"status"     dc:"状态"`
 }
 
 type OpsDeviceEditInp struct {
@@ -97,18 +99,41 @@ func (in *OpsDeviceListInp) Filter(ctx context.Context) (err error) {
 }
 
 type OpsDeviceListModel struct {
-	Id         uint64      `json:"id"         dc:"设备ID"`
-	GroupId    uint64      `json:"groupId"    dc:"分组ID"`
-	GroupName  string      `json:"groupName"  dc:"设备分组"`
-	Name       string      `json:"name"       dc:"设备名称"`
-	Hostname   string      `json:"hostname"   dc:"主机名"`
-	Ip         string      `json:"ip"         dc:"IP地址"`
-	DeviceType string      `json:"deviceType" dc:"设备类型"`
-	OsName     string      `json:"osName"     dc:"操作系统"`
-	Location   string      `json:"location"   dc:"部署位置"`
-	Online     bool        `json:"online"     dc:"在线状态"`
-	Status     int         `json:"status"     dc:"状态"`
-	CreatedAt  *gtime.Time `json:"createdAt"  dc:"创建时间"`
+	Id                uint64                `json:"id"         dc:"设备ID"`
+	GroupId           uint64                `json:"groupId"    dc:"分组ID"`
+	GroupName         string                `json:"groupName"  dc:"设备分组"`
+	Name              string                `json:"name"       dc:"设备名称"`
+	Hostname          string                `json:"hostname"   dc:"主机名"`
+	Ip                string                `json:"ip"         dc:"IP地址"`
+	DeviceType        string                `json:"deviceType" dc:"设备类型"`
+	OsName            string                `json:"osName"     dc:"操作系统"`
+	Architecture      string                `json:"architecture" dc:"系统架构"`
+	Location          string                `json:"location"   dc:"部署位置"`
+	MonitorSnapshot   string                `json:"-" dc:"监视快照"`
+	Monitor           *OpsDeviceMonitorView `json:"monitor" dc:"监视快照"`
+	MonitorReportedAt *gtime.Time           `json:"monitorReportedAt" dc:"监视上报时间"`
+	Online            bool                  `json:"online"     dc:"在线状态"`
+	Status            int                   `json:"status"     dc:"状态"`
+	CreatedAt         *gtime.Time           `json:"createdAt"  dc:"创建时间"`
+}
+
+type OpsDeviceMonitorView struct {
+	CpuPercent       float64 `json:"cpuPercent"       dc:"CPU使用率"`
+	MemoryPercent    float64 `json:"memoryPercent"    dc:"内存使用率"`
+	SwapPercent      float64 `json:"swapPercent"      dc:"交换分区使用率"`
+	SwapEnabled      bool    `json:"swapEnabled"      dc:"是否启用交换分区"`
+	DiskPercent      float64 `json:"diskPercent"      dc:"磁盘使用率"`
+	NetRxRateBytes   float64 `json:"netRxRateBytes"   dc:"网络下行速率"`
+	NetTxRateBytes   float64 `json:"netTxRateBytes"   dc:"网络上行速率"`
+	NetRxBytes       uint64  `json:"netRxBytes"       dc:"网络累计下行流量"`
+	NetTxBytes       uint64  `json:"netTxBytes"       dc:"网络累计上行流量"`
+	CpuCores         int     `json:"cpuCores"         dc:"CPU核心数"`
+	MemoryTotalBytes uint64  `json:"memoryTotalBytes" dc:"内存总量"`
+	DiskTotalBytes   uint64  `json:"diskTotalBytes"   dc:"磁盘总量"`
+	Load1            float64 `json:"load1"            dc:"1分钟负载"`
+	Load5            float64 `json:"load5"            dc:"5分钟负载"`
+	Load15           float64 `json:"load15"           dc:"15分钟负载"`
+	UptimeSeconds    uint64  `json:"uptimeSeconds"    dc:"在线时长"`
 }
 
 type OpsDeviceMaxSortInp struct{}
@@ -142,12 +167,13 @@ func (in *OpsDeviceStatusInp) Filter(ctx context.Context) (err error) {
 type OpsDeviceStatusModel struct{}
 
 type OpsDeviceClientRegisterInp struct {
-	Name       string `json:"name"       dc:"设备名称"`
-	Hostname   string `json:"hostname"   dc:"主机名"`
-	Ip         string `json:"ip"         dc:"IP地址"`
-	DeviceType string `json:"deviceType" dc:"设备类型"`
-	OsName     string `json:"osName"     dc:"操作系统"`
-	Location   string `json:"location"   dc:"部署位置"`
+	Name         string `json:"name"       dc:"设备名称"`
+	Hostname     string `json:"hostname"   dc:"主机名"`
+	Ip           string `json:"ip"         dc:"IP地址"`
+	DeviceType   string `json:"deviceType" dc:"设备类型"`
+	OsName       string `json:"osName"     dc:"操作系统"`
+	Architecture string `json:"architecture" dc:"系统架构"`
+	Location     string `json:"location"   dc:"部署位置"`
 }
 
 func (in *OpsDeviceClientRegisterInp) Filter(ctx context.Context) (err error) {
@@ -172,10 +198,11 @@ type OpsDeviceClientRegisterModel struct {
 }
 
 type OpsDeviceClientHeartbeatInp struct {
-	Id       uint64 `json:"id"       dc:"设备ID"`
-	Hostname string `json:"hostname" dc:"主机名"`
-	Ip       string `json:"ip"       dc:"IP地址"`
-	OsName   string `json:"osName"   dc:"操作系统"`
+	Id           uint64 `json:"id"       dc:"设备ID"`
+	Hostname     string `json:"hostname" dc:"主机名"`
+	Ip           string `json:"ip"       dc:"IP地址"`
+	OsName       string `json:"osName"   dc:"操作系统"`
+	Architecture string `json:"architecture" dc:"系统架构"`
 }
 
 func (in *OpsDeviceClientHeartbeatInp) Filter(ctx context.Context) (err error) {

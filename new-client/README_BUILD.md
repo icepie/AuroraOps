@@ -1,45 +1,78 @@
-# 🎉 Weylus + XTest 完整实现总结
+# AuroraOps 客户端构建与部署
 
-## ✅ 已完成的工作
+`new-client` 是 AuroraOps 的 Rust 客户端，负责设备注册、心跳上报、远程终端、远程桌面代理和本机管理页。当前主程序名为 `auroraops-agent`。
 
-### 1. XTest键盘输入支持
-- ✅ 完整的XTest设备实现
-- ✅ 140+ 键完整支持
-- ✅ 智能fallback机制
-- ✅ 编译通过，无警告
+## 能力概览
 
-### 2. Docker编译方案
-- ✅ 基础构建配置（3个Dockerfile）
-- ✅ 智能构建脚本（3个脚本）
-- ✅ 代理支持
-- ✅ 国内镜像源支持
-- ✅ 多种兼容性选项
+- 常驻服务：Linux 使用 systemd，Windows 使用 Windows Service Control Manager。
+- 本机管理页：默认监听 `http://127.0.0.1:18765/`，用于配置服务端地址、设备名、桌面编码选项和服务自启。
+- 远程桌面：基于内置 Weylus 协议能力，桌面端口默认随机本地端口，只通过 AuroraOps 服务端入口访问。
+- 远程终端：通过 AuroraOps 服务端 TCP 通道转发到客户端终端会话。
+- 硬件编码：Linux 支持 VAAPI/NVENC 尝试，Windows 支持 NVENC/MediaFoundation 尝试。
 
-### 3. 文档
-- ✅ XTest功能文档
-- ✅ XTest测试报告
-- ✅ Docker构建详细文档
-- ✅ 快速开始指南
-- ✅ 提交建议
-
-## 🚀 立即开始使用
-
-### 步骤 0: 信创 / 主流 Linux 多目标矩阵编译（推荐）
-
-`docker-build-linux.sh` 用 4 档基础镜像（按 glibc 同源映射）覆盖你列的全部目标。CI 会在对应原生 runner 上分别出 `amd64` + `arm64` 产物，本地默认只编当前机器架构：
-
-| --target    | 基础镜像          | glibc | 覆盖的真实系统                                |
-|-------------|-------------------|-------|-----------------------------------------------|
-| ubuntu1604  | `ubuntu:16.04`    | 2.23  | Ubuntu 16.04 及以上                            |
-| uos-v20     | `debian:10`       | 2.28  | 统信 UOS V20（兆芯 / 海光 / 鲲鹏 / 飞腾 / 海思）|
-| kylin-v10   | `rockylinux:8`    | 2.28  | 麒麟 V10 SP1（兆芯 / 海光 / 鲲鹏 / 飞腾 / 海思）|
-| centos7     | `centos:7` (vault)| 2.17  | CentOS 7 系列                                  |
-| centos8     | `rockylinux:8`    | 2.28  | CentOS / Rocky / Alma 8 及以上                  |
-| nfs-v4      | `rockylinux:8`    | 2.28  | 中科方德 V4                                    |
+## 本地构建
 
 ```bash
 cd new-client
-# 全部目标 × 当前机器架构
+cargo build --release --bin auroraops-agent
+```
+
+构建产物：
+
+```text
+new-client/target/release/auroraops-agent
+```
+
+Windows 交叉检查或构建：
+
+```bash
+rustup target add x86_64-pc-windows-gnu
+cargo check --target x86_64-pc-windows-gnu --bin auroraops-agent
+cargo build --release --target x86_64-pc-windows-gnu --bin auroraops-agent
+```
+
+Windows 产物：
+
+```text
+new-client/target/x86_64-pc-windows-gnu/release/auroraops-agent.exe
+```
+
+macOS 构建：
+
+```bash
+rustup target add x86_64-apple-darwin aarch64-apple-darwin
+cargo build --release --target x86_64-apple-darwin --bin auroraops-agent
+cargo build --release --target aarch64-apple-darwin --bin auroraops-agent
+```
+
+macOS 产物：
+
+```text
+new-client/target/x86_64-apple-darwin/release/auroraops-agent
+new-client/target/aarch64-apple-darwin/release/auroraops-agent
+```
+
+说明：macOS 依赖 Apple SDK 和系统 frameworks，建议在 macOS 原生环境或 GitHub Actions `macos-latest` runner 上构建，不建议从 Linux 直接交叉编译。
+
+## Linux 矩阵构建
+
+`docker-build-linux.sh` 用多档基础镜像覆盖主流 Linux 和信创系统。本地默认只编当前机器架构；CI 可在对应原生 runner 上分别出 `amd64` 和 `arm64`。
+
+| `--target` | 基础镜像 | glibc | 覆盖系统 |
+| --- | --- | --- | --- |
+| `ubuntu1604` | `ubuntu:16.04` | 2.23 | Ubuntu 16.04 及以上 |
+| `uos-v20` | `debian:10` | 2.28 | 统信 UOS V20 |
+| `kylin-v10` | `rockylinux:8` | 2.28 | 麒麟 V10 SP1、V10/V11 桌面等 |
+| `centos7` | `centos:7` | 2.17 | CentOS 7 系列 |
+| `centos8` | `rockylinux:8` | 2.28 | CentOS/Rocky/Alma 8 及以上 |
+| `nfs-v4` | `rockylinux:8` | 2.28 | 中科方德 V4 |
+
+常用命令：
+
+```bash
+cd new-client
+
+# 全部目标，当前机器架构
 ./docker-build-linux.sh
 
 # 只编 UOS V20 + 麒麟 V10/V11 桌面
@@ -48,34 +81,35 @@ cd new-client
 # 只编 amd64
 ./docker-build-linux.sh --arch amd64
 
-# 确实需要在非 arm64 主机上模拟编 arm64 时，显式开启 QEMU
+# 非 arm64 主机模拟编 arm64 时显式开启 QEMU
 ./docker-build-linux.sh --arch arm64 --use-qemu
 
-# 走代理
+# 使用代理
 ./docker-build-linux.sh --proxy http://127.0.0.1:12333
-```
-
-产物位置：`new-client/dist/linux-matrix/<target>-<arch>/`，每个目录里包含
-`auroraops-agent`、对应的 `.deb` 或 `.rpm`、以及 `auroraops-agent.ldd.txt`。
-
-> 默认不使用 QEMU。GitHub Actions 的 arm64 构建使用 `ubuntu-22.04-arm` 原生 runner；本地只有显式传 `--use-qemu` 时才会安装 `tonistiigi/binfmt`。
-> CI 已配置在 `.github/workflows/build-linux.yml`，push / PR / 手动触发都会跑全矩阵。
-
-### 步骤1: UOS V10 / Kylin V10 Docker编译（旧脚本）
-
-如果目标是统信/UOS V10、麒麟 V10，优先使用这个兼容构建入口。它默认使用 `macrosan/kylin:v10-sp3-2403`，产物会更贴近 V10 系统：
-
-```bash
-cd new-client
-./docker-build-uos-v10.sh
 ```
 
 产物位置：
 
 ```text
-new-client/dist/uos-v10/auroraops-agent
-new-client/dist/uos-v10/auroraops-agent_<version>-<release>_<arch>.deb
-new-client/dist/uos-v10/auroraops-agent.ldd.txt
+new-client/dist/linux-matrix/<target>-<arch>/
+```
+
+每个目录一般包含：
+
+```text
+auroraops-agent
+auroraops-agent_<version>-<release>_<arch>.deb
+auroraops-agent-<version>-<release>.<arch>.rpm
+auroraops-agent.ldd.txt
+```
+
+## UOS V10 / Kylin V10 构建
+
+如果目标是统信/UOS V10、麒麟 V10，优先使用这个兼容构建入口。默认基础镜像是 `macrosan/kylin:v10-sp3-2403`。
+
+```bash
+cd new-client
+./docker-build-uos-v10.sh
 ```
 
 常用参数：
@@ -87,225 +121,258 @@ new-client/dist/uos-v10/auroraops-agent.ldd.txt
 ./docker-build-uos-v10.sh --base debian:buster
 ```
 
-说明：远程桌面依赖 X11、DBus、GStreamer、FFmpeg 等宿主桌面库，这些库不适合完全静态链接。Docker 构建主要解决 glibc 和编译环境兼容问题，目标机器仍需要对应运行库。
+产物位置：
 
-### 步骤1b: 通用Docker编译
+```text
+new-client/dist/uos-v10/auroraops-agent
+new-client/dist/uos-v10/auroraops-agent_<version>-<release>_<arch>.deb
+new-client/dist/uos-v10/auroraops-agent.ldd.txt
+```
+
+说明：远程桌面依赖 X11、DBus、GStreamer、FFmpeg、DRM 等宿主桌面库，这些库不适合完全静态链接。Docker 构建主要解决 glibc 和编译环境兼容问题，目标机器仍需要对应运行库。
+
+## Linux 安装与服务
+
+开发环境前台运行：
 
 ```bash
-# 使用你的代理编译
-./docker-build-with-proxy.sh
+./target/release/auroraops-agent --service \
+  --config /etc/auroraops/agent-config.json \
+  --port 18765
 ```
 
-**或者，根据需要选择**：
+安装 systemd 服务可使用仓库脚本或系统包：
 
 ```bash
-# 最大兼容性（Ubuntu 18.04 - GLIBC 2.27）
-./docker-build-advanced.sh --ubuntu18
-
-# 平衡方案（Ubuntu 20.04 - GLIBC 2.31）
-./docker-build.sh
-
-# 最新特性（Ubuntu 22.04 - GLIBC 2.35）
-./docker-build-advanced.sh --ubuntu22
+sudo ./install-systemd.sh
+sudo systemctl enable --now auroraops-agent.service
+sudo systemctl status auroraops-agent.service
 ```
 
-### 步骤2: 运行Weylus
+卸载：
 
 ```bash
-# 运行
-./output/weylus
-
-# 或后台运行
-nohup ./output/weylus > weylus.log 2>&1 &
+sudo ./uninstall-systemd.sh
 ```
 
-### 步骤3: 连接设备
+Linux 服务默认配置路径：
 
-1. 在平板/手机浏览器打开 `http://你的IP:1701`
-2. 选择要控制的屏幕
-3. 测试键盘输入
-4. XTest会自动工作！
-
-## 📁 文件结构
-
-```
-Weylus/
-├── 核心代码
-│   ├── src/input/xtest_device.rs      # XTest设备实现
-│   ├── src/input/x11_keys.rs          # X11键码定义
-│   └── src/websocket.rs               # 设备选择逻辑（已更新）
-│
-├── Docker配置
-│   ├── Dockerfile.build               # 基础构建
-│   ├── Dockerfile.multistage          # 多阶段构建
-│   ├── docker-build.sh                # 简单构建脚本
-│   ├── docker-build-advanced.sh       # 高级构建脚本
-│   └── docker-build-with-proxy.sh     # 代理构建脚本
-│
-├── 文档
-│   ├── docs/XTEST_SUPPORT.md          # XTest功能说明
-│   ├── docs/XTEST_TEST_REPORT.md      # 测试报告
-│   ├── docs/DOCKER_BUILD.md           # Docker详细文档
-│   ├── docs/DOCKER_QUICK_START.md     # Docker快速开始
-│   ├── BUILD_QUICKSTART.md            # 编译快速开始
-│   ├── COMMIT_SUGGESTION.md           # Git提交建议
-│   └── STATUS.md                      # 实现状态
-│
-└── 输出
-    └── output/weylus                  # 编译产物
+```text
+/etc/auroraops/agent-config.json
 ```
 
-## 🎯 核心特性
+本机管理页服务管理按钮在 Linux 下会调用：
 
-### XTest键盘输入
-- **无需权限**：不需要访问 `/dev/uinput`
-- **Xorg友好**：直接X11协议通信
-- **完整支持**：140+键、修饰键、小键盘
-- **自动fallback**：uinput失败时自动使用XTest
+```text
+systemctl enable --now auroraops-agent.service
+systemctl disable --now auroraops-agent.service
+systemctl restart auroraops-agent.service
+```
 
-### Docker编译
-- **可控GLIBC**：选择不同基础镜像控制兼容性
-- **代理支持**：支持 `http://192.168.2.222:12333`
-- **国内加速**：支持清华源、中科大源
-- **多种方案**：Ubuntu 18.04/20.04/22.04
+## Windows 安装与服务
 
-## 📊 兼容性对照
+Windows 支持自动 UAC 提权注册服务。普通用户双击或命令行执行服务管理命令时，会弹出管理员权限确认窗口。
 
-| 编译配置 | GLIBC | 支持系统 | 推荐场景 |
-|---------|-------|---------|---------|
-| Ubuntu 18.04 | 2.27 | Ubuntu 18.04+, Debian 10+, CentOS 7+ | 最大兼容性 |
-| Ubuntu 20.04 | 2.31 | Ubuntu 20.04+, Debian 11+, Fedora 32+ | 平衡方案（默认）|
-| Ubuntu 22.04 | 2.35 | Ubuntu 22.04+, Debian 12+, Fedora 36+ | 最新特性 |
+安装并启动服务：
 
-## 🔧 常用命令
+```powershell
+.\auroraops-agent.exe --install-service
+```
 
-### 编译
+停止并卸载服务：
+
+```powershell
+.\auroraops-agent.exe --uninstall-service
+```
+
+其他服务管理命令：
+
+```powershell
+.\auroraops-agent.exe --start-service
+.\auroraops-agent.exe --stop-service
+.\auroraops-agent.exe --restart-service
+```
+
+服务信息：
+
+```text
+服务名: auroraops-agent
+显示名: AuroraOps 客户端
+启动类型: auto
+运行账户: LocalSystem
+默认配置: C:\ProgramData\AuroraOps\agent-config.json
+用户界面配置: %APPDATA%\AuroraOps\config.toml
+旧版兼容读取: %APPDATA%\weylus\weylus.toml
+默认管理页: http://127.0.0.1:18765/
+```
+
+### Windows 会话模型
+
+Windows 服务运行在 Session 0，不能直接稳定捕获当前登录用户桌面。因此 AuroraOps 客户端采用两层进程：
+
+- 服务进程：由 Windows SCM 常驻，负责自启、监控和拉起用户会话代理。
+- 会话代理：服务检测当前活动 Console Session 后，通过 `CreateProcessAsUserW` 在该用户桌面会话里启动 `auroraops-agent.exe --session-agent --service ...`。
+- 远程终端：使用 `portable-pty`，Windows 走 ConPTY，Linux/macOS 走原生 PTY。
+- 远程键盘：Windows 使用 `SendInput` 发送键盘事件，避免 autopilot 字符输入路径 panic。
+
+服务每隔数秒检查活动会话：
+
+- 用户登录后自动拉起 session agent。
+- 用户切换会话后终止旧 agent 并拉起新 agent。
+- session agent 异常退出后自动重启。
+- 停止 Windows 服务时同步终止 session agent。
+
+排查命令：
+
+```powershell
+sc query auroraops-agent
+sc qc auroraops-agent
+Get-Process auroraops-agent
+```
+
+正常情况下，用户登录后可能看到两个 `auroraops-agent.exe` 进程：一个是 SCM 服务进程，一个是当前桌面会话中的 `--session-agent` 进程。
+
+### Windows 安装包
+
+GitHub Actions 会产出：
+
+```text
+auroraops-agent-windows-x64.exe
+AuroraOps-Client-Setup-<version>-x64.exe
+```
+
+本地构建 setup.exe 需要安装 NSIS：
+
+```powershell
+cargo build --release --bin auroraops-agent
+$version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+makensis.exe /DVERSION=$version /DSOURCE_EXE="$PWD\target\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
+```
+
+setup.exe 默认安装到 `C:\Program Files\AuroraOps\AuroraOps Client\`，创建桌面和开始菜单快捷方式，并可选择注册启动 `auroraops-agent` 系统服务。
+
+## 本机管理页
+
+启动服务后打开：
+
+```text
+http://127.0.0.1:18765/
+```
+
+可配置项：
+
+- 服务端地址和设备名称。
+- 远程桌面绑定地址和本地端口。端口 `0` 表示随机本地端口。
+- Linux 桌面能力：Wayland/PipeWire、KMS/DRM、VAAPI、NVENC、登录界面控制。
+- Windows 桌面能力：NVENC、MediaFoundation。
+- 系统服务启用、禁用和重启。
+
+远程桌面本地端口默认不固定，也不需要直接暴露给公网；管理后台通过服务端通道打开远程桌面。
+
+## 硬件资产采集
+
+客户端优先使用 vendored `fastfetch-sys` 直接链接 fastfetch native detection library，当前在 Linux、Windows 和 macOS 都参与构建。
+
+- Linux：使用预生成 bindgen 绑定，采集主板、BIOS、CPU、内存、GPU、网卡和磁盘；必要时补 `/proc` fallback。
+- Windows：构建时启用 Windows fastfetch native detection，并裁剪不适合 agent 静态链接的媒体和 GPU 扩展；如果某些类型没有采到，会自动用 PowerShell CIM 作为 fallback。
+- macOS：通过 macOS 原生 runner 构建 native detection library，链接 Apple system frameworks。不同 CPU 架构会通过 `CMAKE_OSX_ARCHITECTURES` 固定 native C 库架构，避免 Rust target 和 CMake 产物架构不一致。
+
+单独验证 `fastfetch-sys`：
+
 ```bash
-# 使用代理（推荐）
-./docker-build-with-proxy.sh
-
-# 最大兼容性
-./docker-build-advanced.sh --ubuntu18
-
-# 不使用缓存（强制重建）
-./docker-build-advanced.sh --no-cache
+cargo check --manifest-path new-client/vendor/fastfetch-sys/Cargo.toml
+cargo check --manifest-path new-client/vendor/fastfetch-sys/Cargo.toml --target x86_64-pc-windows-gnu
 ```
 
-### 验证
+macOS 验证请在 macOS 环境中运行：
+
 ```bash
-# 查看文件信息
-file output/weylus
-
-# 查看依赖
-ldd output/weylus | grep GLIBC
-
-# 测试运行
-./output/weylus --help
+cargo check --manifest-path new-client/vendor/fastfetch-sys/Cargo.toml --target x86_64-apple-darwin
+cargo check --manifest-path new-client/vendor/fastfetch-sys/Cargo.toml --target aarch64-apple-darwin
 ```
 
-### 运行
+## 验证命令
+
+Linux 主目标：
+
 ```bash
-# 前台运行
-./output/weylus
-
-# 后台运行
-nohup ./output/weylus > weylus.log 2>&1 &
-
-# 查看日志
-tail -f weylus.log
+cargo check --manifest-path new-client/Cargo.toml --bin auroraops-agent
 ```
 
-## 🐛 故障排查
+Lite 服务：
 
-### 问题1: GLIBC版本不足
-```
-./weylus: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.XX' not found
-```
-
-**解决**：使用更老的基础镜像重新编译
 ```bash
-./docker-build-advanced.sh --ubuntu18
+cargo check --manifest-path new-client/Cargo.toml \
+  --bin auroraops-agent-service \
+  --features agent-service-lite
 ```
 
-### 问题2: 网络连接失败
-```
-error: failed to fetch ...
-```
+Windows 目标：
 
-**解决**：
-1. 使用代理：`./docker-build-with-proxy.sh`
-2. 启用国内镜像源（编辑Dockerfile取消注释）
-
-### 问题3: XTest不工作
-```
-error: Failed to open X display
+```bash
+cargo check --manifest-path new-client/Cargo.toml \
+  --target x86_64-pc-windows-gnu \
+  --bin auroraops-agent
 ```
 
-**解决**：
-1. 确保在X11环境（不是Wayland）
-2. 设置DISPLAY变量：`export DISPLAY=:0`
-3. 检查XTEST扩展：`xdpyinfo | grep XTEST`
+macOS 目标：
 
-### 问题4: 编译很慢
-**解决**：
-1. 使用国内镜像源
-2. 后续编译会利用缓存
-3. 使用多阶段构建：`--multistage`
+```bash
+cargo check --manifest-path new-client/Cargo.toml \
+  --target x86_64-apple-darwin \
+  --bin auroraops-agent
+cargo check --manifest-path new-client/Cargo.toml \
+  --target aarch64-apple-darwin \
+  --bin auroraops-agent
+```
 
-## 📖 详细文档
+## 常见问题
 
-- **快速开始**: `BUILD_QUICKSTART.md`（本文件）
-- **XTest功能**: `docs/XTEST_SUPPORT.md`
-- **测试报告**: `docs/XTEST_TEST_REPORT.md`
-- **Docker详情**: `docs/DOCKER_BUILD.md`
-- **提交建议**: `COMMIT_SUGGESTION.md`
+### GLIBC 版本不足
 
-## 🎊 验证清单
+```text
+./auroraops-agent: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.xx' not found
+```
 
-- [x] XTest代码实现完成
-- [x] 编译通过（无错误、无警告）
-- [x] 独立测试通过
-- [x] Docker配置完成
-- [x] 代理支持完成
-- [x] 文档完善
-- [x] 构建脚本完成
+使用更老的目标镜像重新构建，例如：
 
-## 🚀 下一步
+```bash
+./docker-build-linux.sh --target centos7
+```
 
-1. **立即编译**
-   ```bash
-   ./docker-build-with-proxy.sh
-   ```
+### Linux 远程输入不可用
 
-2. **测试运行**
-   ```bash
-   ./output/weylus
-   ```
+确认 `/dev/uinput` 可用：
 
-3. **实际使用**
-   - 平板/手机连接
-   - 测试键盘输入
-   - 验证XTest功能
+```bash
+ls -l /dev/uinput
+sudo modprobe uinput
+```
 
-4. **提交代码**（可选）
-   - 参考 `COMMIT_SUGGESTION.md`
-   - 创建Git commit
+打包安装时会尝试安装 uinput 配置；手动运行时需要确保当前用户或服务有权限访问 `/dev/uinput`。
 
----
+### KMS/DRM 捕获失败
 
-## 💡 提示
+常见错误：
 
-**推荐配置**：
-- 编译：`./docker-build-with-proxy.sh`（使用代理+Ubuntu 20.04）
-- 最大兼容：`./docker-build-advanced.sh --ubuntu18`
+```text
+KMS framebuffer handle unavailable
+KMS PRIME mmap failed: Operation not permitted
+DRM_IOCTL_MODE_MAP_DUMB
+```
 
-**验证XTest工作**：
-查看日志输出 `debug: Using XTest device for input`
+处理方向：
 
-**需要帮助**：
-- XTest功能：见 `docs/XTEST_SUPPORT.md`
-- Docker编译：见 `docs/DOCKER_BUILD.md`
+- 确认使用正确的 `/dev/dri/card*`。
+- 尝试 root 或具备 DRM 权限的服务运行方式。
+- 部分驱动不支持当前 KMS fallback 路径，优先使用 X11/PipeWire 捕获。
 
----
+### Windows 服务已启动但没有桌面画面
 
-**🎉 一切就绪！现在就可以开始编译和使用了！**
+检查 session agent 是否被拉起：
+
+```powershell
+Get-Process auroraops-agent | Select-Object Id,SessionId,Path
+```
+
+如果只有 Session 0 的服务进程，说明当前没有可用的活动登录会话，或 `WTSQueryUserToken/CreateProcessAsUserW` 失败。确认服务账户为 LocalSystem，并查看服务日志或控制台输出。

@@ -15,6 +15,7 @@ import (
 type OpsAssetUpdateFields struct {
 	DeviceId      uint64 `json:"deviceId"      dc:"所属设备"`
 	AssetType     string `json:"assetType"     dc:"资产类型"`
+	UniqueKey     string `json:"uniqueKey"     dc:"资产唯一键"`
 	AssetName     string `json:"assetName"     dc:"资产名称"`
 	Brand         string `json:"brand"         dc:"品牌"`
 	Model         string `json:"model"         dc:"型号"`
@@ -30,6 +31,7 @@ type OpsAssetUpdateFields struct {
 type OpsAssetInsertFields struct {
 	DeviceId      uint64 `json:"deviceId"      dc:"所属设备"`
 	AssetType     string `json:"assetType"     dc:"资产类型"`
+	UniqueKey     string `json:"uniqueKey"     dc:"资产唯一键"`
 	AssetName     string `json:"assetName"     dc:"资产名称"`
 	Brand         string `json:"brand"         dc:"品牌"`
 	Model         string `json:"model"         dc:"型号"`
@@ -101,18 +103,23 @@ func (in *OpsAssetListInp) Filter(ctx context.Context) (err error) {
 }
 
 type OpsAssetListModel struct {
-	Id         uint64      `json:"id"         dc:"资产ID"`
-	DeviceId   uint64      `json:"deviceId"   dc:"所属设备ID"`
-	DeviceName string      `json:"deviceName" dc:"所属设备"`
-	AssetType  string      `json:"assetType"  dc:"资产类型"`
-	AssetName  string      `json:"assetName"  dc:"资产名称"`
-	Brand      string      `json:"brand"      dc:"品牌"`
-	Model      string      `json:"model"      dc:"型号"`
-	SerialNo   string      `json:"serialNo"   dc:"序列号"`
-	Source     string      `json:"source"     dc:"资产来源"`
-	LastSeenAt *gtime.Time `json:"lastSeenAt" dc:"最近观测时间"`
-	Status     int         `json:"status"     dc:"状态"`
-	CreatedAt  *gtime.Time `json:"createdAt"  dc:"创建时间"`
+	Id            uint64      `json:"id"            dc:"资产ID"`
+	DeviceId      uint64      `json:"deviceId"      dc:"所属设备ID"`
+	DeviceName    string      `json:"deviceName"    dc:"所属设备"`
+	AssetType     string      `json:"assetType"     dc:"资产类型"`
+	UniqueKey     string      `json:"uniqueKey"     dc:"资产唯一键"`
+	AssetName     string      `json:"assetName"     dc:"资产名称"`
+	Brand         string      `json:"brand"         dc:"品牌"`
+	Model         string      `json:"model"         dc:"型号"`
+	SerialNo      string      `json:"serialNo"      dc:"序列号"`
+	Specification string      `json:"specification" dc:"规格参数"`
+	Source        string      `json:"source"        dc:"资产来源"`
+	SyncHash      string      `json:"syncHash"      dc:"同步摘要"`
+	Sort          int         `json:"sort"          dc:"排序"`
+	Remark        string      `json:"remark"        dc:"备注"`
+	LastSeenAt    *gtime.Time `json:"lastSeenAt"    dc:"最近观测时间"`
+	Status        int         `json:"status"        dc:"状态"`
+	CreatedAt     *gtime.Time `json:"createdAt"     dc:"创建时间"`
 }
 
 type OpsAssetMaxSortInp struct{}
@@ -177,8 +184,8 @@ func (in *OpsAssetClientSyncInp) Filter(ctx context.Context) (err error) {
 		if item.AssetType == "" {
 			return gerror.New("资产类型不能为空")
 		}
-		if item.UniqueKey == "" {
-			return gerror.New("资产唯一键不能为空")
+		if item.UniqueKey == "" && item.SerialNo == "" {
+			return gerror.New("资产唯一键或序列号不能为空")
 		}
 		if item.AssetName == "" {
 			return gerror.New("资产名称不能为空")

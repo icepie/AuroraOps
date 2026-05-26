@@ -25,10 +25,13 @@ mod gui;
 mod input;
 mod log;
 mod protocol;
+mod service_manager;
 mod video;
 mod web;
 mod websocket;
 mod weylus;
+#[cfg(target_os = "windows")]
+mod windows_service;
 
 fn main() {
     let (sender, receiver) = mpsc::sync_channel::<String>(100);
@@ -61,6 +64,40 @@ fn main() {
     }
     if conf.print_lib_js {
         print!("{}", web::LIB_JS);
+        return;
+    }
+
+    #[cfg(target_os = "windows")]
+    if conf.windows_service {
+        if let Err(err) = windows_service::dispatch() {
+            error!("Failed to dispatch Windows service: {err}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    #[cfg(target_os = "windows")]
+    if conf.session_agent {
+        if let Err(err) = aurora::run_service(&conf) {
+            error!("AuroraOps session agent failed: {err}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    if let Some(action) = service_cli_action(&conf) {
+        match service_manager::handle_cli_action(action, conf.agent_config.clone(), conf.agent_port)
+        {
+            Ok(message) => {
+                info!("{message}");
+                println!("{message}");
+            }
+            Err(err) => {
+                error!("AuroraOps service command failed: {err}");
+                eprintln!("AuroraOps service command failed: {err}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
 
@@ -121,6 +158,22 @@ fn main() {
         }
     } else {
         gui::run(&conf, receiver);
+    }
+}
+
+fn service_cli_action(conf: &Config) -> Option<service_manager::ServiceAction> {
+    if conf.install_service {
+        Some(service_manager::ServiceAction::Install)
+    } else if conf.uninstall_service {
+        Some(service_manager::ServiceAction::Uninstall)
+    } else if conf.start_service {
+        Some(service_manager::ServiceAction::Start)
+    } else if conf.stop_service {
+        Some(service_manager::ServiceAction::Stop)
+    } else if conf.restart_service {
+        Some(service_manager::ServiceAction::Restart)
+    } else {
+        None
     }
 }
 

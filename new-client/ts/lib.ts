@@ -23,6 +23,13 @@ let log_level: LogLevel = LogLevel.ERROR;
 let no_log_messages: boolean = true;
 
 let fps_out: HTMLOutputElement;
+let capture_backend_out: HTMLOutputElement;
+let encoder_backend_out: HTMLOutputElement;
+let input_backend_out: HTMLOutputElement;
+let pointer_backend_out: HTMLOutputElement;
+let keyboard_backend_out: HTMLOutputElement;
+let keyboard_event_count = 0;
+let pointer_event_count = 0;
 let frame_count = 0;
 let last_fps_calc: number = performance.now();
 
@@ -34,6 +41,11 @@ function run(level: string) {
         log_pre.textContent = "";
         log_level = LogLevel[level];
         fps_out = document.getElementById("fps") as HTMLOutputElement;
+        capture_backend_out = document.getElementById("capture_backend") as HTMLOutputElement;
+        encoder_backend_out = document.getElementById("encoder_backend") as HTMLOutputElement;
+        input_backend_out = document.getElementById("input_backend") as HTMLOutputElement;
+        pointer_backend_out = document.getElementById("pointer_backend") as HTMLOutputElement;
+        keyboard_backend_out = document.getElementById("keyboard_backend") as HTMLOutputElement;
         check_video = document.getElementById("enable_video") as HTMLInputElement;
         window.addEventListener("error", (e: ErrorEvent | Event | UIEvent) => {
             if ((e as ErrorEvent).error) {
@@ -126,6 +138,53 @@ function releasePointer(event: PointerEvent) {
         try {
             target.releasePointerCapture(event.pointerId);
         } catch (_err) {
+        }
+    }
+}
+
+function socketOpen(webSocket: WebSocket) {
+    return webSocket && webSocket.readyState === WebSocket.OPEN;
+}
+
+function socketStateLabel(webSocket: WebSocket) {
+    switch (webSocket?.readyState) {
+        case WebSocket.CONNECTING:
+            return "连接中";
+        case WebSocket.OPEN:
+            return "已连接";
+        case WebSocket.CLOSING:
+            return "关闭中";
+        case WebSocket.CLOSED:
+            return "已断开";
+        default:
+            return "未知";
+    }
+}
+
+function isEditableTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement))
+        return false;
+    if (target.isContentEditable)
+        return true;
+    const tagName = target.tagName;
+    return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+}
+
+function focusRemoteInputSurface() {
+    if (isEditableTarget(document.activeElement))
+        return;
+    for (const id of ["video", "canvas"]) {
+        const elem = document.getElementById(id) as HTMLElement;
+        if (elem && elem.tabIndex < 0)
+            elem.tabIndex = 0;
+    }
+    if (document.body) {
+        if (document.body.tabIndex < 0)
+            document.body.tabIndex = 0;
+        try {
+            document.body.focus({ preventScroll: true });
+        } catch (_err) {
+            document.body.focus();
         }
     }
 }
@@ -736,6 +795,7 @@ class PointerHandler {
         let canvas = document.getElementById("canvas");
         this.webSocket = webSocket;
         this.pointerTypes = settings.pointer_types();
+        focusRemoteInputSurface();
 
         video.onpointerdown = (e) => this.onEvent(e, "pointerdown");
         video.onpointerup = (e) => this.onEvent(e, "pointerup");
@@ -786,6 +846,11 @@ class PointerHandler {
     }
 
     onEvent(event: PointerEvent, event_type: string) {
+        if (!socketOpen(this.webSocket)) {
+            if (pointer_backend_out)
+                pointer_backend_out.value = `websocket ${socketStateLabel(this.webSocket)}，指针事件未发送`;
+            return;
+        }
         if (settings.checks.get("enable_debug_overlay").checked) {
             let props = [
                 "altKey",
@@ -846,6 +911,7 @@ class PointerHandler {
             }
         }
         if (this.pointerTypes.includes(event.pointerType)) {
+            focusRemoteInputSurface();
             const currentTarget = event.currentTarget as HTMLElement;
             let rect = currentTarget.getBoundingClientRect();
             const events = event_type === "pointermove" ? getPointerEvents(event) : [event];
@@ -853,6 +919,10 @@ class PointerHandler {
                 capturePointer(event);
             } else if (event_type === "pointerup" || event_type === "pointercancel") {
                 releasePointer(event);
+            }
+            pointer_event_count += 1;
+            if (pointer_backend_out) {
+                pointer_backend_out.value = `web send #${pointer_event_count} ${event_type} type=${event.pointerType} button=${event.button} buttons=${event.buttons} x=${event.x.toFixed(0)} y=${event.y.toFixed(0)}`;
             }
             for (let event of events) {
                 this.webSocket.send(
@@ -904,40 +974,67 @@ class KeyboardHandler {
     constructor(webSocket: WebSocket) {
         this.webSocket = webSocket;
 
-        let d = document;
-        let s = document.getElementById("settings")
-
-        // Consume all KeyboardEvents, except the settings menu is open.
-        // this avoids making the main/video/canvas element focusable by using
-        // a tabindex which interferes with PointerEvent than can be considered
-        // hovering.
-
-        function settings_hidden() {
-            return s.classList.contains("hide") || s.classList.contains("vanish");
+        // Consume KeyboardEvents globally. Keep only form editing local so the
+        // settings panel can stay open while keyboard input still reaches the
+        // controlled desktop.
+        function should_keep_local(event: KeyboardEvent) {
+            return isEditableTarget(event.target);
+        }
+        function already_handled(event: KeyboardEvent) {
+            const marker = "__auroraops_keyboard_handled";
+            if (event[marker])
+                return true;
+            event[marker] = true;
+            return false;
         }
 
-        d.onkeydown = (e) => {
-            if (!settings_hidden())
-                return true;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (already_handled(e))
+                return;
+            if (should_keep_local(e))
+                return;
             if (e.repeat)
-                return this.onEvent(e, "repeat");
-            return this.onEvent(e, "down");
+                this.onEvent(e, "repeat");
+            else
+                this.onEvent(e, "down");
         };
-        d.onkeyup = (e) => {
-            if (!settings_hidden())
-                return true;
-            return this.onEvent(e, "up");
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (already_handled(e))
+                return;
+            if (should_keep_local(e))
+                return;
+            this.onEvent(e, "up");
         };
-        d.onkeypress = (e) => {
-            if (!settings_hidden())
-                return true;
+        const handleKeyPress = (e: KeyboardEvent) => {
+            if (already_handled(e))
+                return;
+            if (should_keep_local(e))
+                return;
             e.preventDefault();
             e.stopPropagation();
-            return false;
         };
+
+        window.addEventListener("focus", () => focusRemoteInputSurface(), true);
+        document.addEventListener("pointerdown", () => focusRemoteInputSurface(), true);
+        window.addEventListener("keydown", handleKeyDown, true);
+        window.addEventListener("keyup", handleKeyUp, true);
+        window.addEventListener("keypress", handleKeyPress, true);
+        document.addEventListener("keydown", handleKeyDown, true);
+        document.addEventListener("keyup", handleKeyUp, true);
+        document.addEventListener("keypress", handleKeyPress, true);
     }
 
     onEvent(event: KeyboardEvent, event_type: string) {
+        if (!socketOpen(this.webSocket)) {
+            if (keyboard_backend_out)
+                keyboard_backend_out.value = `websocket ${socketStateLabel(this.webSocket)}，键盘事件未发送`;
+            return false;
+        }
+        focusRemoteInputSurface();
+        keyboard_event_count += 1;
+        if (keyboard_backend_out) {
+            keyboard_backend_out.value = `web send #${keyboard_event_count} ${event_type} code=${event.code} key=${event.key}`;
+        }
         this.webSocket.send(JSON.stringify({ "KeyboardEvent": new KEvent(event_type, event) }));
         event.preventDefault();
         event.stopPropagation();
@@ -1023,6 +1120,18 @@ function handle_messages(
                     settings.custom_input_areas = msg["CustomInputAreas"];
                     settings.checks.get("enable_custom_input_areas").checked = true;
                     settings.save_settings();
+                } else if ("RuntimeStatus" in msg) {
+                    const status = msg["RuntimeStatus"];
+                    if (status["captureBackend"] !== undefined)
+                        capture_backend_out.value = status["captureBackend"] || "未知";
+                    if (status["encoderBackend"] !== undefined)
+                        encoder_backend_out.value = status["encoderBackend"] || "未知";
+                    if (status["inputBackend"] !== undefined)
+                        input_backend_out.value = status["inputBackend"] || "未知";
+                    if (status["pointerBackend"] !== undefined)
+                        pointer_backend_out.value = status["pointerBackend"] || "未知";
+                    if (status["keyboardBackend"] !== undefined)
+                        keyboard_backend_out.value = status["keyboardBackend"] || "未知";
                 }
             }
 

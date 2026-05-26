@@ -3,7 +3,6 @@ package sys
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"auroraops/internal/consts"
@@ -165,6 +164,7 @@ func (s *sSysOpsHardware) buildOverviewRow(device *entity.OpsDevice, groupName s
 
 	memoryCapacity := make([]string, 0)
 	cpuNames := make([]string, 0)
+	diskNames := make([]string, 0)
 	nicNames := make([]string, 0)
 	gpuNames := make([]string, 0)
 	motherboardNames := make([]string, 0)
@@ -188,6 +188,8 @@ func (s *sSysOpsHardware) buildOverviewRow(device *entity.OpsDevice, groupName s
 			cpuNames = appendIfMeaningful(cpuNames, composeAssetLabel(asset))
 		case "memory":
 			memoryCapacity = appendIfMeaningful(memoryCapacity, composeMemoryLabel(asset))
+		case "disk":
+			diskNames = appendIfMeaningful(diskNames, composeAssetLabelWithSpec(asset))
 		case "gpu":
 			gpuNames = appendIfMeaningful(gpuNames, composeAssetLabel(asset))
 		case "network":
@@ -199,6 +201,7 @@ func (s *sSysOpsHardware) buildOverviewRow(device *entity.OpsDevice, groupName s
 	row.BiosVersion = joinLabels(biosHints)
 	row.Cpu = joinLabels(cpuNames)
 	row.Memory = joinLabels(memoryCapacity)
+	row.Disk = joinLabels(diskNames)
 	row.Gpu = joinLabels(gpuNames)
 	row.Nic = joinLabels(nicNames)
 	row.ChangedAt = changedAt
@@ -229,6 +232,8 @@ func normalizeAssetType(value string) string {
 		return "network"
 	case "video", "graphics", "graphics_card":
 		return "gpu"
+	case "storage", "physical_disk", "physicaldisk", "drive":
+		return "disk"
 	default:
 		return strings.ToLower(strings.TrimSpace(value))
 	}
@@ -255,6 +260,10 @@ func composeAssetLabel(asset *entity.OpsAsset) string {
 }
 
 func composeMemoryLabel(asset *entity.OpsAsset) string {
+	return composeAssetLabelWithSpec(asset)
+}
+
+func composeAssetLabelWithSpec(asset *entity.OpsAsset) string {
 	label := composeAssetLabel(asset)
 	spec := strings.TrimSpace(asset.Specification)
 	if spec == "" {
@@ -346,6 +355,5 @@ func joinLabels(values []string) string {
 	if len(values) == 0 {
 		return "-"
 	}
-	sort.Strings(values)
 	return strings.Join(values, "；")
 }

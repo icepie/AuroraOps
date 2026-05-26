@@ -13,7 +13,7 @@ export const assetTypeOptions = [
   { label: 'CPU', value: 'cpu', key: 'cpu' },
   { label: '内存', value: 'memory', key: 'memory' },
   { label: '磁盘', value: 'disk', key: 'disk' },
-  { label: '网卡', value: 'nic', key: 'nic' },
+  { label: '网卡', value: 'network', key: 'network' },
   { label: '显卡', value: 'gpu', key: 'gpu' },
   { label: '电源', value: 'power', key: 'power' },
   { label: '风扇', value: 'fan', key: 'fan' },
@@ -25,11 +25,14 @@ export class State {
   public id = 0;
   public deviceId = null;
   public assetType = 'other';
+  public uniqueKey = '';
   public assetName = '';
   public brand = '';
   public model = '';
   public serialNo = '';
   public specification = '';
+  public source = 'manual';
+  public syncHash = '';
   public sort = 0;
   public status = 1;
   public remark = '';

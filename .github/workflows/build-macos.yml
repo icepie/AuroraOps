@@ -1,0 +1,58 @@
+name: build-macos-client
+
+on:
+  push:
+    branches: [main, v2.0]
+    paths:
+      - 'new-client/**'
+      - '.github/workflows/build-macos.yml'
+  pull_request:
+    paths:
+      - 'new-client/**'
+      - '.github/workflows/build-macos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: macos-${{ matrix.arch }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rust_target: x86_64-apple-darwin
+            artifact: auroraops-agent-macos-x64
+          - arch: arm64
+            rust_target: aarch64-apple-darwin
+            artifact: auroraops-agent-macos-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install TypeScript compiler
+        run: npm install -g typescript
+
+      - name: Build AuroraOps client
+        working-directory: new-client
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
+
+      - name: Stage artifacts
+        working-directory: new-client
+        run: |
+          mkdir -p "dist/macos/${{ matrix.arch }}"
+          cp "target/${{ matrix.rust_target }}/release/auroraops-agent" "dist/macos/${{ matrix.arch }}/${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: new-client/dist/macos/${{ matrix.arch }}/*

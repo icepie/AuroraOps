@@ -292,6 +292,10 @@ impl PipeWireRecorder {
 }
 
 impl Recorder for PipeWireRecorder {
+    fn backend_name(&self) -> &'static str {
+        "Wayland/PipeWire"
+    }
+
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
         if let Some(sample) = self
             .appsink

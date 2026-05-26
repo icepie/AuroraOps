@@ -76,6 +76,8 @@
       :pagination="pagination"
       @update:page="updatePage"
       @update:page-size="updatePageSize"
+      @update:checked-row-keys="updateCheckedRowKeys"
+      @update:expanded-row-keys="updateExpandedRowKeys"
     >
       <template #[item]="data" v-for="item in Object.keys($slots)" :key="item">
         <slot :name="item" v-bind="data"></slot>
@@ -146,6 +148,7 @@
       'fetch-success',
       'fetch-error',
       'update:checked-row-keys',
+      'update:expanded-row-keys',
       'edit-end',
       'edit-cancel',
       'edit-row-end',
@@ -168,7 +171,7 @@
 
       const { getPaginationInfo, setPagination } = usePagination(getProps);
 
-      const { getDataSourceRef, getDataSource, getRowKey, reload } = useDataSource(
+      const { getDataSourceRef, getDataSource, setTableData, getRowKey, reload } = useDataSource(
         getProps,
         {
           getPaginationInfo,
@@ -209,6 +212,10 @@
         emit('update:checked-row-keys', rowKeys);
       }
 
+      function updateExpandedRowKeys(rowKeys) {
+        emit('update:expanded-row-keys', rowKeys);
+      }
+
       //获取表格大小
       const getTableSize = computed(() => state.tableSize);
 
@@ -243,6 +250,8 @@
         setLoading,
         setProps,
         getColumns,
+        getDataSource,
+        setTableData,
         getPageColumns,
         getCacheColumns,
         setCacheColumnsField,
@@ -295,8 +304,11 @@
         tableElRef,
         getBindValues,
         getDataSource,
+        setTableData,
         densityOptions,
         reload,
+        updateCheckedRowKeys,
+        updateExpandedRowKeys,
         densitySelect,
         updatePage,
         updatePageSize,

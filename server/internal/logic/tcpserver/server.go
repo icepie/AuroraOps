@@ -55,6 +55,7 @@ func (s *sTCPServer) Start(ctx context.Context) {
 			s.onServerHeartbeat, // 心跳
 			s.onDeviceLogin,     // 设备登录
 			s.onDeviceHeartbeat, // 设备心跳
+			s.onDeviceMonitorReport,
 			s.onDeviceTerminalOutput,
 			s.onDeviceTerminalClosed,
 			s.onDeviceDesktopTextOutput,

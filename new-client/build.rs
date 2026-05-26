@@ -189,6 +189,8 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=vfw32");
         println!("cargo:rustc-link-lib=dylib=shlwapi");
         println!("cargo:rustc-link-lib=dylib=bcrypt");
+        println!("cargo:rustc-link-lib=dylib=gdi32");
+        println!("cargo:rustc-link-lib=dylib=user32");
     }
 }
 

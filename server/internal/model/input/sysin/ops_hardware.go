@@ -30,6 +30,7 @@ type OpsHardwareOverviewModel struct {
 	BiosVersion string      `json:"biosVersion" dc:"BIOS版本"`
 	Cpu         string      `json:"cpu"         dc:"CPU"`
 	Memory      string      `json:"memory"      dc:"内存"`
+	Disk        string      `json:"disk"        dc:"磁盘"`
 	Gpu         string      `json:"gpu"         dc:"显卡"`
 	Nic         string      `json:"nic"         dc:"网卡"`
 	ChangedAt   *gtime.Time `json:"changedAt"   dc:"变更时间"`
@@ -44,6 +45,7 @@ type OpsHardwareOverviewExportModel struct {
 	BiosVersion string      `json:"biosVersion" dc:"BIOS版本"`
 	Cpu         string      `json:"cpu"         dc:"CPU"`
 	Memory      string      `json:"memory"      dc:"内存"`
+	Disk        string      `json:"disk"        dc:"磁盘"`
 	Gpu         string      `json:"gpu"         dc:"显卡"`
 	Nic         string      `json:"nic"         dc:"网卡"`
 	ChangedAt   *gtime.Time `json:"changedAt"   dc:"变更时间"`

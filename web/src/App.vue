@@ -1,6 +1,6 @@
 <template>
   <NConfigProvider
-    v-if="!isLock"
+    v-if="!shouldShowLockScreen"
     :locale="zhCN"
     :theme="getDarkTheme"
     :theme-overrides="getThemeOverrides"
@@ -11,7 +11,7 @@
     </AppProvider>
   </NConfigProvider>
 
-  <transition v-if="isLock && $route.name !== 'login'" name="slide-up">
+  <transition v-if="shouldShowLockScreen" name="slide-up">
     <LockScreen />
   </transition>
 </template>
@@ -31,6 +31,11 @@
   const designStore = useDesignSettingStore();
   const isLock = computed(() => useLockscreen.isLock);
   const lockTime = computed(() => useLockscreen.lockTime);
+  const remoteSessionRoutes = new Set(['/ops/device/desktop', '/ops/device/terminal']);
+  const isRemoteSessionRoute = computed(() => remoteSessionRoutes.has(route.path));
+  const shouldShowLockScreen = computed(
+    () => isLock.value && route.name !== 'login' && !isRemoteSessionRoute.value
+  );
 
   /**
    * @type import('naive-ui').GlobalThemeOverrides
@@ -53,33 +58,37 @@
         heightSmall: '24px',
         heightMedium: '28px',
         heightLarge: '32px',
-        borderRadius: '4px',
+        borderRadius: '5px',
         // 纵向滚动条宽
-        scrollbarWidth: '7px',
+        scrollbarWidth: '6px',
         // 横向滚动条高
-        scrollbarHeight: '7px',
+        scrollbarHeight: '6px',
       },
       Button: {
         paddingTiny: '0 6px',
         paddingSmall: '0 8px',
         paddingMedium: '0 10px',
+        iconMarginSmall: '4px',
+        iconMarginMedium: '5px',
       },
       Card: {
         titleFontSizeSmall: '14px',
         titleFontSizeMedium: '14px',
-        paddingSmall: '10px 12px',
-        paddingMedium: '10px 12px',
+        paddingSmall: '8px 10px',
+        paddingMedium: '9px 12px',
       },
       DataTable: {
-        fontSizeSmall: '13px',
-        thPaddingSmall: '6px 8px',
-        tdPaddingSmall: '5px 8px',
-        thPaddingMedium: '7px 9px',
-        tdPaddingMedium: '6px 9px',
+        fontSizeSmall: '12px',
+        fontSizeMedium: '13px',
+        thPaddingSmall: '5px 8px',
+        tdPaddingSmall: '4px 8px',
+        thPaddingMedium: '6px 9px',
+        tdPaddingMedium: '5px 9px',
       },
       Form: {
-        labelFontSizeLeftMedium: '13px',
-        labelFontSizeTopMedium: '13px',
+        labelFontSizeLeftMedium: '12px',
+        labelFontSizeTopMedium: '12px',
+        feedbackHeightMedium: '16px',
       },
       LoadingBar: {
         colorLoading: appTheme,
@@ -93,9 +102,10 @@
 
   const timekeeping = () => {
     clearInterval(timer);
-    if (route.name == 'login' || isLock.value) return;
+    if (route.name == 'login') return;
     // 设置不锁屏
     useLockscreen.setLock(false);
+    if (isRemoteSessionRoute.value) return;
     // 重置锁屏时间
     useLockscreen.setLockTime();
     timer = setInterval(() => {

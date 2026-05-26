@@ -12,14 +12,22 @@ import (
 	"auroraops/internal/model/do"
 	"auroraops/internal/model/entity"
 	"auroraops/internal/service"
+	ws "auroraops/internal/websocket"
 	"auroraops/utility/convert"
 	"auroraops/utility/encrypt"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
+	"github.com/gogf/gf/v2/util/gconv"
+)
+
+const (
+	deviceMonitorWebsocketTag   = "ops:device:monitor"
+	deviceMonitorWebsocketEvent = "ops/device/monitor"
 )
 
 // onServerLogin 处理客户端登录
@@ -250,5 +258,68 @@ func (s *sTCPServer) onDeviceHeartbeat(ctx context.Context, req *tcp.DeviceHeart
 		return
 	}
 	client.Heartbeat = gtime.Timestamp()
+	_ = conn.Send(ctx, res)
+}
+
+func (s *sTCPServer) onDeviceMonitorReport(ctx context.Context, req *tcp.DeviceMonitorReportReq) {
+	var (
+		conn = tcp.ConnFromCtx(ctx)
+		res  = new(tcp.DeviceMonitorReportRes)
+	)
+
+	if conn == nil {
+		g.Log().Warningf(ctx, "conn is nil.")
+		return
+	}
+	client := s.serv.GetClient(conn.Conn)
+	if client == nil || client.Auth == nil {
+		res.SetError(gerror.New("登录异常，请重新绑定"))
+		_ = conn.Send(ctx, res)
+		return
+	}
+	if req.DeviceId == 0 {
+		res.SetError(gerror.New("设备ID不能为空"))
+		_ = conn.Send(ctx, res)
+		return
+	}
+	if client.Auth.Extra != nil {
+		if authDeviceID := gconv.Uint64(client.Auth.Extra["deviceId"]); authDeviceID > 0 && authDeviceID != req.DeviceId {
+			res.SetError(gerror.New("设备ID不匹配"))
+			_ = conn.Send(ctx, res)
+			return
+		}
+	}
+
+	payload, err := json.Marshal(req.Snapshot)
+	if err != nil {
+		res.SetError(err)
+		_ = conn.Send(ctx, res)
+		return
+	}
+
+	client.Heartbeat = gtime.Timestamp()
+	now := gtime.Now()
+	if _, err = dao.OpsDevice.Ctx(ctx).
+		WherePri(req.DeviceId).
+		Data(do.OpsDevice{
+			MonitorSnapshot:   string(payload),
+			MonitorReportedAt: now,
+			Status:            consts.StatusEnabled,
+		}).
+		Update(); err != nil {
+		res.SetError(err)
+		_ = conn.Send(ctx, res)
+		return
+	}
+
+	ws.SendToTag(deviceMonitorWebsocketTag, &ws.WResponse{
+		Event: deviceMonitorWebsocketEvent,
+		Data: g.Map{
+			"deviceId":          req.DeviceId,
+			"monitor":           req.Snapshot,
+			"monitorReportedAt": now,
+		},
+		Timestamp: now.Timestamp(),
+	})
 	_ = conn.Send(ctx, res)
 }

@@ -1,10 +1,20 @@
-use winapi::shared::minwindef::DWORD;
-use winapi::shared::windef::{HWND, POINT};
+use std::collections::HashSet;
+use std::iter;
+use std::os::windows::ffi::OsStrExt;
+use std::ptr;
+
+use winapi::shared::basetsd::ULONG_PTR;
+use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, WORD};
+use winapi::shared::windef::{HDESK, HWND, POINT};
+use winapi::um::handleapi::CloseHandle;
+use winapi::um::processthreadsapi::{
+    CreateProcessW, GetCurrentProcessId, GetCurrentThreadId, ProcessIdToSessionId,
+    PROCESS_INFORMATION, STARTUPINFOW,
+};
 use winapi::um::winuser::*;
 
 use tracing::warn;
 
-use crate::input::autopilot_device::AutoPilotDevice;
 use crate::input::device::{InputDevice, InputDeviceType};
 use crate::protocol::{
     Button, KeyboardEvent, PointerEvent, PointerEventType, PointerType, WheelEvent,
@@ -14,10 +24,11 @@ use crate::capturable::{Capturable, Geometry};
 
 pub struct WindowsInput {
     capturable: Box<dyn Capturable>,
-    autopilot_device: AutoPilotDevice,
     pointer_device_handle: *mut HSYNTHETICPOINTERDEVICE__,
     touch_device_handle: *mut HSYNTHETICPOINTERDEVICE__,
     multitouch_map: std::collections::HashMap<i64, POINTER_TYPE_INFO>,
+    keyboard: KeyboardInputWorker,
+    pending_keyboard_status: Vec<String>,
 }
 
 impl WindowsInput {
@@ -26,10 +37,139 @@ impl WindowsInput {
             InitializeTouchInjection(5, TOUCH_FEEDBACK_DEFAULT);
             Self {
                 capturable: capturable.clone(),
-                autopilot_device: AutoPilotDevice::new(capturable),
                 pointer_device_handle: CreateSyntheticPointerDevice(PT_PEN, 1, 1),
                 touch_device_handle: CreateSyntheticPointerDevice(PT_TOUCH, 5, 1),
                 multitouch_map: std::collections::HashMap::new(),
+                keyboard: KeyboardInputWorker::new(),
+                pending_keyboard_status: Vec::new(),
+            }
+        }
+    }
+}
+
+struct KeyboardInputWorker {
+    pressed_keys: HashSet<WORD>,
+    event_count: u64,
+}
+
+impl KeyboardInputWorker {
+    fn new() -> Self {
+        Self {
+            pressed_keys: HashSet::new(),
+            event_count: 0,
+        }
+    }
+
+    fn send_keyboard_event(&mut self, event: &KeyboardEvent) -> Vec<String> {
+        let is_up = matches!(event.event_type, crate::protocol::KeyboardEventType::UP);
+        let is_repeat = matches!(event.event_type, crate::protocol::KeyboardEventType::REPEAT);
+        let mut ok = true;
+
+        let mut statuses = Vec::new();
+        self.event_count += 1;
+        let event_label = format!(
+            "#{} {} code={} key={}",
+            self.event_count,
+            match event.event_type {
+                crate::protocol::KeyboardEventType::DOWN => "down",
+                crate::protocol::KeyboardEventType::UP => "up",
+                crate::protocol::KeyboardEventType::REPEAT => "repeat",
+            },
+            event.code,
+            event.key
+        );
+        statuses.push(format!("keyboard target: {}", foreground_window_label()));
+
+        if let Some(vk) = map_keyboard_code(&event.code, &event.location) {
+            ok = self.send_key(vk, !is_up, is_repeat);
+            statuses.push(Self::keyboard_status(&event_label, ok, "scancode"));
+            return statuses;
+        }
+
+        if !is_up && !event.ctrl && !event.alt && !event.meta && should_send_unicode(&event.key) {
+            for ch in event.key.chars().filter(|ch| !ch.is_control()) {
+                ok &= self.tap_unicode_key(ch);
+            }
+            statuses.push(Self::keyboard_status(&event_label, ok, "unicode"));
+            return statuses;
+        }
+        self.sync_modifier(VK_CONTROL as WORD, event.ctrl);
+        self.sync_modifier(VK_MENU as WORD, event.alt);
+        self.sync_modifier(VK_SHIFT as WORD, event.shift);
+        self.sync_modifier(VK_LWIN as WORD, event.meta);
+        statuses.push(Self::keyboard_status(&event_label, true, "modifier"));
+        warn!(
+            "Skipping unmapped Windows keyboard event: code={} key={}",
+            event.code, event.key
+        );
+        statuses
+    }
+
+    fn send_key(&mut self, vk: WORD, down: bool, repeat: bool) -> bool {
+        if down && !repeat && !self.pressed_keys.insert(vk) {
+            return true;
+        }
+        if down && repeat {
+            self.pressed_keys.insert(vk);
+        }
+        if !down {
+            self.pressed_keys.remove(&vk);
+        }
+        self.send_vk(vk, down)
+    }
+
+    fn tap_unicode_key(&mut self, ch: char) -> bool {
+        let mut buf = [0u16; 2];
+        let mut ok = true;
+        for unit in ch.encode_utf16(&mut buf) {
+            ok &= self.send_unicode(*unit, true);
+            ok &= self.send_unicode(*unit, false);
+        }
+        ok
+    }
+
+    fn sync_modifier(&mut self, vk: WORD, down: bool) {
+        if down && !self.pressed_keys.contains(&vk) {
+            self.send_key(vk, true, false);
+        } else if !down && self.pressed_keys.contains(&vk) {
+            self.send_key(vk, false, false);
+        }
+    }
+
+    fn send_vk(&mut self, vk: WORD, down: bool) -> bool {
+        send_scancode(vk, down)
+    }
+
+    fn send_unicode(&mut self, scan: WORD, down: bool) -> bool {
+        send_unicode(scan, down)
+    }
+
+    fn keyboard_status(event_label: &str, ok: bool, mode: &str) -> String {
+        let state = if ok {
+            "sendinput ok"
+        } else {
+            "sendinput failed"
+        };
+        format!("{state} {mode} {event_label}")
+    }
+}
+
+impl Drop for KeyboardInputWorker {
+    fn drop(&mut self) {
+        for vk in self.pressed_keys.drain() {
+            send_vk(vk, false);
+        }
+    }
+}
+
+impl Drop for WindowsInput {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.pointer_device_handle.is_null() {
+                DestroySyntheticPointerDevice(self.pointer_device_handle);
+            }
+            if !self.touch_device_handle.is_null() {
+                DestroySyntheticPointerDevice(self.touch_device_handle);
             }
         }
     }
@@ -37,6 +177,10 @@ impl WindowsInput {
 
 impl InputDevice for WindowsInput {
     fn send_wheel_event(&mut self, event: &WheelEvent) {
+        if let Err(err) = self.capturable.before_input() {
+            warn!("Failed to activate target before wheel input ({})", err);
+            return;
+        }
         unsafe { mouse_event(MOUSEEVENTF_WHEEL, 0, 0, event.dy as DWORD, 0) };
     }
 
@@ -176,7 +320,7 @@ impl InputDevice for WindowsInput {
                 );
 
                 match event.event_type {
-                    PointerEventType::DOWN => match event.buttons {
+                    PointerEventType::DOWN => match event.button {
                         Button::PRIMARY => {
                             dw_flags |= MOUSEEVENTF_LEFTDOWN;
                         }
@@ -188,9 +332,7 @@ impl InputDevice for WindowsInput {
                         }
                         _ => {}
                     },
-                    PointerEventType::MOVE | PointerEventType::OVER | PointerEventType::ENTER => {
-                        unsafe { SetCursorPos(screen_x, screen_y) };
-                    }
+                    PointerEventType::MOVE | PointerEventType::OVER | PointerEventType::ENTER => {}
                     PointerEventType::UP => match event.button {
                         Button::PRIMARY => {
                             dw_flags |= MOUSEEVENTF_LEFTUP;
@@ -204,17 +346,55 @@ impl InputDevice for WindowsInput {
                         _ => {}
                     },
                     PointerEventType::CANCEL | PointerEventType::LEAVE | PointerEventType::OUT => {
-                        dw_flags |= MOUSEEVENTF_LEFTUP;
+                        if event.buttons.contains(Button::PRIMARY)
+                            || event.button == Button::PRIMARY
+                        {
+                            dw_flags |= MOUSEEVENTF_LEFTUP;
+                        }
+                        if event.buttons.contains(Button::SECONDARY)
+                            || event.button == Button::SECONDARY
+                        {
+                            dw_flags |= MOUSEEVENTF_RIGHTUP;
+                        }
+                        if event.buttons.contains(Button::AUXILARY)
+                            || event.button == Button::AUXILARY
+                        {
+                            dw_flags |= MOUSEEVENTF_MIDDLEUP;
+                        }
                     }
                 }
-                unsafe { mouse_event(dw_flags, 0 as u32, 0 as u32, 0, 0) };
+                if matches!(event.event_type, PointerEventType::DOWN) {
+                    focus_window_at_point(screen_x, screen_y);
+                }
+                unsafe {
+                    SetCursorPos(screen_x, screen_y);
+                    if dw_flags != 0 {
+                        mouse_event(dw_flags, 0 as u32, 0 as u32, 0, 0);
+                    }
+                }
             }
             PointerType::Unknown => todo!(),
         }
     }
 
     fn send_keyboard_event(&mut self, event: &KeyboardEvent) {
-        self.autopilot_device.send_keyboard_event(event);
+        if let Err(err) = self.capturable.before_input() {
+            warn!("Failed to activate target before keyboard input ({})", err);
+            return;
+        }
+        let focused = focus_window_under_cursor();
+        self.pending_keyboard_status.push(format!(
+            "keyboard focus under cursor={focused} target={}",
+            foreground_window_label()
+        ));
+        for status in self.keyboard.send_keyboard_event(event) {
+            warn!("Windows keyboard status: {}", status);
+            self.pending_keyboard_status.push(status);
+        }
+    }
+
+    fn drain_keyboard_status(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.pending_keyboard_status)
     }
 
     fn set_capturable(&mut self, capturable: Box<dyn Capturable>) {
@@ -224,4 +404,569 @@ impl InputDevice for WindowsInput {
     fn device_type(&self) -> InputDeviceType {
         InputDeviceType::WindowsInput
     }
+}
+
+pub fn input_backend_label() -> String {
+    let mut session_id: DWORD = 0;
+    let ok = unsafe { ProcessIdToSessionId(GetCurrentProcessId(), &mut session_id) };
+    if ok == FALSE {
+        return format!(
+            "Windows SendInput (session unknown: {})",
+            std::io::Error::last_os_error()
+        );
+    }
+    format!("Windows SendInput (session {session_id})")
+}
+
+pub fn diagnose_keyboard_context() -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!("backend={}", input_backend_label()));
+    lines.push(format!("input_desktop={}", input_desktop_label()));
+    lines.push(format!("target={}", foreground_window_label()));
+    lines
+}
+
+pub fn diagnose_keyboard_sendinput() -> Vec<String> {
+    let mut lines = Vec::new();
+    let down = send_vk(b'A' as WORD, true);
+    let up = send_vk(b'A' as WORD, false);
+    lines.push(format!("sendinput key=A down={down} up={up}"));
+    lines
+}
+
+pub fn diagnose_notepad_keyboard_input() -> Vec<String> {
+    let mut lines = diagnose_keyboard_context();
+    unsafe {
+        let probe_text = "AuroraOpsInput";
+        let mut command = wide("notepad.exe");
+        let mut desktop = wide("winsta0\\default");
+        let mut startup: STARTUPINFOW = std::mem::zeroed();
+        startup.cb = std::mem::size_of::<STARTUPINFOW>() as DWORD;
+        startup.lpDesktop = desktop.as_mut_ptr();
+        let mut process: PROCESS_INFORMATION = std::mem::zeroed();
+        let created = CreateProcessW(
+            ptr::null(),
+            command.as_mut_ptr(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            FALSE,
+            0,
+            ptr::null_mut(),
+            ptr::null(),
+            &mut startup,
+            &mut process,
+        );
+        if created == FALSE {
+            lines.push(format!(
+                "notepad=create failed: {}",
+                std::io::Error::last_os_error()
+            ));
+            return lines;
+        }
+
+        let idle = WaitForInputIdle(process.hProcess, 3000);
+        lines.push(format!(
+            "notepad=pid {} wait_idle={idle}",
+            process.dwProcessId
+        ));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let hwnd = find_top_window_for_pid(process.dwProcessId)
+            .unwrap_or_else(|| FindWindowW(wide("Notepad").as_ptr(), ptr::null()));
+        if hwnd.is_null() {
+            lines.push("notepad_window=not found".to_string());
+        } else {
+            let foreground = force_foreground_window(hwnd);
+            lines.push(format!(
+                "notepad_window={hwnd:p} set_foreground={foreground}"
+            ));
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            if let Some(edit_hwnd) = find_text_input_child(hwnd) {
+                let class_name = window_class_name(edit_hwnd);
+                let focused = SetFocus(edit_hwnd);
+                lines.push(format!(
+                    "notepad_edit={edit_hwnd:p} class={class_name:?} set_focus={focused:p}"
+                ));
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            } else {
+                lines.push("notepad_edit=not found".to_string());
+            }
+            lines.extend(diagnose_keyboard_context());
+            let sent = send_unicode_text(probe_text);
+            lines.push(format!("sendinput text={probe_text:?} ok={sent}"));
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            if let Some(text) = read_notepad_text(hwnd) {
+                lines.push(format!("notepad_text={text:?}"));
+                lines.push(format!("notepad_received={}", text.contains(probe_text)));
+            } else {
+                lines.push("notepad_text=unavailable".to_string());
+            }
+        }
+
+        let _ = CloseHandle(process.hThread);
+        let _ = CloseHandle(process.hProcess);
+    }
+    lines
+}
+
+struct FindWindowForPid {
+    pid: DWORD,
+    hwnd: HWND,
+}
+
+unsafe extern "system" fn enum_windows_for_pid(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let data = &mut *(lparam as *mut FindWindowForPid);
+    let mut pid: DWORD = 0;
+    GetWindowThreadProcessId(hwnd, &mut pid);
+    if pid == data.pid && IsWindowVisible(hwnd) != FALSE {
+        data.hwnd = hwnd;
+        return FALSE;
+    }
+    TRUE
+}
+
+fn find_top_window_for_pid(pid: DWORD) -> Option<HWND> {
+    let mut data = FindWindowForPid {
+        pid,
+        hwnd: ptr::null_mut(),
+    };
+    unsafe {
+        EnumWindows(
+            Some(enum_windows_for_pid),
+            (&mut data as *mut FindWindowForPid) as LPARAM,
+        );
+    }
+    if data.hwnd.is_null() {
+        None
+    } else {
+        Some(data.hwnd)
+    }
+}
+
+struct FindTextInputChild {
+    hwnd: HWND,
+}
+
+unsafe extern "system" fn enum_text_input_child(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let data = &mut *(lparam as *mut FindTextInputChild);
+    let class_name = window_class_name(hwnd).to_ascii_lowercase();
+    if class_name.contains("edit") || class_name.contains("richedit") {
+        data.hwnd = hwnd;
+        return FALSE;
+    }
+    TRUE
+}
+
+fn find_text_input_child(hwnd: HWND) -> Option<HWND> {
+    let mut data = FindTextInputChild {
+        hwnd: ptr::null_mut(),
+    };
+    unsafe {
+        EnumChildWindows(
+            hwnd,
+            Some(enum_text_input_child),
+            (&mut data as *mut FindTextInputChild) as LPARAM,
+        );
+    }
+    if data.hwnd.is_null() {
+        None
+    } else {
+        Some(data.hwnd)
+    }
+}
+
+fn force_foreground_window(hwnd: HWND) -> BOOL {
+    unsafe {
+        let foreground = GetForegroundWindow();
+        let current_thread = GetCurrentThreadId();
+        let foreground_thread = if foreground.is_null() {
+            0
+        } else {
+            GetWindowThreadProcessId(foreground, ptr::null_mut())
+        };
+        let target_thread = GetWindowThreadProcessId(hwnd, ptr::null_mut());
+        if foreground_thread != 0 && foreground_thread != current_thread {
+            AttachThreadInput(current_thread, foreground_thread, TRUE);
+        }
+        if target_thread != 0 && target_thread != current_thread {
+            AttachThreadInput(current_thread, target_thread, TRUE);
+        }
+        ShowWindow(hwnd, SW_RESTORE);
+        let ok = SetForegroundWindow(hwnd);
+        BringWindowToTop(hwnd);
+        SetActiveWindow(hwnd);
+        if target_thread != 0 && target_thread != current_thread {
+            AttachThreadInput(current_thread, target_thread, FALSE);
+        }
+        if foreground_thread != 0 && foreground_thread != current_thread {
+            AttachThreadInput(current_thread, foreground_thread, FALSE);
+        }
+        ok
+    }
+}
+
+fn window_class_name(hwnd: HWND) -> String {
+    unsafe {
+        let mut buf = vec![0u16; 256];
+        let copied = GetClassNameW(hwnd, buf.as_mut_ptr(), buf.len() as i32);
+        if copied <= 0 {
+            return String::new();
+        }
+        String::from_utf16_lossy(&buf[..copied as usize])
+    }
+}
+
+fn read_notepad_text(hwnd: HWND) -> Option<String> {
+    let edit = find_text_input_child(hwnd)?;
+    unsafe {
+        let len = SendMessageW(edit, WM_GETTEXTLENGTH, 0, 0) as usize;
+        let mut buf = vec![0u16; len.saturating_add(1)];
+        let copied = SendMessageW(edit, WM_GETTEXT, buf.len(), buf.as_mut_ptr() as LPARAM) as usize;
+        Some(String::from_utf16_lossy(&buf[..copied.min(buf.len())]))
+    }
+}
+
+fn is_text_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    chars.next().is_none() && !first.is_control()
+}
+
+fn should_send_unicode(key: &str) -> bool {
+    is_text_key(key) && !key.is_ascii()
+}
+
+fn wide(value: &str) -> Vec<u16> {
+    std::ffi::OsStr::new(value)
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect()
+}
+
+fn send_vk(vk: WORD, down: bool) -> bool {
+    let mut flags = 0;
+    if !down {
+        flags |= KEYEVENTF_KEYUP;
+    }
+    if is_extended_key(vk) {
+        flags |= KEYEVENTF_EXTENDEDKEY;
+    }
+    send_keyboard_input(vk, 0, flags)
+}
+
+fn send_scancode(vk: WORD, down: bool) -> bool {
+    let scan = unsafe { MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC_EX) } as WORD;
+    if scan == 0 {
+        return send_vk(vk, down);
+    }
+    let mut flags = KEYEVENTF_SCANCODE;
+    if !down {
+        flags |= KEYEVENTF_KEYUP;
+    }
+    if is_extended_key(vk) {
+        flags |= KEYEVENTF_EXTENDEDKEY;
+    }
+    send_keyboard_input(vk, scan, flags)
+}
+
+fn send_unicode(scan: WORD, down: bool) -> bool {
+    let mut flags = KEYEVENTF_UNICODE;
+    if !down {
+        flags |= KEYEVENTF_KEYUP;
+    }
+    send_keyboard_input(0, scan, flags)
+}
+
+fn send_unicode_text(text: &str) -> bool {
+    let mut ok = true;
+    for unit in text.encode_utf16() {
+        ok &= send_unicode(unit, true);
+        ok &= send_unicode(unit, false);
+    }
+    ok
+}
+
+fn send_keyboard_input(vk: WORD, scan: WORD, flags: DWORD) -> bool {
+    let mut input = INPUT {
+        type_: INPUT_KEYBOARD,
+        u: unsafe { std::mem::zeroed() },
+    };
+    unsafe {
+        *input.u.ki_mut() = KEYBDINPUT {
+            wVk: vk,
+            wScan: scan,
+            dwFlags: flags,
+            time: 0,
+            dwExtraInfo: 0 as ULONG_PTR,
+        };
+        let sent = SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
+        if sent == 0 {
+            warn!(
+                "Windows SendInput failed: {}",
+                std::io::Error::last_os_error()
+            );
+            return false;
+        }
+    }
+    true
+}
+
+fn focus_window_under_cursor() -> bool {
+    unsafe {
+        let mut point = POINT { x: 0, y: 0 };
+        if GetCursorPos(&mut point) == FALSE {
+            warn!(
+                "GetCursorPos failed before keyboard focus: {}",
+                std::io::Error::last_os_error()
+            );
+            return false;
+        }
+        focus_window_at_point(point.x, point.y)
+    }
+}
+
+fn focus_window_at_point(screen_x: i32, screen_y: i32) -> bool {
+    unsafe {
+        let point = POINT {
+            x: screen_x,
+            y: screen_y,
+        };
+        let mut hwnd = WindowFromPoint(point);
+        if hwnd.is_null() {
+            return false;
+        }
+        let root = GetAncestor(hwnd, GA_ROOT);
+        if !root.is_null() {
+            hwnd = root;
+        }
+        force_foreground_window(hwnd) != FALSE
+    }
+}
+
+fn desktop_name(desktop: HDESK) -> Option<String> {
+    unsafe {
+        let mut needed: DWORD = 0;
+        let _ = GetUserObjectInformationW(
+            desktop.cast(),
+            UOI_NAME as i32,
+            ptr::null_mut(),
+            0,
+            &mut needed,
+        );
+        if needed == 0 {
+            return None;
+        }
+        let mut buf = vec![0u16; (needed as usize + 1) / 2];
+        let ok = GetUserObjectInformationW(
+            desktop.cast(),
+            UOI_NAME as i32,
+            buf.as_mut_ptr().cast(),
+            needed,
+            &mut needed,
+        );
+        if ok == FALSE {
+            return None;
+        }
+        let len = buf.iter().position(|ch| *ch == 0).unwrap_or(buf.len());
+        Some(String::from_utf16_lossy(&buf[..len]))
+    }
+}
+
+fn input_desktop_label() -> String {
+    unsafe {
+        let input = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS | DESKTOP_ENUMERATE);
+        if input.is_null() {
+            return format!("unavailable: {}", std::io::Error::last_os_error());
+        }
+        let label = desktop_name(input).unwrap_or_else(|| "unknown".to_string());
+        CloseDesktop(input);
+        label
+    }
+}
+
+fn foreground_window_label() -> String {
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return "none".to_string();
+        }
+        let mut pid: DWORD = 0;
+        let tid = GetWindowThreadProcessId(hwnd, &mut pid);
+        let len = GetWindowTextLengthW(hwnd);
+        let title = if len > 0 {
+            let mut buf = vec![0u16; len as usize + 1];
+            let copied = GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32);
+            String::from_utf16_lossy(&buf[..copied.max(0) as usize])
+        } else {
+            String::new()
+        };
+        format!("hwnd={hwnd:p} pid={pid} tid={tid} title={title:?}")
+    }
+}
+
+fn is_extended_key(vk: WORD) -> bool {
+    matches!(
+        vk as i32,
+        VK_RCONTROL
+            | VK_RMENU
+            | VK_INSERT
+            | VK_DELETE
+            | VK_HOME
+            | VK_END
+            | VK_PRIOR
+            | VK_NEXT
+            | VK_LEFT
+            | VK_RIGHT
+            | VK_UP
+            | VK_DOWN
+            | VK_DIVIDE
+            | VK_NUMLOCK
+    )
+}
+
+fn map_keyboard_code(code: &str, location: &crate::protocol::KeyboardLocation) -> Option<WORD> {
+    let vk = match code {
+        "KeyA" => b'A' as i32,
+        "KeyB" => b'B' as i32,
+        "KeyC" => b'C' as i32,
+        "KeyD" => b'D' as i32,
+        "KeyE" => b'E' as i32,
+        "KeyF" => b'F' as i32,
+        "KeyG" => b'G' as i32,
+        "KeyH" => b'H' as i32,
+        "KeyI" => b'I' as i32,
+        "KeyJ" => b'J' as i32,
+        "KeyK" => b'K' as i32,
+        "KeyL" => b'L' as i32,
+        "KeyM" => b'M' as i32,
+        "KeyN" => b'N' as i32,
+        "KeyO" => b'O' as i32,
+        "KeyP" => b'P' as i32,
+        "KeyQ" => b'Q' as i32,
+        "KeyR" => b'R' as i32,
+        "KeyS" => b'S' as i32,
+        "KeyT" => b'T' as i32,
+        "KeyU" => b'U' as i32,
+        "KeyV" => b'V' as i32,
+        "KeyW" => b'W' as i32,
+        "KeyX" => b'X' as i32,
+        "KeyY" => b'Y' as i32,
+        "KeyZ" => b'Z' as i32,
+        "Digit0" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD0,
+            _ => b'0' as i32,
+        },
+        "Digit1" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD1,
+            _ => b'1' as i32,
+        },
+        "Digit2" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD2,
+            _ => b'2' as i32,
+        },
+        "Digit3" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD3,
+            _ => b'3' as i32,
+        },
+        "Digit4" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD4,
+            _ => b'4' as i32,
+        },
+        "Digit5" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD5,
+            _ => b'5' as i32,
+        },
+        "Digit6" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD6,
+            _ => b'6' as i32,
+        },
+        "Digit7" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD7,
+            _ => b'7' as i32,
+        },
+        "Digit8" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD8,
+            _ => b'8' as i32,
+        },
+        "Digit9" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_NUMPAD9,
+            _ => b'9' as i32,
+        },
+        "Escape" => VK_ESCAPE,
+        "Enter" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_RETURN,
+            _ => VK_RETURN,
+        },
+        "Backspace" => VK_BACK,
+        "Tab" => VK_TAB,
+        "Space" => VK_SPACE,
+        "CapsLock" => VK_CAPITAL,
+        "ShiftLeft" => VK_LSHIFT,
+        "ShiftRight" => VK_RSHIFT,
+        "ControlLeft" => VK_LCONTROL,
+        "ControlRight" => VK_RCONTROL,
+        "AltLeft" => VK_LMENU,
+        "AltRight" => VK_RMENU,
+        "MetaLeft" => VK_LWIN,
+        "MetaRight" => VK_RWIN,
+        "ContextMenu" => VK_APPS,
+        "ArrowUp" => VK_UP,
+        "ArrowDown" => VK_DOWN,
+        "ArrowLeft" => VK_LEFT,
+        "ArrowRight" => VK_RIGHT,
+        "Home" => VK_HOME,
+        "End" => VK_END,
+        "PageUp" => VK_PRIOR,
+        "PageDown" => VK_NEXT,
+        "Insert" => VK_INSERT,
+        "Delete" => VK_DELETE,
+        "PrintScreen" => VK_SNAPSHOT,
+        "ScrollLock" => VK_SCROLL,
+        "Pause" => VK_PAUSE,
+        "NumLock" => VK_NUMLOCK,
+        "Numpad0" => VK_NUMPAD0,
+        "Numpad1" => VK_NUMPAD1,
+        "Numpad2" => VK_NUMPAD2,
+        "Numpad3" => VK_NUMPAD3,
+        "Numpad4" => VK_NUMPAD4,
+        "Numpad5" => VK_NUMPAD5,
+        "Numpad6" => VK_NUMPAD6,
+        "Numpad7" => VK_NUMPAD7,
+        "Numpad8" => VK_NUMPAD8,
+        "Numpad9" => VK_NUMPAD9,
+        "NumpadDecimal" => VK_DECIMAL,
+        "NumpadDivide" => VK_DIVIDE,
+        "NumpadMultiply" => VK_MULTIPLY,
+        "NumpadSubtract" => VK_SUBTRACT,
+        "NumpadAdd" => VK_ADD,
+        "NumpadEnter" => VK_RETURN,
+        "Semicolon" => VK_OEM_1,
+        "Equal" => VK_OEM_PLUS,
+        "Comma" => VK_OEM_COMMA,
+        "Minus" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_SUBTRACT,
+            _ => VK_OEM_MINUS,
+        },
+        "Period" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_DECIMAL,
+            _ => VK_OEM_PERIOD,
+        },
+        "Slash" => match location {
+            crate::protocol::KeyboardLocation::NUMPAD => VK_DIVIDE,
+            _ => VK_OEM_2,
+        },
+        "Backquote" => VK_OEM_3,
+        "BracketLeft" => VK_OEM_4,
+        "Backslash" => VK_OEM_5,
+        "BracketRight" => VK_OEM_6,
+        "Quote" => VK_OEM_7,
+        f if f.starts_with('F') => f
+            .get(1..)
+            .and_then(|n| n.parse::<i32>().ok())
+            .filter(|n| (1..=24).contains(n))
+            .map(|n| VK_F1 + n - 1)?,
+        _ => return None,
+    };
+    Some(vk as WORD)
 }

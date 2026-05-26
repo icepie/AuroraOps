@@ -89,6 +89,12 @@ export default () => {
       console.log('[WebSocket] 已连接');
       heartCheck.reset().start();
       isActive = true;
+      onMessage({
+        event: SocketEnum.EventConnected,
+        data: null,
+        code: SocketEnum.CodeSuc,
+        timestamp: Date.now(),
+      });
     };
 
     socket.onmessage = function (event) {

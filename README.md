@@ -42,6 +42,14 @@ cd new-client
 cargo build --release
 ```
 
+Windows 客户端可注册为系统服务，非管理员运行安装命令时会自动请求 UAC 提权：
+
+```powershell
+.\auroraops-agent.exe --install-service
+```
+
+Windows 服务运行在 Session 0，并会自动在当前登录用户桌面会话中拉起 `--session-agent` 进程用于远程桌面和终端。详细说明见 [`new-client/docs/WINDOWS_SERVICE.md`](new-client/docs/WINDOWS_SERVICE.md)。
+
 ## 构建
 
 服务端默认构建产物命名为 `auroraops-server`：

@@ -31,7 +31,7 @@
             :request="loadDataTable"
             :row-key="(row) => row.deviceId"
             :actionColumn="actionColumn"
-            :scroll-x="1440"
+            :scroll-x="1620"
             :resizeHeightOffset="-10000"
             :showTopRight="false"
           />

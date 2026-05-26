@@ -945,6 +945,13 @@ void destroy_video_encoder(VideoContext* ctx)
 	free(ctx);
 }
 
+const char* video_encoder_codec_name(VideoContext* ctx)
+{
+	if (!ctx || !ctx->c || !ctx->c->codec || !ctx->c->codec->name)
+		return "";
+	return ctx->c->codec->name;
+}
+
 void encode_video_frame(VideoContext* ctx, int millis, Error* err)
 {
 	int ret;

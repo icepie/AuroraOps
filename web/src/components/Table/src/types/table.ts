@@ -22,7 +22,10 @@ export interface TableActionType {
   reload: (opt) => Promise<void>;
   emit?: any;
   getColumns: (opt?) => BasicColumn[];
+  getDataSource: () => any[];
+  setTableData: (values: any[]) => void;
   setColumns: (columns: BasicColumn[] | string[]) => void;
+  setProps: (props: Partial<BasicTableProps>) => void;
 }
 
 export interface BasicTableProps {

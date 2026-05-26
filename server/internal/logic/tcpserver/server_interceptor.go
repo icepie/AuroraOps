@@ -24,6 +24,7 @@ var noLoginRouter = map[string]struct{}{
 var noVerifyRouter = map[string]struct{}{
 	"ServerHeartbeatReq":           {}, // 心跳
 	"DeviceHeartbeatReq":           {}, // 设备心跳
+	"DeviceMonitorReportReq":       {}, // 设备监视快照
 	"DeviceTerminalOutputReq":      {},
 	"DeviceTerminalClosedReq":      {},
 	"DeviceDesktopTextOutputReq":   {},

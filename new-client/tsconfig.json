@@ -5,7 +5,11 @@
     "module": "commonjs",
     "rootDir": "ts",
     "outDir": "www/static",
-    "sourceMap": false
+    "sourceMap": false,
+    "strict": false,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictPropertyInitialization": false
   },
   "include": [
     "ts/**/*.ts"

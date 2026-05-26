@@ -1,19 +1,18 @@
 use std::collections::HashMap;
 use std::error::Error;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::ffi::CStr;
 use std::fs;
 use std::io::{Read, Write};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::mem;
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener, TcpStream, UdpSocket};
-#[cfg(unix)]
-use std::os::fd::{AsRawFd, FromRawFd};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
-#[cfg(not(unix))]
-use std::process::{Child, Command, Stdio};
+#[cfg(target_os = "windows")]
+use std::process::Command;
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
@@ -30,10 +29,11 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use libc::free;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sysinfo::{Disks, Networks, System};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tracing::{error, info, warn};
@@ -43,6 +43,7 @@ use url::Url;
 
 #[cfg(not(feature = "agent-service-lite"))]
 use crate::config::Config as WeylusConfig;
+use crate::service_manager;
 #[cfg(not(feature = "agent-service-lite"))]
 use crate::web::Web2UiMessage;
 #[cfg(not(feature = "agent-service-lite"))]
@@ -50,7 +51,6 @@ use crate::weylus::Weylus;
 
 type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
-const DEFAULT_CONFIG_PATH: &str = "/etc/auroraops/agent-config.json";
 const DEFAULT_AGENT_PORT: u16 = 18765;
 const AUTO_WEYLUS_PORT: u16 = 0;
 const WEYLUS_TUNNEL_CHUNK_SIZE: usize = 64 * 1024;
@@ -59,6 +59,7 @@ const WEYLUS_TUNNEL_FRAME_DATA: u8 = 2;
 const WEYLUS_TUNNEL_FRAME_CLOSE: u8 = 3;
 const REGISTER_RETRY_MAX: Duration = Duration::from_secs(10);
 const TCP_RETRY_MAX: Duration = Duration::from_secs(5);
+const MONITOR_REPORT_INTERVAL: Duration = Duration::from_secs(1);
 #[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
 const XAUTHORITY_CANDIDATES: &[&str] = &[
     "/run/lightdm/root/:0",
@@ -94,6 +95,8 @@ pub struct AgentConfig {
     pub try_vaapi: bool,
     #[serde(default)]
     pub try_nvenc: bool,
+    #[serde(default)]
+    pub try_mediafoundation: bool,
     #[serde(default)]
     pub wayland_support: bool,
     #[serde(default)]
@@ -206,6 +209,8 @@ struct SaveDesktopConfigPayload {
     try_vaapi: bool,
     #[serde(default)]
     try_nvenc: bool,
+    #[serde(default)]
+    try_mediafoundation: bool,
     #[serde(default)]
     wayland_support: bool,
     #[serde(default)]
@@ -402,6 +407,7 @@ impl AgentRuntime {
         cfg.access_code = None;
         cfg.try_vaapi = payload.try_vaapi;
         cfg.try_nvenc = payload.try_nvenc;
+        cfg.try_mediafoundation = payload.try_mediafoundation;
         cfg.wayland_support = payload.wayland_support;
         cfg.kms_support = payload.kms_support;
         cfg.kms_device = payload
@@ -618,7 +624,7 @@ pub fn run_service(conf: &WeylusConfig) -> Result<(), BoxError> {
     let config_path = conf
         .agent_config
         .clone()
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH));
+        .unwrap_or_else(service_manager::default_config_path);
     let runtime = AgentRuntime::new(config_path, conf.agent_port);
     runtime.load_config()?;
     if runtime.get_config().control_display_manager {
@@ -844,6 +850,7 @@ fn start_weylus_service(conf: &WeylusConfig, runtime: &AgentRuntime) {
     #[cfg(all(not(target_os = "linux"), target_os = "windows"))]
     {
         weylus_conf.try_nvenc = agent_cfg.try_nvenc;
+        weylus_conf.try_mediafoundation = agent_cfg.try_mediafoundation;
     }
     weylus_conf.no_gui = true;
     runtime.set_desktop_url(&agent_cfg);
@@ -933,7 +940,7 @@ async fn handle_local_request(
                 ),
             }
         }
-        (Method::POST, "/api/desktop/restart") => match run_systemctl(&["restart"]) {
+        (Method::POST, "/api/desktop/restart") => match service_manager::restart() {
             Ok(message) => {
                 runtime.update_status(
                     runtime.get_status().state,
@@ -948,14 +955,47 @@ async fn handle_local_request(
                 envelope(&runtime, false, Some(err.to_string()), None, None),
             ),
         },
+        #[cfg(target_os = "windows")]
+        (Method::POST, "/api/input-test") => {
+            let launch_notepad = req
+                .uri()
+                .query()
+                .map(|query| query.contains("notepad=1") || query.contains("notepad=true"))
+                .unwrap_or(false);
+            json_response(
+                StatusCode::OK,
+                envelope(
+                    &runtime,
+                    true,
+                    Some(windows_input_self_test_safe(launch_notepad)),
+                    None,
+                    None,
+                ),
+            )
+        }
         (Method::GET, "/api/service/status") => {
-            let status = service_status_message();
+            let status = service_manager::status_message();
             json_response(
                 StatusCode::OK,
                 envelope(&runtime, true, Some(status), None, None),
             )
         }
-        (Method::POST, "/api/service/enable") => match run_systemctl(&["enable", "--now"]) {
+        (Method::POST, "/api/service/enable") => {
+            match service_manager::install(
+                Some(runtime.inner.config_path.clone()),
+                runtime.inner.local_port,
+            ) {
+                Ok(message) => json_response(
+                    StatusCode::OK,
+                    envelope(&runtime, true, Some(message), None, None),
+                ),
+                Err(err) => json_response(
+                    StatusCode::BAD_REQUEST,
+                    envelope(&runtime, false, Some(err.to_string()), None, None),
+                ),
+            }
+        }
+        (Method::POST, "/api/service/disable") => match service_manager::uninstall() {
             Ok(message) => json_response(
                 StatusCode::OK,
                 envelope(&runtime, true, Some(message), None, None),
@@ -965,17 +1005,7 @@ async fn handle_local_request(
                 envelope(&runtime, false, Some(err.to_string()), None, None),
             ),
         },
-        (Method::POST, "/api/service/disable") => match run_systemctl(&["disable", "--now"]) {
-            Ok(message) => json_response(
-                StatusCode::OK,
-                envelope(&runtime, true, Some(message), None, None),
-            ),
-            Err(err) => json_response(
-                StatusCode::BAD_REQUEST,
-                envelope(&runtime, false, Some(err.to_string()), None, None),
-            ),
-        },
-        (Method::POST, "/api/service/restart") => match run_systemctl(&["restart"]) {
+        (Method::POST, "/api/service/restart") => match service_manager::restart() {
             Ok(message) => json_response(
                 StatusCode::OK,
                 envelope(&runtime, true, Some(message), None, None),
@@ -1059,49 +1089,30 @@ fn text(status: StatusCode, body: &str) -> Response<Full<Bytes>> {
         .unwrap()
 }
 
-fn run_systemctl(args: &[&str]) -> Result<String, BoxError> {
-    let mut command_args = args.to_vec();
-    command_args.push("auroraops-agent.service");
-    let output = std::process::Command::new("systemctl")
-        .args(&command_args)
-        .output()?;
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        Ok(if stdout.is_empty() {
-            format!("systemctl {} auroraops-agent.service ok", args.join(" "))
-        } else {
-            stdout
-        })
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(if stderr.is_empty() {
-            format!(
-                "systemctl {} auroraops-agent.service failed",
-                args.join(" ")
-            )
-            .into()
-        } else {
-            stderr.into()
-        })
+#[cfg(target_os = "windows")]
+fn windows_input_self_test_safe(launch_notepad: bool) -> String {
+    match std::panic::catch_unwind(|| windows_input_self_test(launch_notepad)) {
+        Ok(message) => message,
+        Err(err) => {
+            if let Some(message) = err.downcast_ref::<String>() {
+                format!("panic={message}")
+            } else if let Some(message) = err.downcast_ref::<&'static str>() {
+                format!("panic={message}")
+            } else {
+                "panic=unknown".to_string()
+            }
+        }
     }
 }
 
-fn service_status_message() -> String {
-    let active = std::process::Command::new("systemctl")
-        .args(["is-active", "auroraops-agent.service"])
-        .output()
-        .ok()
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "unknown".to_string());
-    let enabled = std::process::Command::new("systemctl")
-        .args(["is-enabled", "auroraops-agent.service"])
-        .output()
-        .ok()
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "unknown".to_string());
-    format!("active={active}, enabled={enabled}")
+#[cfg(target_os = "windows")]
+fn windows_input_self_test(launch_notepad: bool) -> String {
+    if launch_notepad {
+        return crate::input::autopilot_device_win::diagnose_notepad_keyboard_input().join("\n");
+    }
+    let mut lines = crate::input::autopilot_device_win::diagnose_keyboard_context();
+    lines.extend(crate::input::autopilot_device_win::diagnose_keyboard_sendinput());
+    lines.join("\n")
 }
 
 #[derive(Serialize)]
@@ -1112,6 +1123,7 @@ struct RegisterRequest {
     ip: String,
     device_type: String,
     os_name: String,
+    architecture: String,
     location: String,
 }
 
@@ -1131,6 +1143,325 @@ struct HeartbeatRequest {
     hostname: String,
     ip: String,
     os_name: String,
+    architecture: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MonitorSnapshot {
+    system: String,
+    architecture: String,
+    cpu_model: String,
+    gpu_models: Vec<String>,
+    cpu_percent: f64,
+    memory_percent: f64,
+    swap_percent: f64,
+    swap_enabled: bool,
+    disk_percent: f64,
+    net_rx_rate_bytes: f64,
+    net_tx_rate_bytes: f64,
+    net_rx_bytes: u64,
+    net_tx_bytes: u64,
+    cpu_cores: usize,
+    cpu_physical_cores: usize,
+    memory_used_bytes: u64,
+    memory_total_bytes: u64,
+    swap_used_bytes: u64,
+    swap_total_bytes: u64,
+    disk_used_bytes: u64,
+    disk_total_bytes: u64,
+    load1: f64,
+    load5: f64,
+    load15: f64,
+    process_count: usize,
+    tcp_connection_count: usize,
+    udp_connection_count: usize,
+    boot_time_seconds: u64,
+    uptime_seconds: u64,
+    agent_version: String,
+}
+
+struct MonitorCollector {
+    system: System,
+    networks: Networks,
+    disks: Disks,
+    last_sample_at: std::time::Instant,
+    os_name: String,
+    architecture: String,
+    cpu_model: String,
+    gpu_models: Vec<String>,
+    cpu_physical_cores: usize,
+}
+
+impl MonitorCollector {
+    fn new() -> Self {
+        let mut system = System::new_all();
+        system.refresh_cpu_usage();
+        system.refresh_memory();
+        let cpu_model = system
+            .cpus()
+            .iter()
+            .map(|cpu| cpu.brand().trim())
+            .find(|brand| !brand.is_empty())
+            .unwrap_or("")
+            .to_string();
+        let cpu_physical_cores =
+            System::physical_core_count().unwrap_or_else(|| system.cpus().len());
+        Self {
+            system,
+            networks: Networks::new_with_refreshed_list(),
+            disks: Disks::new_with_refreshed_list(),
+            last_sample_at: std::time::Instant::now(),
+            os_name: detect_os_name(),
+            architecture: std::env::consts::ARCH.to_string(),
+            cpu_model,
+            gpu_models: detect_gpu_models(),
+            cpu_physical_cores,
+        }
+    }
+
+    fn sample(&mut self) -> MonitorSnapshot {
+        let now = std::time::Instant::now();
+        let elapsed = now
+            .duration_since(self.last_sample_at)
+            .as_secs_f64()
+            .max(1.0);
+        self.last_sample_at = now;
+
+        self.system.refresh_cpu_usage();
+        self.system.refresh_memory();
+        self.networks.refresh(true);
+        self.disks.refresh(true);
+
+        let total_memory = self.system.total_memory();
+        let used_memory = self.system.used_memory();
+        let total_swap = self.system.total_swap();
+        let used_swap = self.system.used_swap();
+        let (disk_total, disk_used) =
+            self.disks
+                .list()
+                .iter()
+                .fold((0_u64, 0_u64), |(total, used), disk| {
+                    let disk_total = disk.total_space();
+                    let disk_used = disk_total.saturating_sub(disk.available_space());
+                    (
+                        total.saturating_add(disk_total),
+                        used.saturating_add(disk_used),
+                    )
+                });
+        let (net_rx_delta, net_tx_delta, net_rx_total, net_tx_total) = self.networks.iter().fold(
+            (0_u64, 0_u64, 0_u64, 0_u64),
+            |(rx_delta, tx_delta, rx_total, tx_total), (_, data)| {
+                (
+                    rx_delta.saturating_add(data.received()),
+                    tx_delta.saturating_add(data.transmitted()),
+                    rx_total.saturating_add(data.total_received()),
+                    tx_total.saturating_add(data.total_transmitted()),
+                )
+            },
+        );
+        let load = System::load_average();
+
+        let (tcp_connection_count, udp_connection_count) = network_connection_counts();
+
+        MonitorSnapshot {
+            system: self.os_name.clone(),
+            architecture: self.architecture.clone(),
+            cpu_model: self.cpu_model.clone(),
+            gpu_models: self.gpu_models.clone(),
+            cpu_percent: round2(self.system.global_cpu_usage() as f64),
+            memory_percent: percent(used_memory, total_memory),
+            swap_percent: percent(used_swap, total_swap),
+            swap_enabled: total_swap > 0,
+            disk_percent: percent(disk_used, disk_total),
+            net_rx_rate_bytes: round2(net_rx_delta as f64 / elapsed),
+            net_tx_rate_bytes: round2(net_tx_delta as f64 / elapsed),
+            net_rx_bytes: net_rx_total,
+            net_tx_bytes: net_tx_total,
+            cpu_cores: self.system.cpus().len(),
+            cpu_physical_cores: self.cpu_physical_cores,
+            memory_used_bytes: used_memory,
+            memory_total_bytes: total_memory,
+            swap_used_bytes: used_swap,
+            swap_total_bytes: total_swap,
+            disk_used_bytes: disk_used,
+            disk_total_bytes: disk_total,
+            load1: round2(load.one),
+            load5: round2(load.five),
+            load15: round2(load.fifteen),
+            process_count: process_count(),
+            tcp_connection_count,
+            udp_connection_count,
+            boot_time_seconds: System::boot_time(),
+            uptime_seconds: System::uptime(),
+            agent_version: env!("CARGO_PKG_VERSION").to_string(),
+        }
+    }
+}
+
+fn percent(used: u64, total: u64) -> f64 {
+    if total == 0 {
+        return 0.0;
+    }
+    round2((used as f64 / total as f64) * 100.0)
+}
+
+fn round2(value: f64) -> f64 {
+    if !value.is_finite() {
+        return 0.0;
+    }
+    (value * 100.0).round() / 100.0
+}
+
+fn network_connection_counts() -> (usize, usize) {
+    #[cfg(target_os = "linux")]
+    {
+        (
+            proc_net_connection_count("/proc/net/tcp")
+                + proc_net_connection_count("/proc/net/tcp6"),
+            proc_net_connection_count("/proc/net/udp")
+                + proc_net_connection_count("/proc/net/udp6"),
+        )
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        (0, 0)
+    }
+}
+
+fn process_count() -> usize {
+    #[cfg(target_os = "linux")]
+    {
+        fs::read_dir("/proc")
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|entry| {
+                        entry
+                            .file_name()
+                            .to_string_lossy()
+                            .chars()
+                            .all(|ch| ch.is_ascii_digit())
+                    })
+                    .count()
+            })
+            .unwrap_or(0)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        0
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn proc_net_connection_count(path: &str) -> usize {
+    fs::read_to_string(path)
+        .map(|content| {
+            content
+                .lines()
+                .skip(1)
+                .filter(|line| !line.trim().is_empty())
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+fn detect_gpu_models() -> Vec<String> {
+    #[cfg(target_os = "linux")]
+    {
+        let from_sysfs = detect_gpu_models_from_sysfs();
+        if !from_sysfs.is_empty() {
+            return from_sysfs;
+        }
+    }
+    Vec::new()
+}
+
+#[cfg(target_os = "linux")]
+fn detect_gpu_models_from_sysfs() -> Vec<String> {
+    let mut models = Vec::new();
+    let entries = match fs::read_dir("/sys/class/drm") {
+        Ok(entries) => entries,
+        Err(_) => return models,
+    };
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with("card") || name.contains('-') {
+            continue;
+        }
+        let device = entry.path().join("device");
+        let vendor = read_trimmed(device.join("vendor"));
+        let device_id = read_trimmed(device.join("device"));
+        let model = pci_device_model(&vendor, &device_id)
+            .or_else(|| read_trimmed(device.join("product")))
+            .unwrap_or_else(|| {
+                let id = [vendor.as_deref(), device_id.as_deref()]
+                    .into_iter()
+                    .flatten()
+                    .filter(|value| !value.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(":");
+                if id.is_empty() {
+                    name.clone()
+                } else {
+                    id
+                }
+            });
+        if !model.is_empty() && !models.iter().any(|item| item == &model) {
+            models.push(model);
+        }
+    }
+
+    models
+}
+
+#[cfg(target_os = "linux")]
+fn read_trimmed(path: impl AsRef<Path>) -> Option<String> {
+    fs::read_to_string(path)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(target_os = "linux")]
+fn pci_device_model(vendor: &Option<String>, device: &Option<String>) -> Option<String> {
+    let vendor = vendor
+        .as_deref()?
+        .trim_start_matches("0x")
+        .to_ascii_lowercase();
+    let device = device
+        .as_deref()?
+        .trim_start_matches("0x")
+        .to_ascii_lowercase();
+    let pci_ids = fs::read_to_string("/usr/share/misc/pci.ids")
+        .or_else(|_| fs::read_to_string("/usr/share/hwdata/pci.ids"))
+        .ok()?;
+    let mut in_vendor = false;
+    for line in pci_ids.lines() {
+        if line.starts_with('#') || line.trim().is_empty() {
+            continue;
+        }
+        if !line.starts_with('\t') {
+            in_vendor = line
+                .split_whitespace()
+                .next()
+                .map(|id| id.eq_ignore_ascii_case(&vendor))
+                .unwrap_or(false);
+            continue;
+        }
+        if !in_vendor || line.starts_with("\t\t") {
+            continue;
+        }
+        let trimmed = line.trim();
+        let Some((id, model)) = trimmed.split_once(char::is_whitespace) else {
+            continue;
+        };
+        if id.eq_ignore_ascii_case(&device) {
+            return Some(model.trim().to_string());
+        }
+    }
+    None
 }
 
 #[derive(Serialize)]
@@ -1146,12 +1477,14 @@ fn register_device(
     hostname: &str,
     ip: &str,
 ) -> Result<AgentConfig, BoxError> {
+    let os_name = detect_os_name();
     let req = RegisterRequest {
         name: cfg.device_name.clone(),
         hostname: hostname.to_string(),
         ip: ip.to_string(),
         device_type: "physical".to_string(),
-        os_name: std::env::consts::OS.to_string(),
+        os_name,
+        architecture: std::env::consts::ARCH.to_string(),
         location: String::new(),
     };
     let reg: RegisterResponse = post_json(
@@ -1197,7 +1530,8 @@ fn post_heartbeat(client: &reqwest::blocking::Client, cfg: &AgentConfig) {
         id: cfg.device_id,
         hostname: cfg.hostname.clone(),
         ip: detect_ip(),
-        os_name: std::env::consts::OS.to_string(),
+        os_name: detect_os_name(),
+        architecture: std::env::consts::ARCH.to_string(),
     };
     if let Err(err) = post_json::<_, Value>(
         client,
@@ -1270,7 +1604,7 @@ fn connect_tcp(
     }
     let mut stream = TcpStream::connect(&cfg.tcp_address)?;
     stream.set_nodelay(true)?;
-    stream.set_read_timeout(Some(Duration::from_secs(1)))?;
+    stream.set_read_timeout(Some(Duration::from_millis(100)))?;
     stream.set_write_timeout(Some(Duration::from_secs(10)))?;
     let (out_tx, out_rx) = mpsc::channel::<TcpOutbound>();
     let mut terminals = TerminalManager::new(out_tx.clone());
@@ -1301,6 +1635,8 @@ fn connect_tcp(
     });
     let mut last_tcp_heartbeat = std::time::Instant::now();
     let mut last_http_heartbeat = std::time::Instant::now();
+    let mut last_monitor_report = std::time::Instant::now() - MONITOR_REPORT_INTERVAL;
+    let mut monitor_collector = MonitorCollector::new();
     loop {
         match stop_rx.try_recv() {
             Ok(_) | Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
@@ -1313,8 +1649,8 @@ fn connect_tcp(
 
         match recv_tcp(&mut stream) {
             Ok(Some(env)) => {
-                if env.router == "DeviceHeartbeatRes" {
-                    // Heartbeat responses are best-effort keepalive acknowledgements.
+                if env.router == "DeviceHeartbeatRes" || env.router == "DeviceMonitorReportRes" {
+                    // Keepalive and monitor acknowledgements are best-effort.
                 } else if env.router.starts_with("DeviceDesktop") {
                     desktops.handle(env);
                 } else {
@@ -1335,6 +1671,17 @@ fn connect_tcp(
                 data: json!({ "deviceId": cfg.device_id }),
             });
             last_tcp_heartbeat = std::time::Instant::now();
+        }
+        if last_monitor_report.elapsed() >= MONITOR_REPORT_INTERVAL {
+            let snapshot = monitor_collector.sample();
+            let _ = out_tx.send(TcpOutbound {
+                router: "DeviceMonitorReportReq",
+                data: json!({
+                    "deviceId": cfg.device_id,
+                    "snapshot": snapshot,
+                }),
+            });
+            last_monitor_report = std::time::Instant::now();
         }
         if last_http_heartbeat.elapsed() >= Duration::from_secs(60) {
             post_heartbeat(client, cfg);
@@ -1582,21 +1929,19 @@ struct TerminalManager {
 }
 
 struct TerminalSession {
-    tty: std::fs::File,
-    #[cfg(unix)]
-    pid: libc::pid_t,
-    #[cfg(not(unix))]
-    child: Child,
+    reader: Option<Box<dyn Read + Send>>,
+    writer: Box<dyn Write + Send>,
+    master: Box<dyn portable_pty::MasterPty + Send>,
+    child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
     done: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
         self.done.store(true, Ordering::Relaxed);
-        #[cfg(unix)]
-        unsafe {
-            libc::kill(self.pid, libc::SIGHUP);
-            libc::waitpid(self.pid, ptr::null_mut(), libc::WNOHANG);
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
         }
     }
 }
@@ -1643,7 +1988,7 @@ impl TerminalManager {
             .map(ToOwned::to_owned)
             .unwrap_or_else(default_shell);
         match start_terminal_process(&shell) {
-            Ok(session) => {
+            Ok(mut session) => {
                 if let Some((cols, rows)) = terminal_size_from_value(&data) {
                     let _ = resize_terminal_session(&session, cols, rows);
                 }
@@ -1651,71 +1996,9 @@ impl TerminalManager {
                 let session_id_clone = session_id.clone();
                 let tcp_sender = self.tcp_sender.clone();
                 let done = session.done.clone();
-                if let Ok(mut tty) = session.tty.try_clone() {
-                    thread::spawn(move || {
-                        let mut buf = [0u8; 4096];
-                        let (output_tx, output_rx) = mpsc::channel::<Vec<u8>>();
-                        let output_session_id = session_id_clone.clone();
-                        let output_sender = tcp_sender.clone();
-                        let output_done = done.clone();
-                        thread::spawn(move || {
-                            let mut pending = Vec::with_capacity(16384);
-                            loop {
-                                match output_rx.recv_timeout(Duration::from_millis(8)) {
-                                    Ok(bytes) => {
-                                        pending.extend_from_slice(&bytes);
-                                        if pending.len() < 16384 {
-                                            continue;
-                                        }
-                                    }
-                                    Err(mpsc::RecvTimeoutError::Timeout) => {
-                                        if pending.is_empty() {
-                                            if output_done.load(Ordering::Relaxed) {
-                                                return;
-                                            }
-                                            continue;
-                                        }
-                                    }
-                                    Err(mpsc::RecvTimeoutError::Disconnected) => {
-                                        if pending.is_empty() {
-                                            return;
-                                        }
-                                    }
-                                }
-
-                                let output = String::from_utf8_lossy(&pending).to_string();
-                                pending.clear();
-                                let _ = output_sender.send(TcpOutbound {
-                                    router: "DeviceTerminalOutputReq",
-                                    data: json!({
-                                        "sessionId": output_session_id,
-                                        "output": output,
-                                    }),
-                                });
-                            }
-                        });
-                        loop {
-                            if done.load(Ordering::Relaxed) {
-                                return;
-                            }
-                            match tty.read(&mut buf) {
-                                Ok(0) => break,
-                                Ok(n) => {
-                                    let _ = output_tx.send(buf[..n].to_vec());
-                                }
-                                Err(_) => break,
-                            }
-                        }
-                        drop(output_tx);
-                        if !done.load(Ordering::Relaxed) {
-                            let _ = tcp_sender.send(TcpOutbound {
-                                router: "DeviceTerminalClosedReq",
-                                data: json!({
-                                    "sessionId": session_id_clone,
-                                    "message": "terminal exited",
-                                }),
-                            });
-                        }
+                if let Some(mut reader) = session.reader.take() {
+                    spawn_terminal_reader(session_id_clone, tcp_sender, done, move |buf| {
+                        reader.read(buf)
                     });
                 }
                 self.sessions.insert(session_id, session);
@@ -1734,8 +2017,8 @@ impl TerminalManager {
             .to_string();
         let input = data.get("input").and_then(Value::as_str).unwrap_or("");
         if let Some(session) = self.sessions.get_mut(&session_id) {
-            let _ = session.tty.write_all(input.as_bytes());
-            let _ = session.tty.flush();
+            let _ = session.writer.write_all(input.as_bytes());
+            let _ = session.writer.flush();
         } else {
             let _ =
                 send_terminal_closed(&self.tcp_sender, &session_id, "terminal session not found");
@@ -1783,56 +2066,107 @@ impl TerminalManager {
     }
 }
 
-#[cfg(unix)]
-fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
-    use std::ffi::CString;
-    use std::os::raw::c_int;
+fn spawn_terminal_reader<F>(
+    session_id_clone: String,
+    tcp_sender: mpsc::Sender<TcpOutbound>,
+    done: Arc<std::sync::atomic::AtomicBool>,
+    mut read_fn: F,
+) where
+    F: FnMut(&mut [u8]) -> std::io::Result<usize> + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        let (output_tx, output_rx) = mpsc::channel::<Vec<u8>>();
+        let output_session_id = session_id_clone.clone();
+        let output_sender = tcp_sender.clone();
+        let output_done = done.clone();
+        thread::spawn(move || {
+            let mut pending = Vec::with_capacity(16384);
+            loop {
+                match output_rx.recv_timeout(Duration::from_millis(8)) {
+                    Ok(bytes) => {
+                        pending.extend_from_slice(&bytes);
+                        if pending.len() < 16384 {
+                            continue;
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        if pending.is_empty() {
+                            if output_done.load(Ordering::Relaxed) {
+                                return;
+                            }
+                            continue;
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        if pending.is_empty() {
+                            return;
+                        }
+                    }
+                }
 
-    let c_shell = CString::new(shell).map_err(|_| "invalid shell path")?;
-    let c_term = CString::new("TERM").expect("TERM CString");
-    let c_term_value = CString::new("xterm-256color").expect("TERM value CString");
-    let c_colorterm = CString::new("COLORTERM").expect("COLORTERM CString");
-    let c_colorterm_value = CString::new("truecolor").expect("COLORTERM value CString");
-    let c_clicolor = CString::new("CLICOLOR").expect("CLICOLOR CString");
-    let c_clicolor_value = CString::new("1").expect("CLICOLOR value CString");
-    let c_clicolor_force = CString::new("CLICOLOR_FORCE").expect("CLICOLOR_FORCE CString");
-    let c_clicolor_force_value = CString::new("1").expect("CLICOLOR_FORCE value CString");
-    let c_force_color = CString::new("FORCE_COLOR").expect("FORCE_COLOR CString");
-    let c_force_color_value = CString::new("1").expect("FORCE_COLOR value CString");
-    let mut master: c_int = -1;
-    let pid = unsafe { libc::forkpty(&mut master, ptr::null_mut(), ptr::null(), ptr::null()) };
-    if pid < 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    if pid == 0 {
-        let arg0 = c_shell.as_ptr();
-        let argv = [arg0, ptr::null()];
-        unsafe {
-            libc::setenv(c_term.as_ptr(), c_term_value.as_ptr(), 1);
-            libc::setenv(c_colorterm.as_ptr(), c_colorterm_value.as_ptr(), 1);
-            libc::setenv(c_clicolor.as_ptr(), c_clicolor_value.as_ptr(), 1);
-            libc::setenv(
-                c_clicolor_force.as_ptr(),
-                c_clicolor_force_value.as_ptr(),
-                1,
-            );
-            libc::setenv(c_force_color.as_ptr(), c_force_color_value.as_ptr(), 1);
-            libc::execvp(arg0, argv.as_ptr());
-            libc::_exit(127);
+                let output = String::from_utf8_lossy(&pending).to_string();
+                pending.clear();
+                let _ = output_sender.send(TcpOutbound {
+                    router: "DeviceTerminalOutputReq",
+                    data: json!({
+                        "sessionId": output_session_id,
+                        "output": output,
+                    }),
+                });
+            }
+        });
+        loop {
+            if done.load(Ordering::Relaxed) {
+                return;
+            }
+            match read_fn(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let _ = output_tx.send(buf[..n].to_vec());
+                }
+                Err(_) => break,
+            }
         }
-    }
-
-    let tty = unsafe { std::fs::File::from_raw_fd(master) };
-    Ok(TerminalSession {
-        tty,
-        pid,
-        done: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-    })
+        drop(output_tx);
+        if !done.load(Ordering::Relaxed) {
+            let _ = tcp_sender.send(TcpOutbound {
+                router: "DeviceTerminalClosedReq",
+                data: json!({
+                    "sessionId": session_id_clone,
+                    "message": "terminal exited",
+                }),
+            });
+        }
+    });
 }
 
-#[cfg(not(unix))]
-fn start_terminal_process(_shell: &str) -> Result<TerminalSession, BoxError> {
-    Err("terminal pty is not implemented for this platform".into())
+fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+
+    let pty_system = native_pty_system();
+    let pair = pty_system.openpty(PtySize {
+        rows: 24,
+        cols: 80,
+        pixel_width: 0,
+        pixel_height: 0,
+    })?;
+    let mut cmd = CommandBuilder::new(shell);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    cmd.env("CLICOLOR", "1");
+    cmd.env("CLICOLOR_FORCE", "1");
+    cmd.env("FORCE_COLOR", "1");
+    let child = pair.slave.spawn_command(cmd)?;
+    let reader = pair.master.try_clone_reader()?;
+    let writer = pair.master.take_writer()?;
+    Ok(TerminalSession {
+        reader: Some(reader),
+        writer,
+        master: pair.master,
+        child: Some(child),
+        done: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    })
 }
 
 fn resize_terminal_session(
@@ -1843,33 +2177,18 @@ fn resize_terminal_session(
     if cols == 0 || rows == 0 {
         return Ok(());
     }
-    #[cfg(unix)]
-    {
-        let ws = libc::winsize {
-            ws_row: rows,
-            ws_col: cols,
-            ws_xpixel: 0,
-            ws_ypixel: 0,
-        };
-        let rc = unsafe { libc::ioctl(session.tty.as_raw_fd(), libc::TIOCSWINSZ, &ws) };
-        if rc < 0 {
-            return Err(std::io::Error::last_os_error().into());
-        }
-    }
+    session.master.resize(portable_pty::PtySize {
+        rows,
+        cols,
+        pixel_width: 0,
+        pixel_height: 0,
+    })?;
     Ok(())
 }
 
-fn stop_terminal_session(session: TerminalSession) {
+fn stop_terminal_session(mut session: TerminalSession) {
     session.done.store(true, Ordering::Relaxed);
-    #[cfg(unix)]
-    unsafe {
-        libc::kill(session.pid, libc::SIGHUP);
-        libc::kill(session.pid, libc::SIGTERM);
-        libc::waitpid(session.pid, ptr::null_mut(), 0);
-    }
-    #[cfg(not(unix))]
-    {
-        let mut child = session.child;
+    if let Some(mut child) = session.child.take() {
         let _ = child.kill();
         let _ = child.wait();
     }
@@ -2073,14 +2392,15 @@ fn collect_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
     let mut diagnostics = Vec::new();
 
     let hostname = hostname();
+    let os_name = detect_os_name();
     assets.push(AssetEntry {
         asset_type: "host".to_string(),
         unique_key: format!("host-{hostname}"),
         asset_name: hostname.clone(),
-        brand: std::env::consts::OS.to_string(),
+        brand: os_name.clone(),
         model: std::env::consts::ARCH.to_string(),
         serial_no: String::new(),
-        specification: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
+        specification: format!("{} {}", os_name, std::env::consts::ARCH),
         source: "auroraops-agent".to_string(),
         sync_hash: String::new(),
         remark: "auto:agent".to_string(),
@@ -2092,19 +2412,58 @@ fn collect_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
         message: None,
     });
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     {
         let (detected, detected_diagnostics) = collect_fastfetch_assets();
         assets.extend(detected);
         diagnostics.extend(detected_diagnostics);
+    }
 
+    #[cfg(target_os = "linux")]
+    {
         ensure_linux_fallback_assets(&mut assets, &mut diagnostics);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if windows_needs_cim_fallback(&assets) {
+            let (detected, detected_diagnostics) = collect_windows_assets();
+            extend_missing_asset_types(&mut assets, detected);
+            diagnostics.extend(detected_diagnostics);
+        }
     }
 
     (assets, diagnostics)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(target_os = "windows")]
+fn extend_missing_asset_types(assets: &mut Vec<AssetEntry>, fallback: Vec<AssetEntry>) {
+    for item in fallback {
+        if !assets
+            .iter()
+            .any(|existing| existing.asset_type == item.asset_type)
+        {
+            assets.push(item);
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_needs_cim_fallback(assets: &[AssetEntry]) -> bool {
+    [
+        "motherboard",
+        "bios",
+        "cpu",
+        "memory",
+        "gpu",
+        "network",
+        "disk",
+    ]
+    .into_iter()
+    .any(|asset_type| !assets.iter().any(|item| item.asset_type == asset_type))
+}
+
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn collect_fastfetch_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
     let mut collector = FastfetchCollector {
         assets: Vec::new(),
@@ -2120,16 +2479,506 @@ fn collect_fastfetch_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
     (collector.assets, collector.diagnostics)
 }
 
+#[cfg(target_os = "windows")]
+fn collect_windows_assets() -> (Vec<AssetEntry>, Vec<AssetDiagnostic>) {
+    match run_windows_cim_snapshot() {
+        Ok(root) => {
+            let mut collector = WindowsCimCollector {
+                root,
+                assets: Vec::new(),
+                diagnostics: Vec::new(),
+            };
+            collector.collect_board();
+            collector.collect_bios();
+            collector.collect_cpu();
+            collector.collect_memory();
+            collector.collect_gpus();
+            collector.collect_network();
+            collector.collect_disks();
+            (collector.assets, collector.diagnostics)
+        }
+        Err(message) => (
+            Vec::new(),
+            vec![AssetDiagnostic {
+                name: "windows-cim".to_string(),
+                ok: false,
+                count: 0,
+                message: Some(message),
+            }],
+        ),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn run_windows_cim_snapshot() -> Result<Value, String> {
+    let script = r#"
+$ErrorActionPreference = 'Stop'
+$data = [ordered]@{
+  board = @(Get-CimInstance -ClassName Win32_BaseBoard | Select-Object Manufacturer,Product,Version,SerialNumber)
+  bios = @(Get-CimInstance -ClassName Win32_BIOS | Select-Object Manufacturer,SMBIOSBIOSVersion,Version,SerialNumber,ReleaseDate)
+  cpu = @(Get-CimInstance -ClassName Win32_Processor | Select-Object Name,Manufacturer,ProcessorId,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed)
+  memory = @(Get-CimInstance -ClassName Win32_PhysicalMemory | Select-Object Manufacturer,PartNumber,SerialNumber,Capacity,Speed,ConfiguredClockSpeed,DeviceLocator,BankLabel,MemoryType,SMBIOSMemoryType)
+  gpu = @(Get-CimInstance -ClassName Win32_VideoController | Select-Object Name,AdapterCompatibility,DriverVersion,AdapterRAM,PNPDeviceID)
+  network = @(Get-CimInstance -ClassName Win32_NetworkAdapter | Where-Object { $_.PhysicalAdapter -and $_.MACAddress } | Select-Object Name,Manufacturer,MACAddress,Speed,NetConnectionID,PNPDeviceID)
+  disk = @(Get-CimInstance -ClassName Win32_DiskDrive | Select-Object Model,Manufacturer,SerialNumber,Size,InterfaceType,MediaType,FirmwareRevision,DeviceID,PNPDeviceID)
+  system = @(Get-CimInstance -ClassName Win32_ComputerSystem | Select-Object Manufacturer,Model,TotalPhysicalMemory)
+}
+$data | ConvertTo-Json -Depth 6 -Compress
+"#;
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
+        .output()
+        .map_err(|error| format!("failed to run powershell CIM snapshot: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Err(first_non_empty_owned([
+            stderr,
+            stdout,
+            format!("powershell exited with {}", output.status),
+        ]));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("failed to parse powershell CIM JSON: {error}"))
+}
+
+#[cfg(target_os = "windows")]
+struct WindowsCimCollector {
+    root: Value,
+    assets: Vec<AssetEntry>,
+    diagnostics: Vec<AssetDiagnostic>,
+}
+
+#[cfg(target_os = "windows")]
+impl WindowsCimCollector {
+    fn collect_board(&mut self) {
+        let mut count = 0usize;
+        for item in windows_json_rows(&self.root, "board") {
+            let product = windows_value_string(item, &["Product"]);
+            let vendor = windows_value_string(item, &["Manufacturer"]);
+            let version = windows_value_string(item, &["Version"]);
+            let serial = windows_value_string(item, &["SerialNumber"]);
+            let name = first_non_empty_owned([product.clone(), "Motherboard".to_string()]);
+            let unique_seed = first_meaningful([
+                serial.as_str(),
+                product.as_str(),
+                version.as_str(),
+                vendor.as_str(),
+            ])
+            .to_string();
+            self.assets.push(windows_asset_entry(
+                "motherboard",
+                unique_seed.as_str(),
+                name,
+                vendor,
+                product,
+                serial,
+                version,
+            ));
+            count += 1;
+        }
+        self.push_diag("motherboard", count > 0, count, "no motherboard detected");
+    }
+
+    fn collect_bios(&mut self) {
+        let mut count = 0usize;
+        for item in windows_json_rows(&self.root, "bios") {
+            let vendor = windows_value_string(item, &["Manufacturer"]);
+            let smbios = windows_value_string(item, &["SMBIOSBIOSVersion"]);
+            let version = windows_value_string(item, &["Version"]);
+            let serial = windows_value_string(item, &["SerialNumber"]);
+            let release = windows_value_string(item, &["ReleaseDate"]);
+            let model = first_non_empty_owned([smbios.clone(), version.clone()]);
+            let name = first_non_empty_owned([
+                join_non_empty(" ", [vendor.as_str(), model.as_str()]),
+                "BIOS".to_string(),
+            ]);
+            let specification = join_non_empty(" / ", [version.as_str(), release.as_str()]);
+            let unique_seed = first_meaningful([
+                serial.as_str(),
+                model.as_str(),
+                release.as_str(),
+                name.as_str(),
+            ])
+            .to_string();
+            self.assets.push(windows_asset_entry(
+                "bios",
+                unique_seed.as_str(),
+                name,
+                vendor,
+                model,
+                serial,
+                specification,
+            ));
+            count += 1;
+        }
+        self.push_diag("bios", count > 0, count, "no bios detected");
+    }
+
+    fn collect_cpu(&mut self) {
+        let mut count = 0usize;
+        for item in windows_json_rows(&self.root, "cpu") {
+            let name = windows_value_string(item, &["Name"]);
+            let vendor = windows_value_string(item, &["Manufacturer"]);
+            let processor_id = windows_value_string(item, &["ProcessorId"]);
+            let cores = windows_value_u64(item, &["NumberOfCores"])
+                .map(|value| format_count(value as u32, "physical cores"))
+                .unwrap_or_default();
+            let logical = windows_value_u64(item, &["NumberOfLogicalProcessors"])
+                .map(|value| format_count(value as u32, "logical cores"))
+                .unwrap_or_default();
+            let frequency = windows_value_u64(item, &["MaxClockSpeed"])
+                .map(|value| format!("max {value} MHz"))
+                .unwrap_or_default();
+            let specification = join_non_empty(
+                " / ",
+                [cores.as_str(), logical.as_str(), frequency.as_str()],
+            );
+            let asset_name = first_non_empty_owned([name.clone(), "CPU".to_string()]);
+            let unique_seed =
+                first_meaningful([processor_id.as_str(), name.as_str(), specification.as_str()])
+                    .to_string();
+            self.assets.push(windows_asset_entry(
+                "cpu",
+                unique_seed.as_str(),
+                asset_name,
+                vendor,
+                name,
+                processor_id,
+                specification,
+            ));
+            count += 1;
+        }
+        self.push_diag("cpu", count > 0, count, "no cpu detected");
+    }
+
+    fn collect_memory(&mut self) {
+        let mut count = 0usize;
+        for item in windows_json_rows(&self.root, "memory") {
+            let size = windows_value_u64(item, &["Capacity"])
+                .map(format_bytes)
+                .unwrap_or_default();
+            let vendor = windows_value_string(item, &["Manufacturer"]);
+            let part_number = windows_value_string(item, &["PartNumber"]);
+            let serial = windows_value_string(item, &["SerialNumber"]);
+            let locator = windows_value_string(item, &["DeviceLocator"]);
+            let bank = windows_value_string(item, &["BankLabel"]);
+            let speed = windows_memory_speed(
+                windows_value_u64(item, &["Speed"]),
+                windows_value_u64(item, &["ConfiguredClockSpeed"]),
+            );
+            let memory_type = windows_memory_type(
+                windows_value_u64(item, &["SMBIOSMemoryType"])
+                    .or_else(|| windows_value_u64(item, &["MemoryType"])),
+            );
+            let location = join_non_empty(" ", [bank.as_str(), locator.as_str()]);
+            let specification = join_non_empty(
+                " / ",
+                [
+                    size.as_str(),
+                    memory_type.as_str(),
+                    speed.as_str(),
+                    location.as_str(),
+                ],
+            );
+            let asset_name = first_non_empty_owned([
+                join_non_empty(" ", [size.as_str(), memory_type.as_str()]),
+                "Memory".to_string(),
+            ]);
+            let unique_seed = first_meaningful([
+                serial.as_str(),
+                locator.as_str(),
+                part_number.as_str(),
+                specification.as_str(),
+            ])
+            .to_string();
+            self.assets.push(windows_asset_entry(
+                "memory",
+                unique_seed.as_str(),
+                asset_name,
+                vendor,
+                first_non_empty_owned([part_number, memory_type]),
+                serial,
+                specification,
+            ));
+            count += 1;
+        }
+        if count == 0 {
+            for item in windows_json_rows(&self.root, "system") {
+                if let Some(total) = windows_value_u64(item, &["TotalPhysicalMemory"]) {
+                    let size = format_bytes(total);
+                    self.assets.push(windows_asset_entry(
+                        "memory",
+                        size.as_str(),
+                        "System Memory".to_string(),
+                        windows_value_string(item, &["Manufacturer"]),
+                        "RAM".to_string(),
+                        String::new(),
+                        size.clone(),
+                    ));
+                    count += 1;
+                    break;
+                }
+            }
+        }
+        self.push_diag("memory", count > 0, count, "no memory detected");
+    }
+
+    fn collect_gpus(&mut self) {
+        let mut count = 0usize;
+        for item in windows_json_rows(&self.root, "gpu") {
+            let name = windows_value_string(item, &["Name"]);
+            let vendor = windows_value_string(item, &["AdapterCompatibility"]);
+            let driver = windows_value_string(item, &["DriverVersion"]);
+            let pnp = windows_value_string(item, &["PNPDeviceID"]);
+            let memory = windows_value_u64(item, &["AdapterRAM"])
+                .map(|value| format!("VRAM {}", format_bytes(value)))
+                .unwrap_or_default();
+            let specification = join_non_empty(" / ", [memory.as_str(), driver.as_str()]);
+            let asset_name = first_non_empty_owned([name.clone(), "GPU".to_string()]);
+            let unique_seed =
+                first_meaningful([pnp.as_str(), name.as_str(), vendor.as_str()]).to_string();
+            self.assets.push(windows_asset_entry(
+                "gpu",
+                unique_seed.as_str(),
+                asset_name,
+                vendor,
+                name,
+                String::new(),
+                specification,
+            ));
+            count += 1;
+        }
+        self.push_diag("gpu", count > 0, count, "no gpu detected");
+    }
+
+    fn collect_network(&mut self) {
+        let mut count = 0usize;
+        for item in windows_json_rows(&self.root, "network") {
+            let name = windows_value_string(item, &["Name"]);
+            let vendor = windows_value_string(item, &["Manufacturer"]);
+            let mac = windows_value_string(item, &["MACAddress"]);
+            let speed = windows_value_u64(item, &["Speed"])
+                .map(windows_network_speed)
+                .unwrap_or_default();
+            let connection = windows_value_string(item, &["NetConnectionID"]);
+            let pnp = windows_value_string(item, &["PNPDeviceID"]);
+            let specification =
+                join_non_empty(" / ", [mac.as_str(), speed.as_str(), connection.as_str()]);
+            let unique_seed =
+                first_meaningful([mac.as_str(), pnp.as_str(), name.as_str()]).to_string();
+            self.assets.push(windows_asset_entry(
+                "network",
+                unique_seed.as_str(),
+                first_non_empty_owned([name, "Network Interface".to_string()]),
+                vendor,
+                String::new(),
+                mac,
+                specification,
+            ));
+            count += 1;
+        }
+        self.push_diag("network", count > 0, count, "no network interface detected");
+    }
+
+    fn collect_disks(&mut self) {
+        let mut count = 0usize;
+        for item in windows_json_rows(&self.root, "disk") {
+            let model = windows_value_string(item, &["Model"]);
+            let vendor = windows_value_string(item, &["Manufacturer"]);
+            let serial = windows_value_string(item, &["SerialNumber"]);
+            let size = windows_value_u64(item, &["Size"])
+                .map(format_bytes)
+                .unwrap_or_default();
+            let interface_type = windows_value_string(item, &["InterfaceType"]);
+            let media_type = windows_value_string(item, &["MediaType"]);
+            let firmware = windows_value_string(item, &["FirmwareRevision"]);
+            let device_id = windows_value_string(item, &["DeviceID"]);
+            let pnp = windows_value_string(item, &["PNPDeviceID"]);
+            let specification = join_non_empty(
+                " / ",
+                [
+                    size.as_str(),
+                    media_type.as_str(),
+                    interface_type.as_str(),
+                    firmware.as_str(),
+                    device_id.as_str(),
+                ],
+            );
+            let unique_seed = first_meaningful([
+                serial.as_str(),
+                pnp.as_str(),
+                device_id.as_str(),
+                model.as_str(),
+            ])
+            .to_string();
+            self.assets.push(windows_asset_entry(
+                "disk",
+                unique_seed.as_str(),
+                first_non_empty_owned([model.clone(), device_id, "Disk".to_string()]),
+                vendor,
+                model,
+                serial,
+                specification,
+            ));
+            count += 1;
+        }
+        self.push_diag("disk", count > 0, count, "no disk detected");
+    }
+
+    fn push_diag(&mut self, name: &str, ok: bool, count: usize, fallback_message: &str) {
+        self.diagnostics.push(AssetDiagnostic {
+            name: name.to_string(),
+            ok,
+            count,
+            message: if ok {
+                None
+            } else {
+                Some(fallback_message.to_string())
+            },
+        });
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_asset_entry(
+    asset_type: &str,
+    unique_seed: &str,
+    asset_name: String,
+    brand: String,
+    model: String,
+    serial_no: String,
+    specification: String,
+) -> AssetEntry {
+    asset_entry_with_source(
+        asset_type,
+        unique_seed,
+        asset_name,
+        brand,
+        model,
+        serial_no,
+        specification,
+        "windows-cim",
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn windows_json_rows<'a>(root: &'a Value, key: &str) -> Vec<&'a Value> {
+    match root.get(key) {
+        Some(Value::Array(items)) => items.iter().collect(),
+        Some(Value::Object(map)) if !map.is_empty() => vec![root.get(key).unwrap()],
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_value_string(item: &Value, keys: &[&str]) -> String {
+    for key in keys {
+        if let Some(value) = item.get(*key) {
+            let text = match value {
+                Value::String(value) => value.trim().to_string(),
+                Value::Number(value) => value.to_string(),
+                Value::Bool(value) => value.to_string(),
+                _ => String::new(),
+            };
+            let text = normalize_windows_wmi_value(&text);
+            if !first_meaningful([text.as_str()]).is_empty() {
+                return text;
+            }
+        }
+    }
+    String::new()
+}
+
+#[cfg(target_os = "windows")]
+fn windows_value_u64(item: &Value, keys: &[&str]) -> Option<u64> {
+    for key in keys {
+        if let Some(value) = item.get(*key) {
+            match value {
+                Value::Number(number) => {
+                    if let Some(value) = number.as_u64() {
+                        return Some(value);
+                    }
+                    if let Some(value) = number.as_i64().filter(|value| *value > 0) {
+                        return Some(value as u64);
+                    }
+                }
+                Value::String(text) => {
+                    let digits = text.trim().replace(',', "");
+                    if let Ok(value) = digits.parse::<u64>() {
+                        return Some(value);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_wmi_value(value: &str) -> String {
+    let value = value.trim();
+    if value.eq_ignore_ascii_case("system.string[]") {
+        return String::new();
+    }
+    value.to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn windows_memory_speed(speed: Option<u64>, configured_speed: Option<u64>) -> String {
+    match (speed, configured_speed) {
+        (Some(max), Some(running)) if max > 0 && running > 0 && max != running => {
+            format!("{max} MT/s, running {running} MT/s")
+        }
+        (Some(max), _) if max > 0 => format!("{max} MT/s"),
+        (_, Some(running)) if running > 0 => format!("{running} MT/s"),
+        _ => String::new(),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_network_speed(bits_per_second: u64) -> String {
+    if bits_per_second >= 1_000_000_000 {
+        format!("{:.1} Gb/s", bits_per_second as f64 / 1_000_000_000.0)
+    } else if bits_per_second >= 1_000_000 {
+        format!("{:.0} Mb/s", bits_per_second as f64 / 1_000_000.0)
+    } else if bits_per_second > 0 {
+        format!("{bits_per_second} b/s")
+    } else {
+        String::new()
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_memory_type(value: Option<u64>) -> String {
+    match value {
+        Some(20) => "DDR".to_string(),
+        Some(21) => "DDR2".to_string(),
+        Some(24) => "DDR3".to_string(),
+        Some(26) => "DDR4".to_string(),
+        Some(34) => "DDR5".to_string(),
+        Some(0) | None => String::new(),
+        Some(value) => format!("MemoryType {value}"),
+    }
+}
+
 // fastfetch-sys links the native detection library, but its wrapper header does
 // not expose these detection result structures to bindgen.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 struct FastfetchCpuCore {
     freq: u32,
     count: u32,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 #[allow(non_snake_case)]
 struct FastfetchCpuResult {
@@ -2145,7 +2994,7 @@ struct FastfetchCpuResult {
     temperature: f64,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 struct FastfetchBoardResult {
     name: fastfetch_sys::FFstrbuf,
@@ -2154,24 +3003,24 @@ struct FastfetchBoardResult {
     serial: fastfetch_sys::FFstrbuf,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 struct FastfetchBiosResult {
     date: fastfetch_sys::FFstrbuf,
     release: fastfetch_sys::FFstrbuf,
     vendor: fastfetch_sys::FFstrbuf,
     version: fastfetch_sys::FFstrbuf,
-    kind: fastfetch_sys::FFstrbuf,
+    bios_type: fastfetch_sys::FFstrbuf,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 #[allow(non_snake_case)]
 struct FastfetchPhysicalMemoryResult {
     size: u64,
     maxSpeed: u32,
     runningSpeed: u32,
-    kind: fastfetch_sys::FFstrbuf,
+    memory_type: fastfetch_sys::FFstrbuf,
     formFactor: fastfetch_sys::FFstrbuf,
     locator: fastfetch_sys::FFstrbuf,
     partNumber: fastfetch_sys::FFstrbuf,
@@ -2180,19 +3029,19 @@ struct FastfetchPhysicalMemoryResult {
     ecc: bool,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 struct FastfetchGpuMemory {
     total: u64,
     used: u64,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 #[allow(non_snake_case)]
 struct FastfetchGpuResult {
     index: u32,
-    kind: fastfetch_sys::FFGPUType,
+    gpu_type: fastfetch_sys::FFGPUType,
     vendor: fastfetch_sys::FFstrbuf,
     name: fastfetch_sys::FFstrbuf,
     driver: fastfetch_sys::FFstrbuf,
@@ -2207,7 +3056,7 @@ struct FastfetchGpuResult {
     deviceId: u64,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 #[allow(non_snake_case)]
 struct FastfetchLocalIpResult {
@@ -2221,20 +3070,20 @@ struct FastfetchLocalIpResult {
     defaultRoute: bool,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 type FastfetchPhysicalDiskType = u8;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 const FASTFETCH_PHYSICAL_DISK_HDD: FastfetchPhysicalDiskType = 1 << 0;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 const FASTFETCH_PHYSICAL_DISK_SSD: FastfetchPhysicalDiskType = 1 << 1;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 const FASTFETCH_PHYSICAL_DISK_FIXED: FastfetchPhysicalDiskType = 1 << 2;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 const FASTFETCH_PHYSICAL_DISK_REMOVABLE: FastfetchPhysicalDiskType = 1 << 3;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 const FASTFETCH_PHYSICAL_DISK_READONLY: FastfetchPhysicalDiskType = 1 << 5;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 #[repr(C)]
 #[allow(non_snake_case)]
 struct FastfetchPhysicalDiskResult {
@@ -2243,12 +3092,12 @@ struct FastfetchPhysicalDiskResult {
     serial: fastfetch_sys::FFstrbuf,
     devPath: fastfetch_sys::FFstrbuf,
     revision: fastfetch_sys::FFstrbuf,
-    kind: FastfetchPhysicalDiskType,
+    disk_type: FastfetchPhysicalDiskType,
     size: u64,
     temperature: f64,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 extern "C" {
     fn ffDetectBoard(board: *mut FastfetchBoardResult) -> *const c_char;
     fn ffDetectBios(bios: *mut FastfetchBiosResult) -> *const c_char;
@@ -2271,13 +3120,13 @@ extern "C" {
     ) -> *const c_char;
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 struct FastfetchCollector {
     assets: Vec<AssetEntry>,
     diagnostics: Vec<AssetDiagnostic>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl FastfetchCollector {
     fn collect_board(&mut self) {
         unsafe {
@@ -2417,7 +3266,7 @@ impl FastfetchCollector {
                 }
                 let memory = &*memory;
                 let size = format_bytes(memory.size);
-                let memory_type = ffstrbuf_to_string(&memory.kind);
+                let memory_type = ffstrbuf_to_string(&memory.memory_type);
                 let locator = ffstrbuf_to_string(&memory.locator);
                 let part_number = ffstrbuf_to_string(&memory.partNumber);
                 let vendor = ffstrbuf_to_string(&memory.vendor);
@@ -2656,12 +3505,12 @@ impl FastfetchCollector {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 struct FastfetchCpu {
     raw: FastfetchCpuResult,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl FastfetchCpu {
     unsafe fn new() -> Self {
         let mut raw = mem::zeroed::<FastfetchCpuResult>();
@@ -2680,7 +3529,7 @@ impl FastfetchCpu {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl Drop for FastfetchCpu {
     fn drop(&mut self) {
         unsafe {
@@ -2690,12 +3539,12 @@ impl Drop for FastfetchCpu {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 struct FastfetchBoard {
     raw: FastfetchBoardResult,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl FastfetchBoard {
     unsafe fn new() -> Self {
         let mut raw = mem::zeroed::<FastfetchBoardResult>();
@@ -2723,7 +3572,7 @@ impl FastfetchBoard {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl Drop for FastfetchBoard {
     fn drop(&mut self) {
         unsafe {
@@ -2735,12 +3584,12 @@ impl Drop for FastfetchBoard {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 struct FastfetchBios {
     raw: FastfetchBiosResult,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl FastfetchBios {
     unsafe fn new() -> Self {
         let mut raw = mem::zeroed::<FastfetchBiosResult>();
@@ -2748,7 +3597,7 @@ impl FastfetchBios {
         init_strbuf(&mut raw.release);
         init_strbuf(&mut raw.vendor);
         init_strbuf(&mut raw.version);
-        init_strbuf(&mut raw.kind);
+        init_strbuf(&mut raw.bios_type);
         Self { raw }
     }
 
@@ -2769,11 +3618,11 @@ impl FastfetchBios {
     }
 
     fn bios_type(&self) -> String {
-        ffstrbuf_to_string(&self.raw.kind)
+        ffstrbuf_to_string(&self.raw.bios_type)
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl Drop for FastfetchBios {
     fn drop(&mut self) {
         unsafe {
@@ -2781,18 +3630,18 @@ impl Drop for FastfetchBios {
             destroy_strbuf(&mut self.raw.release);
             destroy_strbuf(&mut self.raw.vendor);
             destroy_strbuf(&mut self.raw.version);
-            destroy_strbuf(&mut self.raw.kind);
+            destroy_strbuf(&mut self.raw.bios_type);
         }
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 struct FastfetchList {
     raw: fastfetch_sys::FFlist,
     destroy_item: Option<unsafe fn(*mut u8)>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl FastfetchList {
     unsafe fn new<T>(destroy_item: unsafe fn(*mut u8)) -> Self {
         let mut raw = mem::zeroed::<fastfetch_sys::FFlist>();
@@ -2810,7 +3659,7 @@ impl FastfetchList {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl Drop for FastfetchList {
     fn drop(&mut self) {
         unsafe {
@@ -2831,12 +3680,12 @@ impl Drop for FastfetchList {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 unsafe fn init_strbuf(value: &mut fastfetch_sys::FFstrbuf) {
     fastfetch_sys::ffStrbufInitA(value, 0);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 unsafe fn destroy_strbuf(value: &mut fastfetch_sys::FFstrbuf) {
     if value.allocated != 0 && !value.chars.is_null() {
         free(value.chars.cast());
@@ -2846,10 +3695,10 @@ unsafe fn destroy_strbuf(value: &mut fastfetch_sys::FFstrbuf) {
     value.chars = ptr::null_mut();
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 unsafe fn destroy_physical_memory(item: *mut u8) {
     let item = item.cast::<FastfetchPhysicalMemoryResult>();
-    destroy_strbuf(&mut (*item).kind);
+    destroy_strbuf(&mut (*item).memory_type);
     destroy_strbuf(&mut (*item).formFactor);
     destroy_strbuf(&mut (*item).locator);
     destroy_strbuf(&mut (*item).partNumber);
@@ -2857,7 +3706,7 @@ unsafe fn destroy_physical_memory(item: *mut u8) {
     destroy_strbuf(&mut (*item).serial);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 unsafe fn destroy_gpu(item: *mut u8) {
     let item = item.cast::<FastfetchGpuResult>();
     destroy_strbuf(&mut (*item).vendor);
@@ -2867,7 +3716,7 @@ unsafe fn destroy_gpu(item: *mut u8) {
     destroy_strbuf(&mut (*item).memoryType);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 unsafe fn destroy_local_ip(item: *mut u8) {
     let item = item.cast::<FastfetchLocalIpResult>();
     destroy_strbuf(&mut (*item).name);
@@ -2877,7 +3726,7 @@ unsafe fn destroy_local_ip(item: *mut u8) {
     destroy_strbuf(&mut (*item).flags);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 unsafe fn destroy_physical_disk(item: *mut u8) {
     let item = item.cast::<FastfetchPhysicalDiskResult>();
     destroy_strbuf(&mut (*item).name);
@@ -2887,27 +3736,27 @@ unsafe fn destroy_physical_disk(item: *mut u8) {
     destroy_strbuf(&mut (*item).revision);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 trait FastfetchGpuExt {
     fn raw_type(&self) -> fastfetch_sys::FFGPUType;
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl FastfetchGpuExt for FastfetchGpuResult {
     fn raw_type(&self) -> fastfetch_sys::FFGPUType {
-        self.kind
+        self.gpu_type
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 trait FastfetchDiskExt {
     fn raw_type(&self) -> FastfetchPhysicalDiskType;
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 impl FastfetchDiskExt for FastfetchPhysicalDiskResult {
     fn raw_type(&self) -> FastfetchPhysicalDiskType {
-        self.kind
+        self.disk_type
     }
 }
 
@@ -2972,7 +3821,7 @@ fn ensure_linux_fallback_assets(
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn asset_entry(
     asset_type: &str,
     unique_seed: &str,
@@ -2981,6 +3830,28 @@ fn asset_entry(
     model: String,
     serial_no: String,
     specification: String,
+) -> AssetEntry {
+    asset_entry_with_source(
+        asset_type,
+        unique_seed,
+        asset_name,
+        brand,
+        model,
+        serial_no,
+        specification,
+        "fastfetch-sys",
+    )
+}
+
+fn asset_entry_with_source(
+    asset_type: &str,
+    unique_seed: &str,
+    asset_name: String,
+    brand: String,
+    model: String,
+    serial_no: String,
+    specification: String,
+    source: &str,
 ) -> AssetEntry {
     let unique_key = if serial_no.trim().is_empty() {
         sanitize(first_meaningful([
@@ -3006,13 +3877,13 @@ fn asset_entry(
         model,
         serial_no,
         specification,
-        source: "fastfetch-sys".to_string(),
+        source: source.to_string(),
         sync_hash: String::new(),
-        remark: "auto:fastfetch-sys".to_string(),
+        remark: format!("auto:{source}"),
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn ffstrbuf_to_string(value: &fastfetch_sys::FFstrbuf) -> String {
     if value.chars.is_null() || value.length == 0 {
         return String::new();
@@ -3023,7 +3894,7 @@ fn ffstrbuf_to_string(value: &fastfetch_sys::FFstrbuf) -> String {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn c_error(error: *const std::os::raw::c_char) -> String {
     if error.is_null() {
         String::new()
@@ -3032,7 +3903,7 @@ fn c_error(error: *const std::os::raw::c_char) -> String {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn cpu_specification(cpu: &FastfetchCpuResult) -> String {
     let cores = if cpu.coresPhysical > 0 || cpu.coresLogical > 0 || cpu.coresOnline > 0 {
         let packages = format_count(cpu.packages as u32, "package");
@@ -3062,7 +3933,6 @@ fn cpu_specification(cpu: &FastfetchCpuResult) -> String {
     join_non_empty(" / ", [cores.as_str(), frequency.as_str()])
 }
 
-#[cfg(target_os = "linux")]
 fn format_count(count: u32, label: &str) -> String {
     if count == 0 {
         String::new()
@@ -3071,7 +3941,7 @@ fn format_count(count: u32, label: &str) -> String {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn memory_speed(max_speed: u32, running_speed: u32) -> String {
     match (max_speed, running_speed) {
         (max, running) if max > 0 && running > 0 && max != running => {
@@ -3083,7 +3953,7 @@ fn memory_speed(max_speed: u32, running_speed: u32) -> String {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn gpu_type(value: fastfetch_sys::FFGPUType) -> String {
     match value {
         fastfetch_sys::FFGPUType_FF_GPU_TYPE_INTEGRATED => "Integrated".to_string(),
@@ -3093,7 +3963,7 @@ fn gpu_type(value: fastfetch_sys::FFGPUType) -> String {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn gpu_memory(gpu: &FastfetchGpuResult) -> String {
     if gpu.dedicated.total != u64::MAX && gpu.dedicated.total > 0 {
         return format!("VRAM {}", format_bytes(gpu.dedicated.total));
@@ -3104,7 +3974,7 @@ fn gpu_memory(gpu: &FastfetchGpuResult) -> String {
     String::new()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn physical_disk_type(value: FastfetchPhysicalDiskType) -> String {
     let raw = value as u32;
     let mut parts = Vec::new();
@@ -3124,7 +3994,6 @@ fn physical_disk_type(value: FastfetchPhysicalDiskType) -> String {
     parts.join(" ")
 }
 
-#[cfg(target_os = "linux")]
 fn format_bytes(bytes: u64) -> String {
     const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
     if bytes == 0 {
@@ -3143,7 +4012,6 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
-#[cfg(target_os = "linux")]
 fn first_meaningful<const N: usize>(values: [&str; N]) -> &str {
     values
         .into_iter()
@@ -3159,7 +4027,6 @@ fn first_meaningful<const N: usize>(values: [&str; N]) -> &str {
         .trim()
 }
 
-#[cfg(target_os = "linux")]
 fn first_non_empty_owned<const N: usize>(values: [String; N]) -> String {
     values
         .into_iter()
@@ -3167,7 +4034,6 @@ fn first_non_empty_owned<const N: usize>(values: [String; N]) -> String {
         .unwrap_or_default()
 }
 
-#[cfg(target_os = "linux")]
 fn join_non_empty<const N: usize>(separator: &str, values: [&str; N]) -> String {
     values
         .into_iter()
@@ -3212,13 +4078,22 @@ fn normalize_http_base(host: &str) -> String {
 }
 
 fn default_shell() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| {
-        if cfg!(target_os = "windows") {
-            "cmd.exe".to_string()
-        } else {
-            "/bin/sh".to_string()
-        }
-    })
+    if cfg!(target_os = "windows") {
+        return "cmd.exe".to_string();
+    }
+
+    std::env::var("SHELL")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .filter(|value| !value.contains('/') || Path::new(value).exists())
+        .or_else(|| {
+            ["/bin/bash", "/usr/bin/bash", "/bin/sh", "/usr/bin/sh"]
+                .iter()
+                .find(|path| Path::new(path).exists())
+                .map(|path| (*path).to_string())
+        })
+        .unwrap_or_else(|| "/bin/sh".to_string())
 }
 
 fn hostname() -> String {
@@ -3227,6 +4102,7 @@ fn hostname() -> String {
         .ok()
         .filter(|s| !s.is_empty())
         .or_else(|| std::env::var("HOSTNAME").ok())
+        .or_else(|| std::env::var("COMPUTERNAME").ok())
         .unwrap_or_else(|| "auroraops-agent".to_string())
 }
 
@@ -3238,6 +4114,40 @@ fn detect_ip() -> String {
         })
         .map(|addr| addr.ip().to_string())
         .unwrap_or_default()
+}
+
+fn detect_os_name() -> String {
+    parse_os_release_name(&fs::read_to_string("/etc/os-release").unwrap_or_default())
+        .or_else(|| std::env::var("PRETTY_NAME").ok())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| std::env::consts::OS.to_string())
+}
+
+fn parse_os_release_name(content: &str) -> Option<String> {
+    for key in ["PRETTY_NAME", "NAME"] {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with('#') {
+                continue;
+            }
+            let Some((line_key, value)) = line.split_once('=') else {
+                continue;
+            };
+            if line_key.trim() != key {
+                continue;
+            }
+            let value = value
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .trim()
+                .to_string();
+            if !value.is_empty() {
+                return Some(value);
+            }
+        }
+    }
+    None
 }
 
 fn sanitize(value: &str) -> String {
@@ -3261,6 +4171,32 @@ fn base64_encode(bytes: &[u8]) -> String {
 
 fn base64_decode(value: &str) -> Result<Vec<u8>, base64::DecodeError> {
     BASE64.decode(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_os_release_name;
+
+    #[test]
+    fn parse_os_release_prefers_pretty_name() {
+        let content = r#"
+NAME="Kylin Linux Advanced Server"
+PRETTY_NAME="Kylin Linux Advanced Server V10 (Lance)"
+"#;
+        assert_eq!(
+            parse_os_release_name(content).as_deref(),
+            Some("Kylin Linux Advanced Server V10 (Lance)")
+        );
+    }
+
+    #[test]
+    fn parse_os_release_falls_back_to_name() {
+        let content = "NAME=\"UnionTech OS Desktop\"\nVERSION_ID=\"20\"\n";
+        assert_eq!(
+            parse_os_release_name(content).as_deref(),
+            Some("UnionTech OS Desktop")
+        );
+    }
 }
 
 fn optional_string(value: &str) -> Option<String> {
@@ -3369,6 +4305,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
         <label class="switch"><input id="kmsSupport" type="checkbox" /><span><strong>KMS / DRM</strong>直接通过 DRM/KMS 捕获帧缓冲。</span></label>
         <label class="switch"><input id="tryVaapi" type="checkbox" /><span><strong>VAAPI</strong>尝试使用 Linux VAAPI 硬件编码。</span></label>
         <label class="switch"><input id="tryNvenc" type="checkbox" /><span><strong>NVENC</strong>尝试使用 NVIDIA NVENC 硬件编码。</span></label>
+        <label class="switch"><input id="tryMediafoundation" type="checkbox" /><span><strong>MediaFoundation</strong>尝试使用 Windows 硬件编码。</span></label>
         <label class="switch"><input id="controlDisplayManager" type="checkbox" /><span><strong>登录界面控制</strong>root 服务启动时自动探测 DISPLAY / XAUTHORITY。</span></label>
       </div>
       <div class="actions">
@@ -3380,7 +4317,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       <h2>服务管理</h2>
       <div class="actions" style="margin-top: 0;">
         <button onclick="enableService()">启用并启动自启服务</button>
-        <button class="secondary" onclick="restartService()">重启 systemd 服务</button>
+        <button class="secondary" onclick="restartService()">重启系统服务</button>
         <button class="danger" onclick="disableService()">停止并禁用自启</button>
       </div>
     </section>
@@ -3400,11 +4337,31 @@ const INDEX_HTML: &str = r##"<!doctype html>
     </section>
   </main>
   <script>
-    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','controlDisplayManager'];
+    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager'];
     const $ = (id) => document.getElementById(id);
+    const dirty = new Set();
+    ids.forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener('input', () => dirty.add(id));
+      el.addEventListener('change', () => dirty.add(id));
+    });
     const query = new URLSearchParams(window.location.search);
     const showDesktopLink = ['1', 'true', 'yes'].includes((query.get('showDesktopLink') || query.get('desktopLink') || query.get('debugDesktop') || '').toLowerCase());
     const log = (text) => $('log').textContent = `${new Date().toLocaleTimeString()} ${text}\n` + $('log').textContent;
+    function setInput(id, value) {
+      const el = $(id);
+      if (document.activeElement === el || dirty.has(id)) return;
+      el.value = value ?? '';
+    }
+    function setChecked(id, value) {
+      const el = $(id);
+      if (document.activeElement === el || dirty.has(id)) return;
+      el.checked = !!value;
+    }
+    function clearDirty(...fields) {
+      fields.forEach((field) => dirty.delete(field));
+    }
     async function request(path, options) {
       const response = await fetch(path, options);
       const data = await response.json();
@@ -3417,16 +4374,17 @@ const INDEX_HTML: &str = r##"<!doctype html>
     function render(data) {
       const cfg = data.config || {};
       const status = data.status || {};
-      $('serverHost').value = cfg.serverHost || '';
-      $('deviceName').value = cfg.deviceName || '';
-      $('bindAddress').value = cfg.bindAddress || '127.0.0.1';
-      $('webPort').value = cfg.webPort ?? 0;
-      $('kmsDevice').value = cfg.kmsDevice || '';
-      $('waylandSupport').checked = !!cfg.waylandSupport;
-      $('kmsSupport').checked = !!cfg.kmsSupport;
-      $('tryVaapi').checked = !!cfg.tryVaapi;
-      $('tryNvenc').checked = !!cfg.tryNvenc;
-      $('controlDisplayManager').checked = cfg.controlDisplayManager !== false;
+      setInput('serverHost', cfg.serverHost || '');
+      setInput('deviceName', cfg.deviceName || '');
+      setInput('bindAddress', cfg.bindAddress || '127.0.0.1');
+      setInput('webPort', cfg.webPort ?? 0);
+      setInput('kmsDevice', cfg.kmsDevice || '');
+      setChecked('waylandSupport', !!cfg.waylandSupport);
+      setChecked('kmsSupport', !!cfg.kmsSupport);
+      setChecked('tryVaapi', !!cfg.tryVaapi);
+      setChecked('tryNvenc', !!cfg.tryNvenc);
+      setChecked('tryMediafoundation', !!cfg.tryMediafoundation);
+      setChecked('controlDisplayManager', cfg.controlDisplayManager !== false);
       $('state').textContent = status.state || '-';
       $('deviceId').textContent = status.deviceId || cfg.deviceId || '-';
       $('tcpAddress').textContent = status.tcpAddress || cfg.tcpAddress || '-';
@@ -3445,20 +4403,24 @@ const INDEX_HTML: &str = r##"<!doctype html>
     async function loadStatus() { await call('/api/status'); await call('/api/service/status'); }
     async function saveConfig() {
       await call('/api/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ serverHost: $('serverHost').value, deviceName: $('deviceName').value }) }, '连接配置已保存');
+      clearDirty('serverHost', 'deviceName');
+      await loadStatus();
     }
     async function saveDesktopConfig() {
       await call('/api/desktop-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 0),
         kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked,
-        tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, controlDisplayManager: $('controlDisplayManager').checked
+        tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, tryMediafoundation: $('tryMediafoundation').checked, controlDisplayManager: $('controlDisplayManager').checked
       }) }, '桌面配置已保存，重启桌面服务后生效');
+      clearDirty('bindAddress','webPort','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager');
+      await loadStatus();
     }
     async function startAgent() { await call('/api/start', { method: 'POST' }, '连接已启动'); }
     async function stopAgent() { await call('/api/stop', { method: 'POST' }, '连接已停止'); }
     async function restartDesktop() { await call('/api/desktop/restart', { method: 'POST' }, '桌面服务重启请求已发送'); }
     async function enableService() { await call('/api/service/enable', { method: 'POST' }, '自启服务已启用'); await loadStatus(); }
     async function disableService() { await call('/api/service/disable', { method: 'POST' }, '自启服务已禁用'); await loadStatus(); }
-    async function restartService() { await call('/api/service/restart', { method: 'POST' }, 'systemd 服务重启请求已发送'); }
+    async function restartService() { await call('/api/service/restart', { method: 'POST' }, '系统服务重启请求已发送'); }
     loadStatus(); setInterval(loadStatus, 5000);
   </script>
 </body>

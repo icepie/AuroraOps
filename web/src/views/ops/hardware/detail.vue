@@ -16,6 +16,7 @@
         :row-key="(row) => row.id"
         size="small"
         max-height="560"
+        :scroll-x="1500"
       />
     </n-spin>
   </n-modal>
@@ -37,10 +38,17 @@
     cpu: 'CPU',
     memory: '内存',
     disk: '磁盘',
+    storage: '磁盘',
+    physical_disk: '磁盘',
+    physicaldisk: '磁盘',
+    drive: '磁盘',
     nic: '网卡',
     network: '网卡',
+    network_interface: '网卡',
     gpu: '显卡',
     video: '显卡',
+    graphics: '显卡',
+    graphics_card: '显卡',
     power: '电源',
     fan: '风扇',
     raid: '阵列卡',
@@ -75,6 +83,12 @@
       ellipsis: { tooltip: true },
     },
     {
+      title: '唯一键',
+      key: 'uniqueKey',
+      minWidth: 180,
+      ellipsis: { tooltip: true },
+    },
+    {
       title: '序列号',
       key: 'serialNo',
       minWidth: 170,
@@ -85,6 +99,14 @@
       key: 'specification',
       minWidth: 220,
       ellipsis: { tooltip: true },
+    },
+    {
+      title: '来源',
+      key: 'source',
+      width: 90,
+      render(row) {
+        return isAutoSource(row.source) ? '自动采集' : '手动';
+      },
     },
     {
       title: '状态',
@@ -104,9 +126,12 @@
       },
     },
     {
-      title: '创建时间',
-      key: 'createdAt',
+      title: '最近观测',
+      key: 'lastSeenAt',
       width: 170,
+      render(row) {
+        return row.lastSeenAt || row.createdAt || '-';
+      },
     },
   ];
 
@@ -124,6 +149,10 @@
     } finally {
       loading.value = false;
     }
+  }
+
+  function isAutoSource(source?: string) {
+    return ['agent', 'auroraops-agent', 'fastfetch-sys'].includes(source || '');
   }
 
   defineExpose({
