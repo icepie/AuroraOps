@@ -81,6 +81,7 @@ impl KeyboardInputWorker {
         statuses.push(format!("keyboard target: {}", foreground_window_label()));
 
         if let Some(vk) = map_keyboard_code(&event.code, &event.location) {
+            self.sync_event_modifiers(event, Some(vk));
             ok = self.send_key(vk, !is_up, is_repeat);
             statuses.push(Self::keyboard_status(&event_label, ok, "scancode"));
             return statuses;
@@ -93,10 +94,7 @@ impl KeyboardInputWorker {
             statuses.push(Self::keyboard_status(&event_label, ok, "unicode"));
             return statuses;
         }
-        self.sync_modifier(VK_CONTROL as WORD, event.ctrl);
-        self.sync_modifier(VK_MENU as WORD, event.alt);
-        self.sync_modifier(VK_SHIFT as WORD, event.shift);
-        self.sync_modifier(VK_LWIN as WORD, event.meta);
+        self.sync_event_modifiers(event, None);
         statuses.push(Self::keyboard_status(&event_label, true, "modifier"));
         warn!(
             "Skipping unmapped Windows keyboard event: code={} key={}",
@@ -134,6 +132,20 @@ impl KeyboardInputWorker {
         } else if !down && self.pressed_keys.contains(&vk) {
             self.send_key(vk, false, false);
         }
+    }
+
+    fn sync_event_modifiers(&mut self, event: &KeyboardEvent, exclude_vk: Option<WORD>) {
+        self.sync_modifier_unless(VK_CONTROL as WORD, event.ctrl, exclude_vk);
+        self.sync_modifier_unless(VK_MENU as WORD, event.alt, exclude_vk);
+        self.sync_modifier_unless(VK_SHIFT as WORD, event.shift, exclude_vk);
+        self.sync_modifier_unless(VK_LWIN as WORD, event.meta, exclude_vk);
+    }
+
+    fn sync_modifier_unless(&mut self, vk: WORD, down: bool, exclude_vk: Option<WORD>) {
+        if exclude_vk.is_some_and(|exclude| modifier_family_matches(exclude, vk)) {
+            return;
+        }
+        self.sync_modifier(vk, down);
     }
 
     fn send_vk(&mut self, vk: WORD, down: bool) -> bool {
@@ -685,6 +697,7 @@ fn send_scancode(vk: WORD, down: bool) -> bool {
     if scan == 0 {
         return send_vk(vk, down);
     }
+    let scan = scan & 0xff;
     let mut flags = KEYEVENTF_SCANCODE;
     if !down {
         flags |= KEYEVENTF_KEYUP;
@@ -847,6 +860,25 @@ fn is_extended_key(vk: WORD) -> bool {
             | VK_DOWN
             | VK_DIVIDE
             | VK_NUMLOCK
+            | VK_LWIN
+            | VK_RWIN
+    )
+}
+
+fn modifier_family_matches(vk: WORD, modifier_vk: WORD) -> bool {
+    matches!(
+        (vk as i32, modifier_vk as i32),
+        (VK_CONTROL, VK_CONTROL)
+            | (VK_LCONTROL, VK_CONTROL)
+            | (VK_RCONTROL, VK_CONTROL)
+            | (VK_MENU, VK_MENU)
+            | (VK_LMENU, VK_MENU)
+            | (VK_RMENU, VK_MENU)
+            | (VK_SHIFT, VK_SHIFT)
+            | (VK_LSHIFT, VK_SHIFT)
+            | (VK_RSHIFT, VK_SHIFT)
+            | (VK_LWIN, VK_LWIN)
+            | (VK_RWIN, VK_LWIN)
     )
 }
 
