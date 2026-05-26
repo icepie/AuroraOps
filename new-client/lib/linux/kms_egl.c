@@ -12,6 +12,15 @@
 #include "../log.h"
 #include "kms_egl.h"
 
+typedef EGLImage (*PFNEGLCREATEIMAGEFALLBACKPROC)(
+	EGLDisplay dpy,
+	EGLContext ctx,
+	EGLenum target,
+	EGLClientBuffer buffer,
+	const EGLAttrib* attrib_list
+);
+typedef EGLBoolean (*PFNEGLDESTROYIMAGEFALLBACKPROC)(EGLDisplay dpy, EGLImage image);
+
 struct KmsEglContext
 {
 	EGLDisplay display;
@@ -25,6 +34,8 @@ struct KmsEglContext
 	GLuint texture;
 	GLuint vbo;
 	GLint read_format;
+	PFNEGLCREATEIMAGEFALLBACKPROC create_image;
+	PFNEGLDESTROYIMAGEFALLBACKPROC destroy_image;
 };
 
 static void append_attrib(EGLAttrib** cursor, EGLAttrib key, EGLAttrib value)
@@ -292,6 +303,17 @@ KmsEglContext* init_kms_egl(const char* card_path, Error* err)
 	}
 
 	ctx->surface = EGL_NO_SURFACE;
+	ctx->create_image = (PFNEGLCREATEIMAGEFALLBACKPROC)eglGetProcAddress("eglCreateImage");
+	if (!ctx->create_image)
+		ctx->create_image = (PFNEGLCREATEIMAGEFALLBACKPROC)eglGetProcAddress("eglCreateImageKHR");
+	ctx->destroy_image = (PFNEGLDESTROYIMAGEFALLBACKPROC)eglGetProcAddress("eglDestroyImage");
+	if (!ctx->destroy_image)
+		ctx->destroy_image = (PFNEGLDESTROYIMAGEFALLBACKPROC)eglGetProcAddress("eglDestroyImageKHR");
+	if (!ctx->create_image || !ctx->destroy_image)
+	{
+		fill_error(err, 1, "EGL: image extension entry points are unavailable.");
+		goto fail;
+	}
 	ctx->width = 0;
 	ctx->height = 0;
 	if (ensure_surface(ctx, 16, 16, err) != 0)
@@ -312,14 +334,24 @@ void destroy_kms_egl(KmsEglContext* ctx)
 {
 	if (!ctx)
 		return;
-	if (ctx->display != EGL_NO_DISPLAY && ctx->context != EGL_NO_CONTEXT)
-		eglMakeCurrent(ctx->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+	bool context_current = false;
+	if (
+		ctx->display != EGL_NO_DISPLAY &&
+		ctx->context != EGL_NO_CONTEXT &&
+		ctx->surface != EGL_NO_SURFACE
+	)
+	{
+		context_current =
+			eglMakeCurrent(ctx->display, ctx->surface, ctx->surface, ctx->context);
+	}
 	if (ctx->vbo)
 		glDeleteBuffers(1, &ctx->vbo);
 	if (ctx->texture)
 		glDeleteTextures(1, &ctx->texture);
 	if (ctx->program)
 		glDeleteProgram(ctx->program);
+	if (context_current)
+		eglMakeCurrent(ctx->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 	if (ctx->surface != EGL_NO_SURFACE)
 		eglDestroySurface(ctx->display, ctx->surface);
 	if (ctx->context != EGL_NO_CONTEXT)
@@ -381,7 +413,7 @@ static EGLImage make_image(KmsEglContext* ctx, const struct KmsFrameMetadata* md
 	}
 	append_attrib(&cursor, EGL_NONE, EGL_NONE);
 
-	return eglCreateImage(
+	return ctx->create_image(
 		ctx->display,
 		EGL_NO_CONTEXT,
 		EGL_LINUX_DMA_BUF_EXT,
@@ -399,6 +431,23 @@ static void rgba_to_bgra(char* dst, size_t pixels)
 		pixel[0] = pixel[2];
 		pixel[2] = tmp;
 	}
+}
+
+static void flip_rows(char* dst, uint32_t width, uint32_t height)
+{
+	const size_t stride = (size_t)width * 4;
+	char* tmp = malloc(stride);
+	if (!tmp)
+		return;
+	for (uint32_t y = 0; y < height / 2; ++y)
+	{
+		char* top = dst + (size_t)y * stride;
+		char* bottom = dst + (size_t)(height - 1 - y) * stride;
+		memcpy(tmp, top, stride);
+		memcpy(top, bottom, stride);
+		memcpy(bottom, tmp, stride);
+	}
+	free(tmp);
 }
 
 void kms_egl_read_bgra(
@@ -425,12 +474,45 @@ void kms_egl_read_bgra(
 		fill_error(err, 1, "EGL: too many framebuffer planes.");
 		return;
 	}
-	if (ensure_surface(ctx, (int)md->fb_width, (int)md->fb_height, err) != 0)
+	const uint32_t dst_w = md->dst_w ? md->dst_w : md->fb_width;
+	const uint32_t dst_h = md->dst_h ? md->dst_h : md->fb_height;
+	const uint32_t src_x = md->src_x;
+	const uint32_t src_y = md->src_y;
+	const uint32_t src_w = md->src_w ? md->src_w : md->fb_width;
+	const uint32_t src_h = md->src_h ? md->src_h : md->fb_height;
+	if (
+		src_x >= md->fb_width ||
+		src_y >= md->fb_height ||
+		src_w == 0 ||
+		src_h == 0 ||
+		src_x + src_w > md->fb_width ||
+		src_y + src_h > md->fb_height ||
+		dst_w == 0 ||
+		dst_h == 0
+	)
+	{
+		fill_error(
+			err,
+			1,
+			"EGL: invalid crop src=%ux%u+%u+%u fb=%ux%u dst=%ux%u.",
+			src_w,
+			src_h,
+			src_x,
+			src_y,
+			md->fb_width,
+			md->fb_height,
+			dst_w,
+			dst_h
+		);
+		return;
+	}
+
+	if (ensure_surface(ctx, (int)dst_w, (int)dst_h, err) != 0)
 		return;
 	if (ensure_context_current(ctx, err) != 0)
 		return;
 
-	size_t needed = (size_t)md->fb_width * (size_t)md->fb_height * 4;
+	size_t needed = (size_t)dst_w * (size_t)dst_h * 4;
 	if (dst_len < needed)
 	{
 		fill_error(err, 1, "EGL: output buffer too small.");
@@ -444,9 +526,22 @@ void kms_egl_read_bgra(
 		return;
 	}
 
-	glViewport(0, 0, md->fb_width, md->fb_height);
+	glViewport(0, 0, dst_w, dst_h);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
+
+	const float left = (float)src_x / (float)md->fb_width;
+	const float right = (float)(src_x + src_w) / (float)md->fb_width;
+	const float top = (float)src_y / (float)md->fb_height;
+	const float bottom = (float)(src_y + src_h) / (float)md->fb_height;
+	const float vertices[] = {
+		-1.0f, -1.0f, left, bottom,
+		1.0f, -1.0f, right, bottom,
+		-1.0f, 1.0f, left, top,
+		1.0f, 1.0f, right, top,
+	};
+	glBindBuffer(GL_ARRAY_BUFFER, ctx->vbo);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
 	glUseProgram(ctx->program);
 	glActiveTexture(GL_TEXTURE0);
@@ -456,14 +551,17 @@ void kms_egl_read_bgra(
 	glFinish();
 
 	glPixelStorei(GL_PACK_ALIGNMENT, 4);
-	glReadPixels(0, 0, md->fb_width, md->fb_height, ctx->read_format, GL_UNSIGNED_BYTE, dst);
+	glReadPixels(0, 0, dst_w, dst_h, ctx->read_format, GL_UNSIGNED_BYTE, dst);
 	GLenum gl_err = glGetError();
 	if (gl_err == GL_NO_ERROR && ctx->read_format == GL_RGBA)
-		rgba_to_bgra(dst, (size_t)md->fb_width * (size_t)md->fb_height);
+		rgba_to_bgra(dst, (size_t)dst_w * (size_t)dst_h);
+	if (gl_err == GL_NO_ERROR)
+		flip_rows(dst, dst_w, dst_h);
 
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
-	eglDestroyImage(ctx->display, image);
+	ctx->destroy_image(ctx->display, image);
 
 	if (gl_err != GL_NO_ERROR)
 	{

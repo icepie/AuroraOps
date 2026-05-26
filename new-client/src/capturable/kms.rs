@@ -25,6 +25,12 @@ fn io_error(message: impl Into<String>) -> io::Error {
 #[derive(Clone, Copy, Debug, Default)]
 struct KmsFrameMetadata {
     length: u32,
+    src_x: u32,
+    src_y: u32,
+    src_w: u32,
+    src_h: u32,
+    dst_w: u32,
+    dst_h: u32,
     fb_width: u32,
     fb_height: u32,
     fourcc: u32,
@@ -66,6 +72,7 @@ const DRM_IOCTL_GEM_FLINK: libc::c_ulong = (((IOC_READ | IOC_WRITE) << IOC_DIRSH
 const DMA_BUF_SYNC_READ: u64 = 1 << 0;
 const DMA_BUF_SYNC_START: u64 = 0 << 2;
 const DMA_BUF_SYNC_END: u64 = 1 << 2;
+const DRM_FORMAT_MOD_INVALID_RAW: u64 = (1u64 << 56) - 1;
 
 #[repr(C)]
 struct DmaBufSync {
@@ -126,6 +133,8 @@ impl KmsCard {
 struct ActiveOutput {
     connector_name: String,
     crtc_handle: crtc::Handle,
+    x: u32,
+    y: u32,
     width: u32,
     height: u32,
     fb_handle: framebuffer::Handle,
@@ -139,6 +148,7 @@ pub struct KmsCapturable {
     width: u32,
     height: u32,
     fb_handle: framebuffer::Handle,
+    capture_all: bool,
 }
 
 impl Capturable for KmsCapturable {
@@ -199,6 +209,8 @@ fn probe_outputs(card: &KmsCard) -> Result<Vec<ActiveOutput>, Box<dyn Error>> {
         outputs.push(ActiveOutput {
             connector_name: format!("{connector}"),
             crtc_handle,
+            x: crtc.position().0,
+            y: crtc.position().1,
             width: width as u32,
             height: height as u32,
             fb_handle,
@@ -212,17 +224,48 @@ fn probe_card(path: &str) -> Result<Vec<KmsCapturable>, Box<dyn Error>> {
     let card =
         KmsCard::open(path).map_err(|err| io_error(format!("Failed to open {path}: {err}")))?;
     let outputs = probe_outputs(&card)?;
-    let capturables = outputs
-        .into_iter()
-        .map(|output| KmsCapturable {
-            device_path: path.to_string(),
-            connector_name: output.connector_name,
-            crtc_handle: output.crtc_handle,
-            width: output.width,
-            height: output.height,
-            fb_handle: output.fb_handle,
-        })
-        .collect();
+    let desktop_width = outputs
+        .iter()
+        .map(|output| output.x.saturating_add(output.width))
+        .max()
+        .unwrap_or(0);
+    let desktop_height = outputs
+        .iter()
+        .map(|output| output.y.saturating_add(output.height))
+        .max()
+        .unwrap_or(0);
+    let mut capturables = Vec::new();
+
+    if outputs.len() > 1 && desktop_width > 0 && desktop_height > 0 {
+        if let Some(output) = outputs.iter().find(|output| {
+            card.get_framebuffer(output.fb_handle)
+                .map(|fb| {
+                    let (width, height) = fb.size();
+                    width >= desktop_width && height >= desktop_height
+                })
+                .unwrap_or(false)
+        }) {
+            capturables.push(KmsCapturable {
+                device_path: path.to_string(),
+                connector_name: "所有屏幕".to_string(),
+                crtc_handle: output.crtc_handle,
+                width: desktop_width,
+                height: desktop_height,
+                fb_handle: output.fb_handle,
+                capture_all: true,
+            });
+        }
+    }
+
+    capturables.extend(outputs.into_iter().map(|output| KmsCapturable {
+        device_path: path.to_string(),
+        connector_name: output.connector_name,
+        crtc_handle: output.crtc_handle,
+        width: output.width,
+        height: output.height,
+        fb_handle: output.fb_handle,
+        capture_all: false,
+    }));
     Ok(capturables)
 }
 
@@ -294,6 +337,16 @@ struct KmsFrameInfo {
     prime_fds: Vec<OwnedFd>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PlaneRegion {
+    src_x: u32,
+    src_y: u32,
+    src_w: u32,
+    src_h: u32,
+    dst_w: u32,
+    dst_h: u32,
+}
+
 struct FrameView<'a> {
     fb_handle: framebuffer::Handle,
     width: u32,
@@ -311,6 +364,7 @@ struct KmsFrameSource {
     default_fb: framebuffer::Handle,
     width: u32,
     height: u32,
+    capture_all: bool,
     use_fb2: Option<bool>,
     use_prime: Option<bool>,
     force_map_mode: bool,
@@ -318,7 +372,6 @@ struct KmsFrameSource {
     logged_mapping: bool,
     cache: Vec<CachedBuffer>,
     egl: Option<*mut c_void>,
-    helper_failed: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -329,6 +382,7 @@ struct PlaneCandidate {
     zpos: i64,
     width: u32,
     height: u32,
+    region: Option<PlaneRegion>,
 }
 
 impl KmsFrameSource {
@@ -354,6 +408,7 @@ impl KmsFrameSource {
             default_fb: capturable.fb_handle,
             width: capturable.width,
             height: capturable.height,
+            capture_all: capturable.capture_all,
             use_fb2: None,
             use_prime,
             force_map_mode,
@@ -361,12 +416,11 @@ impl KmsFrameSource {
             logged_mapping: false,
             cache: Vec::new(),
             egl: None,
-            helper_failed: false,
         })
     }
 
     fn frame(&mut self) -> Result<FrameView<'_>, Box<dyn Error>> {
-        let fb_handle = self.current_framebuffer()?;
+        let (fb_handle, _region) = self.current_framebuffer()?;
         let gem_handle = self.get_gem_handle(fb_handle)?;
 
         let entry_index = match self
@@ -398,14 +452,12 @@ impl KmsFrameSource {
         })
     }
 
-    fn capture_bgra_with_helper(&mut self) -> Result<Option<(Vec<u8>, usize, usize)>, Box<dyn Error>> {
-        if self.helper_failed {
-            return Ok(None);
-        }
-        let fb_handle = self.current_framebuffer()?;
-        let frame = self.frame_info(fb_handle)?;
+    fn capture_bgra_with_helper(&mut self) -> Result<(Vec<u8>, usize, usize), Box<dyn Error>> {
+        let (fb_handle, region) = self.current_framebuffer()?;
+        let frame = self.frame_info(fb_handle, region)?;
         let egl = self.ensure_egl()?;
-        let mut dst = vec![0u8; (frame.metadata.fb_width as usize) * (frame.metadata.fb_height as usize) * 4];
+        let mut dst =
+            vec![0u8; (frame.metadata.dst_w as usize) * (frame.metadata.dst_h as usize) * 4];
         let mut err = CError::new();
         let mut fds = [-1 as c_int; 4];
         for (idx, fd) in frame.prime_fds.iter().enumerate().take(4) {
@@ -422,11 +474,15 @@ impl KmsFrameSource {
             );
         }
         if err.is_err() {
-            debug!("KMS EGL helper failed, falling back to legacy mapper: {}", err);
-            self.helper_failed = true;
-            return Ok(None);
+            return Err(Box::new(io_error(format!(
+                "KMS EGL helper capture failed: {err}"
+            ))));
         }
-        Ok(Some((dst, frame.metadata.fb_width as usize, frame.metadata.fb_height as usize)))
+        Ok((
+            dst,
+            frame.metadata.dst_w as usize,
+            frame.metadata.dst_h as usize,
+        ))
     }
 
     fn ensure_egl(&mut self) -> Result<*mut c_void, Box<dyn Error>> {
@@ -450,19 +506,35 @@ impl KmsFrameSource {
         Ok(ctx)
     }
 
-    fn frame_info(&mut self, fb_handle: framebuffer::Handle) -> Result<KmsFrameInfo, Box<dyn Error>> {
-        let info = self
-            .card
-            .get_planar_framebuffer(fb_handle)
-            .map_err(|err| io_error(format!("KMS GET_FB2 failed: {err}")))?;
+    fn frame_info(
+        &mut self,
+        fb_handle: framebuffer::Handle,
+        region: PlaneRegion,
+    ) -> Result<KmsFrameInfo, Box<dyn Error>> {
+        let info = match self.card.get_planar_framebuffer(fb_handle) {
+            Ok(info) => info,
+            Err(err) => {
+                debug!("KMS GET_FB2 failed, falling back to GET_FB metadata: {err}");
+                return self.frame_info_legacy(fb_handle, region);
+            }
+        };
         let (fb_width, fb_height) = info.size();
 
         let mut metadata = KmsFrameMetadata {
             length: 0,
+            src_x: region.src_x,
+            src_y: region.src_y,
+            src_w: region.src_w,
+            src_h: region.src_h,
+            dst_w: region.dst_w,
+            dst_h: region.dst_h,
             fb_width,
             fb_height,
             fourcc: info.pixel_format() as u32,
-            modifier: info.modifier().map(u64::from).unwrap_or(u64::MAX),
+            modifier: info
+                .modifier()
+                .map(u64::from)
+                .unwrap_or(DRM_FORMAT_MOD_INVALID_RAW),
             offsets: [0; 4],
             pitches: [0; 4],
         };
@@ -475,7 +547,7 @@ impl KmsFrameSource {
             }
             let fd = self
                 .card
-                .buffer_to_prime_fd(*handle, drm::RDWR)
+                .buffer_to_prime_fd(*handle, drm::CLOEXEC)
                 .map_err(|err| io_error(format!("KMS PRIME export failed: {err}")))?;
             metadata.offsets[idx] = info.offsets()[idx];
             metadata.pitches[idx] = info.pitches()[idx];
@@ -493,31 +565,116 @@ impl KmsFrameSource {
         })
     }
 
-    fn current_framebuffer(&mut self) -> Result<framebuffer::Handle, Box<dyn Error>> {
+    fn frame_info_legacy(
+        &mut self,
+        fb_handle: framebuffer::Handle,
+        region: PlaneRegion,
+    ) -> Result<KmsFrameInfo, Box<dyn Error>> {
+        let info = self
+            .card
+            .get_framebuffer(fb_handle)
+            .map_err(|err| io_error(format!("KMS GET_FB failed: {err}")))?;
+        let (fb_width, fb_height) = info.size();
+        let gem_handle = info.buffer().ok_or_else(|| {
+            Box::new(io_error(
+                "KMS framebuffer handle unavailable; CAP_SYS_ADMIN may be required",
+            )) as Box<dyn Error>
+        })?;
+
+        let fourcc = match (info.bpp(), info.depth()) {
+            (32, 24) => DrmFourcc::Xrgb8888,
+            (32, 32) => DrmFourcc::Argb8888,
+            (16, 16) => DrmFourcc::Rgb565,
+            (bpp, depth) => {
+                return Err(Box::new(io_error(format!(
+                    "Unsupported KMS legacy framebuffer format: {bpp}bpp depth={depth}"
+                ))))
+            }
+        };
+
+        let prime_fd = self
+            .card
+            .buffer_to_prime_fd(gem_handle, drm::CLOEXEC)
+            .map_err(|err| io_error(format!("KMS PRIME export failed: {err}")))?;
+
+        Ok(KmsFrameInfo {
+            metadata: KmsFrameMetadata {
+                length: 1,
+                src_x: region.src_x,
+                src_y: region.src_y,
+                src_w: region.src_w,
+                src_h: region.src_h,
+                dst_w: region.dst_w,
+                dst_h: region.dst_h,
+                fb_width,
+                fb_height,
+                fourcc: fourcc as u32,
+                modifier: DRM_FORMAT_MOD_INVALID_RAW,
+                offsets: [0; 4],
+                pitches: [info.pitch(), 0, 0, 0],
+            },
+            prime_fds: vec![prime_fd],
+        })
+    }
+
+    fn current_framebuffer(
+        &mut self,
+    ) -> Result<(framebuffer::Handle, PlaneRegion), Box<dyn Error>> {
         let crtc = self
             .card
             .get_crtc(self.crtc_handle)
             .map_err(|err| io_error(format!("Failed to query KMS CRTC: {err}")))?;
         let legacy_fb = crtc.framebuffer().unwrap_or(self.default_fb);
-        let (plane_fb, plane_debug) = self.scanout_plane_framebuffer()?;
-        let fb_handle = plane_fb.unwrap_or(legacy_fb);
+        let legacy_region = PlaneRegion {
+            src_x: crtc.position().0,
+            src_y: crtc.position().1,
+            src_w: self.width,
+            src_h: self.height,
+            dst_w: self.width,
+            dst_h: self.height,
+        };
+        let (plane, plane_debug) = self.scanout_plane_framebuffer()?;
+        let fb_handle = plane
+            .as_ref()
+            .map(|candidate| candidate.fb_handle)
+            .unwrap_or(legacy_fb);
+        let mut region = plane
+            .as_ref()
+            .and_then(|candidate| candidate.region)
+            .unwrap_or(legacy_region);
+        if self.capture_all {
+            region = PlaneRegion {
+                src_x: 0,
+                src_y: 0,
+                src_w: self.width,
+                src_h: self.height,
+                dst_w: self.width,
+                dst_h: self.height,
+            };
+        }
 
         if self.last_fb_handle != Some(fb_handle) {
             debug!(
-                "KMS selected framebuffer {} for CRTC {} candidates=[{}]",
+                "KMS selected framebuffer {} for CRTC {} src={}x{}+{}+{} dst={}x{} candidates=[{}]",
                 u32::from(fb_handle),
                 u32::from(self.crtc_handle),
+                region.src_w,
+                region.src_h,
+                region.src_x,
+                region.src_y,
+                region.dst_w,
+                region.dst_h,
                 plane_debug
             );
             self.last_fb_handle = Some(fb_handle);
         }
 
-        Ok(fb_handle)
+        Ok((fb_handle, region))
     }
 
     fn scanout_plane_framebuffer(
         &self,
-    ) -> Result<(Option<framebuffer::Handle>, String), Box<dyn Error>> {
+    ) -> Result<(Option<PlaneCandidate>, String), Box<dyn Error>> {
         let mut candidates = Vec::new();
         for plane_handle in self.card.plane_handles()? {
             let info = self.card.get_plane(plane_handle)?;
@@ -537,6 +694,7 @@ impl KmsFrameSource {
                 .get_framebuffer(fb_handle)
                 .map(|fb| fb.size())
                 .unwrap_or((0, 0));
+            let region = self.plane_region(plane_handle, width, height)?;
             candidates.push(PlaneCandidate {
                 plane_handle,
                 fb_handle,
@@ -544,6 +702,7 @@ impl KmsFrameSource {
                 zpos,
                 width,
                 height,
+                region,
             });
         }
 
@@ -553,14 +712,29 @@ impl KmsFrameSource {
             candidates
                 .iter()
                 .map(|candidate| {
+                    let region = candidate.region.map_or_else(
+                        || "region=unknown".to_string(),
+                        |region| {
+                            format!(
+                                "src={}x{}+{}+{} dst={}x{}",
+                                region.src_w,
+                                region.src_h,
+                                region.src_x,
+                                region.src_y,
+                                region.dst_w,
+                                region.dst_h
+                            )
+                        },
+                    );
                     format!(
-                        "plane={} type={:?} zpos={} fb={} {}x{}",
+                        "plane={} type={:?} zpos={} fb={} {}x{} {}",
                         u32::from(candidate.plane_handle),
                         candidate.plane_type,
                         candidate.zpos,
                         u32::from(candidate.fb_handle),
                         candidate.width,
                         candidate.height,
+                        region,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -576,10 +750,7 @@ impl KmsFrameSource {
             )
         });
 
-        Ok((
-            candidates.last().map(|candidate| candidate.fb_handle),
-            debug_info,
-        ))
+        Ok((candidates.last().copied(), debug_info))
     }
 
     fn plane_type(&self, plane_handle: plane::Handle) -> Result<Option<PlaneType>, Box<dyn Error>> {
@@ -601,6 +772,67 @@ impl KmsFrameSource {
             return Ok(plane_type);
         }
         Ok(None)
+    }
+
+    fn plane_region(
+        &self,
+        plane_handle: plane::Handle,
+        fb_width: u32,
+        fb_height: u32,
+    ) -> Result<Option<PlaneRegion>, Box<dyn Error>> {
+        let props = self.card.get_properties(plane_handle)?;
+        let mut crtc_w = None;
+        let mut crtc_h = None;
+        let mut src_x = None;
+        let mut src_y = None;
+        let mut src_w = None;
+        let mut src_h = None;
+
+        for (prop_handle, raw_value) in props.iter() {
+            let info = self.card.get_property(*prop_handle)?;
+            let name = info.name().to_bytes();
+            let value = info.value_type().convert_value(*raw_value);
+            let raw = value
+                .as_unsigned_range()
+                .or_else(|| value.as_signed_range().map(|value| value.max(0) as u64))
+                .or_else(|| match value {
+                    drm::control::property::Value::Unknown(raw) => Some(raw),
+                    _ => None,
+                });
+            let Some(raw) = raw else { continue };
+
+            match name {
+                b"CRTC_W" => crtc_w = Some(raw as u32),
+                b"CRTC_H" => crtc_h = Some(raw as u32),
+                b"SRC_X" => src_x = Some((raw >> 16) as u32),
+                b"SRC_Y" => src_y = Some((raw >> 16) as u32),
+                b"SRC_W" => src_w = Some((raw >> 16) as u32),
+                b"SRC_H" => src_h = Some((raw >> 16) as u32),
+                _ => {}
+            }
+        }
+
+        let src_x = src_x.unwrap_or(0).min(fb_width);
+        let src_y = src_y.unwrap_or(0).min(fb_height);
+        let max_w = fb_width.saturating_sub(src_x);
+        let max_h = fb_height.saturating_sub(src_y);
+        let src_w = src_w.unwrap_or(max_w).min(max_w);
+        let src_h = src_h.unwrap_or(max_h).min(max_h);
+        let dst_w = crtc_w.unwrap_or(self.width);
+        let dst_h = crtc_h.unwrap_or(self.height);
+
+        if src_w == 0 || src_h == 0 || dst_w == 0 || dst_h == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(PlaneRegion {
+            src_x,
+            src_y,
+            src_w,
+            src_h,
+            dst_w,
+            dst_h,
+        }))
     }
 
     fn plane_zpos(&self, plane_handle: plane::Handle) -> Result<Option<i64>, Box<dyn Error>> {
@@ -920,15 +1152,17 @@ impl KmsRecorder {
     }
 
     fn capture_helper_frame(&mut self) -> Result<Option<(usize, usize)>, Box<dyn Error>> {
-        let Some((frame, width, height)) = self.frame_source.capture_bgra_with_helper()? else {
-            return Ok(None);
-        };
+        let (frame, width, height) = self.frame_source.capture_bgra_with_helper()?;
         self.converted_frame = frame;
         Ok(Some((width, height)))
     }
 }
 
 impl Recorder for KmsRecorder {
+    fn backend_name(&self) -> &'static str {
+        "KMS/DRM"
+    }
+
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
         if let Some((width, height)) = self.capture_helper_frame()? {
             return Ok(PixelProvider::BGR0(width, height, &self.converted_frame));

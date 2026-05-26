@@ -8,6 +8,12 @@ typedef struct KmsEglContext KmsEglContext;
 struct KmsFrameMetadata
 {
 	unsigned int length;
+	uint32_t src_x;
+	uint32_t src_y;
+	uint32_t src_w;
+	uint32_t src_h;
+	uint32_t dst_w;
+	uint32_t dst_h;
 	uint32_t fb_width;
 	uint32_t fb_height;
 	uint32_t fourcc;
