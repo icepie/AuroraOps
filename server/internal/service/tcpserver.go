@@ -32,6 +32,10 @@ type (
 		OnExampleRPCHello(ctx context.Context, req *servmsg.ExampleRPCHelloReq) (res *servmsg.ExampleRPCHelloRes, err error)
 		// Instance 获取实例
 		Instance() *tcp.Server
+		// OnlineDeviceIDs 获取在线设备ID集合
+		OnlineDeviceIDs() map[uint64]struct{}
+		// IsDeviceOnline 判断设备是否在线
+		IsDeviceOnline(deviceID uint64) bool
 		// Start 启动服务
 		Start(ctx context.Context)
 		// Stop 关闭服务

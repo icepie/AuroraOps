@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -103,7 +102,7 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 	if err = mod.ScanAndCount(&list, &totalCount, false); err != nil {
 		return nil, 0, gerror.Wrap(err, "获取运维设备列表失败，请稍后重试！")
 	}
-	onlineSet := s.getOnlineDeviceIDs()
+	onlineSet := service.TCPServer().OnlineDeviceIDs()
 	for _, item := range list {
 		if item == nil {
 			continue
@@ -158,39 +157,6 @@ func isArchitectureValue(value string) bool {
 	default:
 		return false
 	}
-}
-
-func (s *sSysOpsDevice) getOnlineDeviceIDs() map[uint64]struct{} {
-	onlineSet := make(map[uint64]struct{})
-	clients := service.TCPServer().Instance().GetGroupClients("device")
-	for _, client := range clients {
-		if client == nil || client.Auth == nil {
-			continue
-		}
-		if deviceID := parseOnlineDeviceID(client.Auth.AppId); deviceID > 0 {
-			onlineSet[deviceID] = struct{}{}
-			continue
-		}
-		if client.Auth.Extra == nil {
-			continue
-		}
-		if deviceID := gconv.Uint64(client.Auth.Extra["deviceId"]); deviceID > 0 {
-			onlineSet[deviceID] = struct{}{}
-		}
-	}
-	return onlineSet
-}
-
-func parseOnlineDeviceID(appID string) uint64 {
-	const prefix = "device:"
-	if !strings.HasPrefix(appID, prefix) {
-		return 0
-	}
-	deviceID, err := strconv.ParseUint(strings.TrimPrefix(appID, prefix), 10, 64)
-	if err != nil {
-		return 0
-	}
-	return deviceID
 }
 
 func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (err error) {
@@ -363,8 +329,7 @@ func (s *sSysOpsDevice) CreateDesktopSession(ctx context.Context, in *sysin.OpsD
 }
 
 func (s *sSysOpsDevice) isDeviceOnline(deviceID uint64) bool {
-	_, ok := s.getOnlineDeviceIDs()[deviceID]
-	return ok
+	return service.TCPServer().IsDeviceOnline(deviceID)
 }
 
 func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceClientRegisterInp) (res *sysin.OpsDeviceClientRegisterModel, err error) {

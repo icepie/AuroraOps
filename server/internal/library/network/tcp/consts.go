@@ -13,8 +13,9 @@ const (
 )
 
 const (
-	HeartbeatTimeout = 300 // tcp心跳超时，默认300s
-	RPCTimeout       = 10  // rpc通讯超时时间， 默认10s
+	HeartbeatOnlineWindow = 90  // 在线状态判定窗口，默认90s
+	HeartbeatTimeout      = 300 // tcp心跳超时，默认300s
+	RPCTimeout            = 10  // rpc通讯超时时间， 默认10s
 )
 
 const (
