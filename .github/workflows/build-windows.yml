@@ -24,6 +24,20 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - name: Install MinGW build tools
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-clang
+            mingw-w64-x86_64-llvm
 
       - name: Install TypeScript compiler
         run: npm install -g typescript
@@ -32,7 +46,13 @@ jobs:
         working-directory: new-client
         env:
           CARGO_BUILD_JOBS: 4
-        run: cargo build --release --bin auroraops-agent
+          CMAKE_GENERATOR: MinGW Makefiles
+          CMAKE_MAKE_PROGRAM: C:\msys64\mingw64\bin\mingw32-make.exe
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CXX: C:\msys64\mingw64\bin\g++.exe
+          LIBCLANG_PATH: C:\msys64\mingw64\bin
+          PATH: C:\msys64\mingw64\bin;${{ env.PATH }}
+        run: cargo build --release --target x86_64-pc-windows-gnu --bin auroraops-agent
 
       - name: Install NSIS
         run: choco install nsis -y --no-progress
@@ -42,14 +62,14 @@ jobs:
         shell: pwsh
         run: |
           $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
-          makensis.exe /DVERSION=$version /DSOURCE_EXE="$PWD\target\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
+          makensis.exe /DVERSION=$version /DSOURCE_EXE="$PWD\target\x86_64-pc-windows-gnu\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
 
       - name: Stage artifacts
         working-directory: new-client
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist\windows | Out-Null
-          Copy-Item target\release\auroraops-agent.exe dist\windows\auroraops-agent-windows-x64.exe
+          Copy-Item target\x86_64-pc-windows-gnu\release\auroraops-agent.exe dist\windows\auroraops-agent-windows-x64.exe
           Copy-Item AuroraOps-Client-Setup-*-x64.exe dist\windows\
 
       - uses: actions/upload-artifact@v4

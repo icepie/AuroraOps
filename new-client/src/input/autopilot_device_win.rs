@@ -17,7 +17,7 @@ use tracing::warn;
 
 use crate::input::device::{InputDevice, InputDeviceType};
 use crate::protocol::{
-    Button, KeyboardEvent, PointerEvent, PointerEventType, PointerType, WheelEvent,
+    Button, KeyboardEvent, PointerEvent, PointerEventType, PointerType, TextInputEvent, WheelEvent,
 };
 
 use crate::capturable::{Capturable, Geometry};
@@ -391,6 +391,31 @@ impl InputDevice for WindowsInput {
             warn!("Windows keyboard status: {}", status);
             self.pending_keyboard_status.push(status);
         }
+    }
+
+    fn send_text_input_event(&mut self, event: &TextInputEvent) {
+        if event.text.is_empty() {
+            return;
+        }
+        if let Err(err) = self.capturable.before_input() {
+            warn!("Failed to activate target before text input ({})", err);
+            return;
+        }
+        let focused = focus_window_under_cursor();
+        self.pending_keyboard_status.push(format!(
+            "text focus under cursor={focused} target={}",
+            foreground_window_label()
+        ));
+        let ok = send_unicode_text(&event.text);
+        let text_len = event.text.chars().count();
+        let preview: String = event.text.chars().take(16).collect();
+        let status = if ok {
+            "sendinput ok"
+        } else {
+            "sendinput failed"
+        };
+        self.pending_keyboard_status
+            .push(format!("{status} text len={text_len} text={preview:?}"));
     }
 
     fn drain_keyboard_status(&mut self) -> Vec<String> {

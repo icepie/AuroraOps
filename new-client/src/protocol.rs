@@ -17,6 +17,7 @@ pub enum MessageInbound {
     PointerEvent(PointerEvent),
     WheelEvent(WheelEvent),
     KeyboardEvent(KeyboardEvent),
+    TextInputEvent(TextInputEvent),
     GetCapturableList,
     Config(ClientConfiguration),
     PauseVideo,
@@ -172,6 +173,11 @@ pub struct KeyboardEvent {
     pub ctrl: bool,
     pub shift: bool,
     pub meta: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TextInputEvent {
+    pub text: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -13,7 +13,7 @@ use crate::capturable::{get_capturables, Capturable, Recorder};
 use crate::input::device::{InputDevice, InputDeviceType};
 use crate::protocol::{
     ClientConfiguration, KeyboardEvent, MessageInbound, MessageOutbound, PointerEvent,
-    RuntimeStatus, WeylusReceiver, WeylusSender, WheelEvent,
+    RuntimeStatus, TextInputEvent, WeylusReceiver, WeylusSender, WheelEvent,
 };
 
 use crate::cerror::CErrorCode;
@@ -178,6 +178,9 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                         MessageInbound::PointerEvent(event) => self.process_pointer_event(&event),
                         MessageInbound::WheelEvent(event) => self.process_wheel_event(&event),
                         MessageInbound::KeyboardEvent(event) => self.process_keyboard_event(&event),
+                        MessageInbound::TextInputEvent(event) => {
+                            self.process_text_input_event(&event)
+                        }
                         MessageInbound::GetCapturableList => self.send_capturable_list(),
                         MessageInbound::Config(config) => self.update_config(config),
                         MessageInbound::PauseVideo => {
@@ -302,6 +305,43 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             }
         } else {
             warn!("Input device is not initalized, can not process KeyboardEvent!");
+        }
+    }
+
+    fn process_text_input_event(&mut self, event: &TextInputEvent)
+    where
+        S: WeylusSender,
+    {
+        if self.input_device.is_some() {
+            let text_preview: String = event.text.chars().take(16).collect();
+            let keyboard_backend = format!(
+                "agent recv text len={} text={:?}",
+                event.text.chars().count(),
+                text_preview
+            );
+            let mut statuses = self.input_device.as_mut().unwrap().drain_keyboard_status();
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.input_device
+                    .as_mut()
+                    .unwrap()
+                    .send_text_input_event(event)
+            }));
+            if result.is_err() {
+                warn!("Text input handler panicked; event skipped");
+            }
+            statuses.insert(0, keyboard_backend);
+            statuses.append(&mut self.input_device.as_mut().unwrap().drain_keyboard_status());
+            for status in statuses {
+                self.send_message(MessageOutbound::RuntimeStatus(RuntimeStatus {
+                    capture_backend: None,
+                    encoder_backend: None,
+                    input_backend: None,
+                    pointer_backend: None,
+                    keyboard_backend: Some(status),
+                }));
+            }
+        } else {
+            warn!("Input device is not initalized, can not process TextInputEvent!");
         }
     }
 

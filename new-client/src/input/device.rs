@@ -1,5 +1,5 @@
 use crate::capturable::Capturable;
-use crate::protocol::{KeyboardEvent, PointerEvent, WheelEvent};
+use crate::protocol::{KeyboardEvent, PointerEvent, TextInputEvent, WheelEvent};
 
 #[derive(PartialEq, Eq)]
 pub enum InputDeviceType {
@@ -32,6 +32,7 @@ pub trait InputDevice {
     fn send_wheel_event(&mut self, event: &WheelEvent);
     fn send_pointer_event(&mut self, event: &PointerEvent);
     fn send_keyboard_event(&mut self, event: &KeyboardEvent);
+    fn send_text_input_event(&mut self, _event: &TextInputEvent) {}
     fn drain_keyboard_status(&mut self) -> Vec<String> {
         Vec::new()
     }

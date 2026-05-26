@@ -17,6 +17,7 @@ let input_backend_out;
 let pointer_backend_out;
 let keyboard_backend_out;
 let keyboard_event_count = 0;
+let text_input_event_count = 0;
 let pointer_event_count = 0;
 let frame_count = 0;
 let last_fps_calc = performance.now();
@@ -148,6 +149,17 @@ function isEditableTarget(target) {
 function focusRemoteInputSurface() {
     if (isEditableTarget(document.activeElement))
         return;
+    const textSurface = document.getElementById("auroraops_text_input_surface");
+    if (textSurface) {
+        try {
+            textSurface.focus({ preventScroll: true });
+            return;
+        }
+        catch (_err) {
+            textSurface.focus();
+            return;
+        }
+    }
     for (const id of ["video", "canvas"]) {
         const elem = document.getElementById(id);
         if (elem && elem.tabIndex < 0)
@@ -797,14 +809,22 @@ class KEvent {
         this.meta = event.metaKey;
     }
 }
+class TextInputEventMessage {
+    constructor(text) {
+        this.text = text;
+    }
+}
 class KeyboardHandler {
     constructor(webSocket) {
         this.webSocket = webSocket;
+        this.composing = false;
+        this.textInput = this.createTextInputSurface();
         // Consume KeyboardEvents globally. Keep only form editing local so the
         // settings panel can stay open while keyboard input still reaches the
         // controlled desktop.
         function should_keep_local(event) {
-            return isEditableTarget(event.target);
+            return isEditableTarget(event.target)
+                && event.target.id !== "auroraops_text_input_surface";
         }
         function already_handled(event) {
             const marker = "__auroraops_keyboard_handled";
@@ -818,6 +838,8 @@ class KeyboardHandler {
                 return;
             if (should_keep_local(e))
                 return;
+            if (this.composing)
+                return;
             if (e.repeat)
                 this.onEvent(e, "repeat");
             else
@@ -827,6 +849,8 @@ class KeyboardHandler {
             if (already_handled(e))
                 return;
             if (should_keep_local(e))
+                return;
+            if (this.composing)
                 return;
             this.onEvent(e, "up");
         };
@@ -838,6 +862,21 @@ class KeyboardHandler {
             e.preventDefault();
             e.stopPropagation();
         };
+        this.textInput.addEventListener("compositionstart", () => {
+            this.composing = true;
+        }, true);
+        this.textInput.addEventListener("compositionend", (e) => {
+            this.composing = false;
+            const text = e.data || this.textInput.value;
+            this.flushTextInput(text);
+        }, true);
+        this.textInput.addEventListener("input", () => {
+            if (!this.composing)
+                this.flushTextInput(this.textInput.value);
+        }, true);
+        this.textInput.addEventListener("paste", () => {
+            window.setTimeout(() => this.flushTextInput(this.textInput.value), 0);
+        }, true);
         window.addEventListener("focus", () => focusRemoteInputSurface(), true);
         document.addEventListener("pointerdown", () => focusRemoteInputSurface(), true);
         window.addEventListener("keydown", handleKeyDown, true);
@@ -846,6 +885,47 @@ class KeyboardHandler {
         document.addEventListener("keydown", handleKeyDown, true);
         document.addEventListener("keyup", handleKeyUp, true);
         document.addEventListener("keypress", handleKeyPress, true);
+        focusRemoteInputSurface();
+    }
+    createTextInputSurface() {
+        let input = document.getElementById("auroraops_text_input_surface");
+        if (input)
+            return input;
+        input = document.createElement("input");
+        input.id = "auroraops_text_input_surface";
+        input.type = "text";
+        input.autocomplete = "off";
+        input.autocapitalize = "off";
+        input.spellcheck = false;
+        input.setAttribute("aria-hidden", "true");
+        input.setAttribute("inputmode", "text");
+        input.tabIndex = 0;
+        input.style.position = "fixed";
+        input.style.left = "0";
+        input.style.top = "0";
+        input.style.width = "1px";
+        input.style.height = "1px";
+        input.style.opacity = "0";
+        input.style.pointerEvents = "none";
+        input.style.zIndex = "-1";
+        document.body.appendChild(input);
+        return input;
+    }
+    flushTextInput(text) {
+        this.textInput.value = "";
+        if (!text)
+            return;
+        if (!socketOpen(this.webSocket)) {
+            if (keyboard_backend_out)
+                keyboard_backend_out.value = `websocket ${socketStateLabel(this.webSocket)}，文本输入未发送`;
+            return;
+        }
+        text_input_event_count += 1;
+        if (keyboard_backend_out) {
+            const preview = text.length > 16 ? text.substring(0, 16) + "..." : text;
+            keyboard_backend_out.value = `web send text #${text_input_event_count} len=${text.length} text=${preview}`;
+        }
+        this.webSocket.send(JSON.stringify({ "TextInputEvent": new TextInputEventMessage(text) }));
     }
     onEvent(event, event_type) {
         if (!socketOpen(this.webSocket)) {
