@@ -1,5 +1,5 @@
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn bash_command() -> Command {
@@ -67,6 +67,18 @@ fn shell_path(path: &Path) -> String {
     #[cfg(not(target_os = "windows"))]
     {
         path.into_owned()
+    }
+}
+
+fn host_tool_path(path: PathBuf) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let path = path.to_string_lossy();
+        return PathBuf::from(path.strip_prefix(r"\\?\").unwrap_or(&path).to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        path
     }
 }
 
@@ -147,7 +159,7 @@ fn main() {
     let mut cc_video = cc::Build::new();
     cc_video.file("lib/encode_video.c");
     if env::var("CARGO_FEATURE_FFMPEG_SYSTEM").is_err() {
-        cc_video.include(dist_dir.join("include"));
+        cc_video.include(host_tool_path(dist_dir.join("include")));
     }
     if ["linux", "windows"].contains(&target_os.as_str()) {
         cc_video.define("HAS_NVENC", None);
@@ -205,7 +217,7 @@ fn main() {
     if env::var("CARGO_FEATURE_FFMPEG_SYSTEM").is_err() {
         println!(
             "cargo:rustc-link-search={}",
-            dist_dir.join("lib").to_string_lossy()
+            host_tool_path(dist_dir.join("lib")).display()
         );
     }
 
