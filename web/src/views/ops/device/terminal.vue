@@ -427,6 +427,7 @@
 
   onDeactivated(() => {
     active = false;
+    disconnectBrowserSocket();
   });
 
   onBeforeUnmount(() => {

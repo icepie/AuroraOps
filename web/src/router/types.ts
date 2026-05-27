@@ -25,8 +25,6 @@ export interface Meta {
   permissions?: string[];
   // 是否不缓存
   noKeepAlive?: boolean;
-  // 是否按完整路径区分缓存实例，适用于同一路由不同查询参数的页面
-  cacheKeyByFullPath?: boolean;
   // 是否固定在tab上
   affix?: boolean;
   // tab上的图标

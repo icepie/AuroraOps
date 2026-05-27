@@ -49,7 +49,7 @@
     setup() {
       const mode = import.meta.env.MODE;
       const { getIsPageAnimate, getPageAnimateType } = useProjectSetting();
-      const keepAliveMax = 32;
+      const keepAliveMax = 12;
       const getTransitionName = computed(() => {
         return unref(getIsPageAnimate) ? unref(getPageAnimateType) : '';
       });
