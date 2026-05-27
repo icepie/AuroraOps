@@ -6,9 +6,12 @@
 !ifndef SOURCE_EXE
 !define SOURCE_EXE "..\target\release\auroraops-agent.exe"
 !endif
+!ifndef ARCH
+!define ARCH "x64"
+!endif
 
 Name "AuroraOps Client"
-OutFile "AuroraOps-Client-Setup-${VERSION}-x64.exe"
+OutFile "AuroraOps-Client-Setup-${VERSION}-${ARCH}.exe"
 InstallDir "$PROGRAMFILES64\AuroraOps\AuroraOps Client"
 InstallDirRegKey HKLM "Software\AuroraOps\Client" "InstallDir"
 RequestExecutionLevel admin

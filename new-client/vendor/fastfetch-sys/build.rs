@@ -11,6 +11,7 @@ fn main() {
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
     let mut config = cmake::Config::new("fastfetch");
     config
         .out_dir(out.clone())
@@ -56,7 +57,7 @@ fn main() {
         fs::copy(pkg.join("src/bindings/linux_64.rs"), &bindings)
             .expect("Unable to copy pregenerated bindings");
     } else {
-        generate_bindings(&pkg, &out, &bindings, &target_os, &target_arch);
+        generate_bindings(&pkg, &out, &bindings, &target_os, &target_arch, &target_env);
     }
 
     println!("cargo:rustc-link-search={}", out.display());
@@ -110,6 +111,7 @@ fn generate_bindings(
     bindings: &PathBuf,
     target_os: &str,
     target_arch: &str,
+    target_env: &str,
 ) {
     let mut builder = bindgen::Builder::default()
         .header("fastfetch/wrapper.h")
@@ -119,8 +121,10 @@ fn generate_bindings(
         .layout_tests(false)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()));
     if target_os == "windows" {
-        let triple = match target_arch {
-            "aarch64" => "aarch64-w64-windows-gnu",
+        let triple = match (target_arch, target_env) {
+            ("aarch64", "msvc") => "aarch64-pc-windows-msvc",
+            ("aarch64", _) => "aarch64-w64-windows-gnu",
+            ("x86_64", "msvc") => "x86_64-pc-windows-msvc",
             _ => "x86_64-w64-windows-gnu",
         };
         builder = builder

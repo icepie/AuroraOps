@@ -42,16 +42,18 @@ fn main() {
     }
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let vaapi_enabled = env::var("CARGO_FEATURE_VAAPI").is_ok();
 
-    let dist_dir = Path::new("deps")
-        .canonicalize()
-        .unwrap()
-        .join(if vaapi_enabled {
+    let dist_dir = Path::new("deps").canonicalize().unwrap().join(
+        if target_os == "windows" && target_arch == "aarch64" {
+            "dist_windows_arm64".to_string()
+        } else if vaapi_enabled {
             format!("dist_{}_vaapi", target_os)
         } else {
             format!("dist_{}", target_os)
-        });
+        },
+    );
 
     let enable_libnpp = env::var("I_AM_BUILDING_THIS_AT_HOME_AND_WANT_LIBNPP").map_or(false, |v| {
         ["y", "yes", "true", "1"].contains(&v.to_lowercase().as_str())

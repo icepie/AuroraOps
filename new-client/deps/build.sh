@@ -18,6 +18,7 @@ fi
 
 [ -z "$DIST" ] && export DIST="$PWD/dist"
 [ -z "$TARGET_OS" ] && export TARGET_OS="$HOST_OS"
+[ -z "$TARGET_ARCH" ] && export TARGET_ARCH="$CARGO_CFG_TARGET_ARCH"
 [ -z "$ENABLE_VAAPI" ] && export ENABLE_VAAPI="y"
 
 export NPROCS="$(nproc || echo 4)"
@@ -32,6 +33,14 @@ if [ "$TARGET_OS" == "windows" ]; then
             --enable-mediafoundation --pkg-config=pkg-config --enable-d3d11va"
         export FFMPEG_CFLAGS="-I$DIST/include"
         export FFMPEG_LIBRARY_PATH="-L$DIST/lib"
+    elif [ "$TARGET_ARCH" == "aarch64" ]; then
+        export CC="cl"
+        export FFMPEG_EXTRA_ARGS="--toolchain=msvc --arch=aarch64 --target-os=win64 \
+            --enable-cross-compile --disable-asm --disable-nvenc --disable-ffnvcodec \
+            --enable-mediafoundation --enable-d3d11va"
+        export FFMPEG_CFLAGS="-I$DIST/include"
+        export FFMPEG_LIBRARY_PATH="-LIBPATH:$DIST/lib"
+        export X264_EXTRA_ARGS="--host=aarch64-w64-mingw32 --disable-asm"
     else
         export CC="cl"
         export FFMPEG_EXTRA_ARGS="--toolchain=msvc --enable-nvenc --enable-ffnvcodec \
@@ -82,8 +91,11 @@ fi
 if [ "$TARGET_OS" == "windows" ] && [ "$HOST_OS" == "windows" ]; then
     cd "$DIST/lib"
     for l in *.a; do
+        [ -e "$l" ] || continue
         d=${l#lib}
         cp "$l" "${d%.a}.lib"
     done
-    cp libx264.lib x264.lib
+    if [ -f libx264.lib ]; then
+        cp libx264.lib x264.lib
+    fi
 fi

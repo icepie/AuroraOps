@@ -17,45 +17,66 @@ permissions:
 
 jobs:
   build:
-    name: windows-x64
+    name: windows-${{ matrix.arch }}
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rust_target: x86_64-pc-windows-msvc
+            msvc_arch: x64
+            artifact: auroraops-client-windows-x64
+          - arch: arm64
+            rust_target: aarch64-pc-windows-msvc
+            msvc_arch: amd64_arm64
+            artifact: auroraops-client-windows-arm64
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-gnu
+          targets: ${{ matrix.rust_target }}
 
-      - name: Install MinGW build tools
+      - name: Select MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Install MSYS2 build tools
         uses: msys2/setup-msys2@v2
         with:
+          msystem: UCRT64
+          path-type: inherit
           update: true
           install: >-
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-make
-            mingw-w64-x86_64-pkgconf
-            mingw-w64-x86_64-clang
-            mingw-w64-x86_64-llvm
+            diffutils
+            gawk
+            git
+            make
+            patch
 
       - name: Install TypeScript compiler
         run: npm install -g typescript
 
-      - name: Add MinGW to PATH
+      - name: Add MSYS2 to PATH
         shell: pwsh
-        run: echo "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
+        run: echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
+
+      - name: Verify build tools
+        shell: pwsh
+        run: |
+          where.exe cl
+          bash --version | Select-Object -First 1
+          make --version | Select-Object -First 1
 
       - name: Build AuroraOps client
         working-directory: new-client
         env:
           CARGO_BUILD_JOBS: 4
-          CMAKE_GENERATOR: MinGW Makefiles
-          CMAKE_MAKE_PROGRAM: C:\msys64\mingw64\bin\mingw32-make.exe
-          CC: C:\msys64\mingw64\bin\gcc.exe
-          CXX: C:\msys64\mingw64\bin\g++.exe
-          LIBCLANG_PATH: C:\msys64\mingw64\bin
-        run: cargo build --release --target x86_64-pc-windows-gnu --bin auroraops-agent
+          LIBCLANG_PATH: C:\Program Files\LLVM\bin
+        run: cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
 
       - name: Install NSIS
         run: choco install nsis -y --no-progress
@@ -65,17 +86,17 @@ jobs:
         shell: pwsh
         run: |
           $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
-          makensis.exe /DVERSION=$version /DSOURCE_EXE="$PWD\target\x86_64-pc-windows-gnu\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
+          makensis.exe /DVERSION=$version /DARCH=${{ matrix.arch }} /DSOURCE_EXE="$PWD\target\${{ matrix.rust_target }}\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
 
       - name: Stage artifacts
         working-directory: new-client
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist\windows | Out-Null
-          Copy-Item target\x86_64-pc-windows-gnu\release\auroraops-agent.exe dist\windows\auroraops-agent-windows-x64.exe
-          Copy-Item AuroraOps-Client-Setup-*-x64.exe dist\windows\
+          New-Item -ItemType Directory -Force dist\windows\${{ matrix.arch }} | Out-Null
+          Copy-Item target\${{ matrix.rust_target }}\release\auroraops-agent.exe dist\windows\${{ matrix.arch }}\auroraops-agent-windows-${{ matrix.arch }}.exe
+          Copy-Item AuroraOps-Client-Setup-*-${{ matrix.arch }}.exe dist\windows\${{ matrix.arch }}\
 
       - uses: actions/upload-artifact@v4
         with:
-          name: auroraops-client-windows-x64
-          path: new-client/dist/windows/*
+          name: ${{ matrix.artifact }}
+          path: new-client/dist/windows/${{ matrix.arch }}/*
