@@ -437,6 +437,23 @@ INSERT INTO `hg_admin_menu` (
   `status`, `created_at`, `updated_at`
 )
 SELECT
+  @opsDeviceId, '网络唤醒', 'opsDeviceWake', '', '', 3, '', '/opsDevice/wake',
+  '', '', 1, '', 0, 0,
+  '', 0, 1, 0, 3, CONCAT('tr_', @opsRootId, ' tr_', @opsDeviceId, ' '), 55, '',
+  1, @now, @now
+FROM DUAL
+WHERE @opsDeviceId IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM `hg_admin_menu` WHERE `name` = 'opsDeviceWake'
+  );
+
+INSERT INTO `hg_admin_menu` (
+  `pid`, `title`, `name`, `path`, `icon`, `type`, `redirect`, `permissions`,
+  `permission_name`, `component`, `always_show`, `active_menu`, `is_root`, `is_frame`,
+  `frame_src`, `keep_alive`, `hidden`, `affix`, `level`, `tree`, `sort`, `remark`,
+  `status`, `created_at`, `updated_at`
+)
+SELECT
   @opsDeviceId, '设备选项', 'opsDeviceOption', '', '', 3, '', '/opsDevice/option',
   '', '', 1, '', 0, 0,
   '', 0, 1, 0, 3, CONCAT('tr_', @opsRootId, ' tr_', @opsDeviceId, ' '), 60, '',
@@ -667,6 +684,7 @@ WHERE r.`key` IN ('super', 'manage')
     'opsDeviceMaxSort',
     'opsDeviceDelete',
     'opsDeviceStatus',
+    'opsDeviceWake',
     'opsDeviceOption',
     'opsDeviceGroupList',
     'opsDeviceGroupView',

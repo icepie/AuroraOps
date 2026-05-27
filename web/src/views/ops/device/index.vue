@@ -280,8 +280,40 @@
     );
   }
 
+  function renderWakeButton(record: State) {
+    return h(
+      NTooltip,
+      { trigger: 'hover' },
+      {
+        trigger: () =>
+          h(
+            NButton,
+            {
+              size: 'small',
+              secondary: true,
+              type: record.macAddress ? 'warning' : 'default',
+              class: 'device-action-cell__wake',
+              onClick: handleWake.bind(null, record),
+            },
+            {
+              icon: () =>
+                h(
+                  NIcon,
+                  { size: 15 },
+                  {
+                    default: () => h(ThunderboltOutlined),
+                  }
+                ),
+              default: () => '唤醒',
+            }
+          ),
+        default: () => (record.macAddress ? '发送网络唤醒' : '缺少MAC地址'),
+      }
+    );
+  }
+
   const actionColumn = reactive({
-    width: 128,
+    width: 176,
     title: '操作',
     key: 'action',
     fixed: 'right',
@@ -298,17 +330,10 @@
         renderActionButton(
           '远程桌面',
           DesktopOutlined,
-          handleDesktop.bind(null, record),
-          record.online === true ? 'primary' : 'default'
-        ),
-        !record.online
-          ? renderActionButton(
-              '网络唤醒',
-              ThunderboltOutlined,
-              handleWake.bind(null, record),
-              record.macAddress ? 'primary' : 'default'
-            )
-          : null,
+            handleDesktop.bind(null, record),
+            record.online === true ? 'primary' : 'default'
+          ),
+        hasPermission(['/opsDevice/wake']) && !record.online ? renderWakeButton(record) : null,
         options.length
           ? h(
               NDropdown,
@@ -497,6 +522,9 @@
   function buildActionMenuOptions(record: State) {
     const options: Array<{ label: string; key: string }> = [];
 
+    if (hasPermission(['/opsDevice/wake'])) {
+      options.push({ label: record.online ? '网络唤醒' : '再次发送唤醒', key: 'wake' });
+    }
     if (hasPermission(['/opsDevice/edit'])) {
       options.push({ label: '编辑', key: 'edit' });
     }
@@ -516,6 +544,9 @@
 
   function handleActionSelect(key: string, record: Recordable) {
     switch (key) {
+      case 'wake':
+        handleWake(record);
+        break;
       case 'edit':
         handleEdit(record);
         break;
@@ -939,6 +970,15 @@
     height: 28px;
     min-width: 28px;
     border-radius: 10px;
+  }
+
+  .device-action-cell__wake {
+    height: 28px;
+    min-width: 58px;
+    padding: 0 9px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
   }
 
   :deep(.device-monitor-empty) {
