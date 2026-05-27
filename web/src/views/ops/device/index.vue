@@ -499,9 +499,6 @@
   function buildActionMenuOptions(record: State) {
     const options: Array<{ label: string; key: string }> = [];
 
-    if (hasPermission(['/opsDevice/wake'])) {
-      options.push({ label: record.online ? '网络唤醒' : '再次发送唤醒', key: 'wake' });
-    }
     if (hasPermission(['/opsDevice/edit'])) {
       options.push({ label: '编辑', key: 'edit' });
     }
@@ -521,9 +518,6 @@
 
   function handleActionSelect(key: string, record: Recordable) {
     switch (key) {
-      case 'wake':
-        handleWake(record);
-        break;
       case 'edit':
         handleEdit(record);
         break;
