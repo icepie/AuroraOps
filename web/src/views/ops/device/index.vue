@@ -247,7 +247,7 @@
     label: string,
     icon: Component,
     onClick: () => void,
-    type: 'default' | 'primary' = 'default'
+    type: 'default' | 'primary' | 'warning' = 'default'
   ) {
     return h(
       NTooltip,
@@ -281,39 +281,16 @@
   }
 
   function renderWakeButton(record: State) {
-    return h(
-      NTooltip,
-      { trigger: 'hover' },
-      {
-        trigger: () =>
-          h(
-            NButton,
-            {
-              size: 'small',
-              secondary: true,
-              type: record.macAddress ? 'warning' : 'default',
-              class: 'device-action-cell__wake',
-              onClick: handleWake.bind(null, record),
-            },
-            {
-              icon: () =>
-                h(
-                  NIcon,
-                  { size: 15 },
-                  {
-                    default: () => h(ThunderboltOutlined),
-                  }
-                ),
-              default: () => '唤醒',
-            }
-          ),
-        default: () => (record.macAddress ? '发送网络唤醒' : '缺少MAC地址'),
-      }
+    return renderActionButton(
+      record.macAddress ? '发送网络唤醒' : '缺少MAC地址',
+      ThunderboltOutlined,
+      handleWake.bind(null, record),
+      record.macAddress ? 'warning' : 'default'
     );
   }
 
   const actionColumn = reactive({
-    width: 176,
+    width: 148,
     title: '操作',
     key: 'action',
     fixed: 'right',
@@ -333,7 +310,7 @@
             handleDesktop.bind(null, record),
             record.online === true ? 'primary' : 'default'
           ),
-        hasPermission(['/opsDevice/wake']) && !record.online ? renderWakeButton(record) : null,
+        hasPermission(['/opsDevice/wake']) ? renderWakeButton(record) : null,
         options.length
           ? h(
               NDropdown,
@@ -970,15 +947,6 @@
     height: 28px;
     min-width: 28px;
     border-radius: 10px;
-  }
-
-  .device-action-cell__wake {
-    height: 28px;
-    min-width: 58px;
-    padding: 0 9px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 600;
   }
 
   :deep(.device-monitor-empty) {
