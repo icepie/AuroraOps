@@ -5,6 +5,13 @@ use std::process::Command;
 fn bash_command() -> Command {
     #[cfg(target_os = "windows")]
     {
+        if let Ok(msys2_bash) = env::var("AURORAOPS_MSYS2_BASH") {
+            let msys2_bash = Path::new(&msys2_bash);
+            if msys2_bash.exists() {
+                return Command::new(msys2_bash);
+            }
+        }
+
         let msys2_bash = Path::new(r"C:\msys64\usr\bin\bash.exe");
         if msys2_bash.exists() {
             return Command::new(msys2_bash);

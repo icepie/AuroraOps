@@ -80,9 +80,11 @@ jobs:
           CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER: clang
         run: |
           export LIBCLANG_PATH="$(cygpath -w "$MSYSTEM_PREFIX/bin")"
+          export AURORAOPS_MSYS2_BASH="$(cygpath -w /usr/bin/bash.exe)"
           unset GIT_EXEC_PATH
           export PATH="/usr/bin:$PATH"
           echo "LIBCLANG_PATH=$LIBCLANG_PATH"
+          echo "AURORAOPS_MSYS2_BASH=$AURORAOPS_MSYS2_BASH"
           which git
           git --version
           git --exec-path
