@@ -244,6 +244,41 @@ function isPointerLocked() {
     return document.pointerLockElement === elemForPointerLock();
 }
 
+class VirtualCursor {
+    elem: HTMLElement;
+    visible = false;
+    hotspotX = 10;
+    hotspotY = 4;
+
+    constructor() {
+        this.elem = document.createElement("div");
+        this.elem.id = "virtual_cursor_overlay";
+        document.body.appendChild(this.elem);
+    }
+
+    enabled(): boolean {
+        return !!settings?.checks.get("virtual_cursor")?.checked;
+    }
+
+    show(x: number, y: number) {
+        if (!this.enabled())
+            return this.hide();
+        this.visible = true;
+        this.elem.style.opacity = "1";
+        this.elem.style.transform = `translate(${Math.round(x - this.hotspotX)}px, ${Math.round(y - this.hotspotY)}px)`;
+    }
+
+    hide() {
+        if (!this.elem || !this.visible)
+            return;
+        this.visible = false;
+        this.elem.style.opacity = "0";
+        this.elem.style.transform = "translate(-100px, -100px)";
+    }
+}
+
+let virtualCursor: VirtualCursor;
+
 function requestPointerLock() {
     const elem = elemForPointerLock() as HTMLElement;
     if (!elem || document.pointerLockElement === elem)
@@ -501,6 +536,11 @@ class Settings {
         this.checks.get("enable_custom_input_areas").onchange = () => {
             this.save_settings();
         };
+        this.checks.get("virtual_cursor").onchange = () => {
+            this.save_settings();
+            if (!this.checks.get("virtual_cursor").checked)
+                virtualCursor?.hide();
+        };
 
         this.frame_rate_input.onchange = () => this.save_settings();
         this.range_min_pressure.onchange = () => this.save_settings();
@@ -726,6 +766,17 @@ let settings: Settings;
 let debug_overlay: HTMLElement;
 let last_pointer_data: Object;
 
+function pointerButtonMask(button: number): number {
+    let btn = button;
+    // for some reason the secondary and auxiliary buttons are ordered differently for
+    // the button and buttons properties
+    if (btn == 2)
+        btn = 1;
+    else if (btn == 1)
+        btn = 2;
+    return btn < 0 ? 0 : 1 << btn;
+}
+
 class PEvent {
     event_type: string;
     pointer_id: number;
@@ -745,22 +796,22 @@ class PEvent {
     width: number;
     height: number;
 
-    constructor(eventType: string, event: PointerEvent, targetRect: DOMRect, lockedPoint?: [number, number]) {
+    constructor(
+        eventType: string,
+        event: PointerEvent,
+        targetRect: DOMRect,
+        lockedPoint?: [number, number],
+        buttonOverride?: number,
+        buttonsOverride?: number,
+    ) {
         let diag_len = Math.sqrt(targetRect.width * targetRect.width + targetRect.height * targetRect.height)
         this.event_type = eventType.toString();
         this.pointer_id = event.pointerId;
         this.timestamp = Math.round(event.timeStamp * 1000);
         this.is_primary = event.isPrimary;
         this.pointer_type = event.pointerType;
-        let btn = event.button;
-        // for some reason the secondary and auxiliary buttons are ordered differently for
-        // the button and buttons properties
-        if (btn == 2)
-            btn = 1;
-        else if (btn == 1)
-            btn = 2;
-        this.button = (btn < 0 ? 0 : 1 << btn);
-        this.buttons = event.buttons;
+        this.button = buttonOverride ?? pointerButtonMask(event.button);
+        this.buttons = buttonsOverride ?? event.buttons;
         let x_offset = 0;
         let y_offset = 0;
         let x_scale = 1;
@@ -1020,6 +1071,9 @@ class PointerHandler {
     pointerTypes: string[];
     lockedMouseX: number = null;
     lockedMouseY: number = null;
+    lockedClientX: number = null;
+    lockedClientY: number = null;
+    lockedButtons: number = 0;
 
     constructor(webSocket: WebSocket) {
         let video = document.getElementById("video");
@@ -1076,19 +1130,48 @@ class PointerHandler {
         }
     }
 
+    lockedMouseActive(event: PointerEvent): boolean {
+        return !!inputCapture?.pointer && isPointerLocked() && event.pointerType === "mouse";
+    }
+
     lockedMousePoint(event: PointerEvent, eventType: string, rect: DOMRect): [number, number] | undefined {
-        if (!inputCapture?.pointer || !isPointerLocked() || event.pointerType !== "mouse")
+        if (!this.lockedMouseActive(event)) {
+            this.lockedMouseX = null;
+            this.lockedMouseY = null;
+            this.lockedClientX = null;
+            this.lockedClientY = null;
+            this.lockedButtons = 0;
+            if (event.pointerType === "mouse")
+                virtualCursor?.hide();
             return undefined;
-        if (this.lockedMouseX === null || this.lockedMouseY === null || eventType !== "pointermove") {
+        }
+        if (this.lockedMouseX === null || this.lockedMouseY === null) {
             this.lockedMouseX = (event.clientX - rect.left) / rect.width;
             this.lockedMouseY = (event.clientY - rect.top) / rect.height;
-        } else {
+            this.lockedClientX = event.clientX;
+            this.lockedClientY = event.clientY;
+        } else if (eventType === "pointermove") {
             this.lockedMouseX += event.movementX / rect.width;
             this.lockedMouseY += event.movementY / rect.height;
+            this.lockedClientX += event.movementX;
+            this.lockedClientY += event.movementY;
         }
         this.lockedMouseX = Math.max(0, Math.min(1, this.lockedMouseX));
         this.lockedMouseY = Math.max(0, Math.min(1, this.lockedMouseY));
+        this.lockedClientX = Math.max(rect.left, Math.min(rect.right, this.lockedClientX));
+        this.lockedClientY = Math.max(rect.top, Math.min(rect.bottom, this.lockedClientY));
+        virtualCursor?.show(this.lockedClientX, this.lockedClientY);
         return [this.lockedMouseX, this.lockedMouseY];
+    }
+
+    lockedButtonState(event: PointerEvent, eventType: string): [number, number] {
+        const button = pointerButtonMask(event.button);
+        if (eventType === "pointerdown") {
+            this.lockedButtons |= button;
+        } else if (eventType === "pointerup" || eventType === "pointercancel") {
+            this.lockedButtons &= ~button;
+        }
+        return [button, this.lockedButtons];
     }
 
     onEvent(event: PointerEvent, event_type: string) {
@@ -1162,10 +1245,16 @@ class PointerHandler {
                 requestPointerLock();
             const currentTarget = event.currentTarget as HTMLElement;
             let rect = currentTarget.getBoundingClientRect();
+            const locked = this.lockedMouseActive(event);
+            if (locked && ["pointerover", "pointerenter", "pointerout", "pointerleave"].includes(event_type)) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
             const events = event_type === "pointermove" ? getPointerEvents(event) : [event];
             if (event_type === "pointerdown") {
                 capturePointer(event);
-            } else if (event_type === "pointerup" || event_type === "pointercancel") {
+            } else if ((event_type === "pointerup" || event_type === "pointercancel") && !locked) {
                 releasePointer(event);
             }
             pointer_event_count += 1;
@@ -1174,6 +1263,15 @@ class PointerHandler {
             }
             for (let event of events) {
                 const lockedPoint = this.lockedMousePoint(event, event_type, rect);
+                const [buttonOverride, buttonsOverride] = lockedPoint
+                    ? this.lockedButtonState(event, event_type)
+                    : [undefined, undefined];
+                if (!lockedPoint && event.pointerType === "mouse") {
+                    if (settings.checks.get("virtual_cursor").checked && inputCapture?.pointer)
+                        virtualCursor?.show(event.clientX, event.clientY);
+                    else
+                        virtualCursor?.hide();
+                }
                 this.webSocket.send(
                     JSON.stringify(
                         {
@@ -1181,7 +1279,9 @@ class PointerHandler {
                                 event_type,
                                 event,
                                 rect,
-                                lockedPoint
+                                lockedPoint,
+                                buttonOverride,
+                                buttonsOverride,
                             )
                         }
                     )
@@ -1344,8 +1444,46 @@ class KeyboardHandler {
         return `${event.code}:${event.location}`;
     }
 
+    releaseEventFrom(event: KEvent): KEvent {
+        const up = Object.assign(Object.create(KEvent.prototype), event) as KEvent;
+        up.event_type = "up";
+        up.ctrl = false;
+        up.alt = false;
+        up.shift = false;
+        up.meta = false;
+        return up;
+    }
+
+    modifierReleaseEvents(): KEvent[] {
+        const mods: [string, string, number][] = [
+            ["ControlLeft", "Control", 1],
+            ["ControlRight", "Control", 2],
+            ["AltLeft", "Alt", 1],
+            ["AltRight", "Alt", 2],
+            ["ShiftLeft", "Shift", 1],
+            ["ShiftRight", "Shift", 2],
+            ["MetaLeft", "Meta", 1],
+            ["MetaRight", "Meta", 2],
+        ];
+        return mods.map(([code, key, location]) => Object.assign(Object.create(KEvent.prototype), {
+            event_type: "up",
+            code,
+            key,
+            location,
+            ctrl: false,
+            alt: false,
+            shift: false,
+            meta: false,
+        }) as KEvent);
+    }
+
     sendKeyboardEvent(event: KEvent) {
         this.webSocket.send(JSON.stringify({ "KeyboardEvent": event }));
+    }
+
+    sendKeyboardReleaseRequest() {
+        if (socketOpen(this.webSocket))
+            this.webSocket.send('"ReleaseKeyboard"');
     }
 
     flushTextInput(text: string) {
@@ -1365,15 +1503,25 @@ class KeyboardHandler {
     }
 
     releaseHeldKeys() {
-        if (this.heldKeys.size === 0 || !socketOpen(this.webSocket)) {
+        if (!socketOpen(this.webSocket)) {
             this.heldKeys.clear();
             return;
         }
+        if (this.heldKeys.size === 0) {
+            this.sendKeyboardReleaseRequest();
+            return;
+        }
+        const released = new Set<string>();
         for (const held of this.heldKeys.values()) {
-            const up = Object.assign(Object.create(KEvent.prototype), held) as KEvent;
-            up.event_type = "up";
+            const up = this.releaseEventFrom(held);
+            released.add(this.keyId(up));
             this.sendKeyboardEvent(up);
         }
+        for (const up of this.modifierReleaseEvents()) {
+            if (!released.has(this.keyId(up)))
+                this.sendKeyboardEvent(up);
+        }
+        this.sendKeyboardReleaseRequest();
         this.heldKeys.clear();
         if (keyboard_backend_out)
             keyboard_backend_out.value = "web released held keys";
@@ -1557,8 +1705,13 @@ function init() {
 
     debug_overlay = document.getElementById("debug_overlay");
     settings = new Settings(webSocket);
+    virtualCursor = new VirtualCursor();
     inputCapture = new InputCaptureState();
     inputCapture.set(true, false);
+    document.onpointerlockchange = () => {
+        if (!isPointerLocked())
+            virtualCursor.hide();
+    };
 
     let video = document.getElementById("video") as HTMLVideoElement;
     let canvas = document.getElementById("canvas") as HTMLCanvasElement;

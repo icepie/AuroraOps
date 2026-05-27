@@ -164,13 +164,19 @@ impl KeyboardInputWorker {
         };
         format!("{state} {mode} {event_label}")
     }
+
+    fn release_all(&mut self) -> usize {
+        let keys: Vec<WORD> = self.pressed_keys.drain().collect();
+        for vk in &keys {
+            send_vk(*vk, false);
+        }
+        keys.len()
+    }
 }
 
 impl Drop for KeyboardInputWorker {
     fn drop(&mut self) {
-        for vk in self.pressed_keys.drain() {
-            send_vk(vk, false);
-        }
+        self.release_all();
     }
 }
 
@@ -428,6 +434,12 @@ impl InputDevice for WindowsInput {
         };
         self.pending_keyboard_status
             .push(format!("{status} text len={text_len} text={preview:?}"));
+    }
+
+    fn release_keyboard(&mut self) {
+        let released = self.keyboard.release_all();
+        self.pending_keyboard_status
+            .push(format!("keyboard released tracked keys count={released}"));
     }
 
     fn drain_keyboard_status(&mut self) -> Vec<String> {

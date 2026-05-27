@@ -33,6 +33,7 @@ pub trait InputDevice {
     fn send_pointer_event(&mut self, event: &PointerEvent);
     fn send_keyboard_event(&mut self, event: &KeyboardEvent);
     fn send_text_input_event(&mut self, _event: &TextInputEvent) {}
+    fn release_keyboard(&mut self) {}
     fn drain_keyboard_status(&mut self) -> Vec<String> {
         Vec::new()
     }

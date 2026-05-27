@@ -272,6 +272,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                         MessageInbound::TextInputEvent(event) => {
                             self.process_text_input_event(&event)
                         }
+                        MessageInbound::ReleaseKeyboard => self.release_keyboard(),
                         MessageInbound::GetCapturableList => self.send_capturable_list(),
                         MessageInbound::Config(config) => self.update_config(config),
                         MessageInbound::PauseVideo => {
@@ -436,6 +437,28 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         }
     }
 
+    fn release_keyboard(&mut self)
+    where
+        S: WeylusSender,
+    {
+        if let Some(device) = self.input_device.as_mut() {
+            device.release_keyboard();
+            let mut statuses = device.drain_keyboard_status();
+            if statuses.is_empty() {
+                statuses.push("keyboard release requested".to_string());
+            }
+            for status in statuses {
+                self.send_message(MessageOutbound::RuntimeStatus(RuntimeStatus {
+                    capture_backend: None,
+                    encoder_backend: None,
+                    input_backend: None,
+                    pointer_backend: None,
+                    keyboard_backend: Some(status),
+                }));
+            }
+        }
+    }
+
     fn send_capturable_list(&mut self)
     where
         S: WeylusSender,
@@ -494,10 +517,14 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
 
         if capturable_id < self.capturables.len() {
             let capturable = self.capturables[capturable_id].clone();
+            #[cfg(target_os = "linux")]
+            let uinput_support = config.uinput_support;
+            #[cfg(not(target_os = "linux"))]
+            let uinput_support = false;
             info!(
                 "Client config: capturable_id={} uinput_support={} capture_cursor={} max={}x{} frame_rate={:.1} encoder={} client_name={}",
                 capturable_id,
-                config.uinput_support,
+                uinput_support,
                 config.capture_cursor,
                 config.max_width,
                 config.max_height,

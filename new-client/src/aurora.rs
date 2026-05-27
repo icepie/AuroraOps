@@ -4362,25 +4362,56 @@ fn detect_ip() -> String {
 }
 
 fn detect_primary_mac(ip: &str) -> String {
-    let target_ip = ip.parse::<IpAddr>().ok();
-    let interfaces = pnet_datalink::interfaces();
-    if let Some(target_ip) = target_ip {
-        for interface in &interfaces {
-            if interface.is_loopback() || !interface.is_up() {
-                continue;
-            }
-            if interface.ips.iter().any(|network| network.ip() == target_ip) {
-                if let Some(mac) = interface.mac {
-                    return mac.to_string();
+    #[cfg(target_os = "windows")]
+    {
+        let ps = format!(
+            "$ip='{}'; \
+             $cfg=Get-CimInstance Win32_NetworkAdapterConfiguration -Filter \"IPEnabled = True\" | \
+             Where-Object {{ $_.IPAddress -contains $ip }} | Select-Object -First 1; \
+             if (-not $cfg) {{ $cfg=Get-CimInstance Win32_NetworkAdapterConfiguration -Filter \"IPEnabled = True\" | Select-Object -First 1 }}; \
+             if ($cfg) {{ $cfg.MACAddress }}",
+            ip.replace('\'', "''")
+        );
+        if let Ok(output) = Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", &ps])
+            .output()
+        {
+            if output.status.success() {
+                let mac = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !mac.is_empty() {
+                    return mac;
                 }
             }
         }
+        return String::new();
     }
-    interfaces
-        .into_iter()
-        .filter(|interface| !interface.is_loopback() && interface.is_up())
-        .find_map(|interface| interface.mac.map(|mac| mac.to_string()))
-        .unwrap_or_default()
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let target_ip = ip.parse::<IpAddr>().ok();
+        let interfaces = pnet_datalink::interfaces();
+        if let Some(target_ip) = target_ip {
+            for interface in &interfaces {
+                if interface.is_loopback() || !interface.is_up() {
+                    continue;
+                }
+                if interface
+                    .ips
+                    .iter()
+                    .any(|network| network.ip() == target_ip)
+                {
+                    if let Some(mac) = interface.mac {
+                        return mac.to_string();
+                    }
+                }
+            }
+        }
+        interfaces
+            .into_iter()
+            .filter(|interface| !interface.is_loopback() && interface.is_up())
+            .find_map(|interface| interface.mac.map(|mac| mac.to_string()))
+            .unwrap_or_default()
+    }
 }
 
 fn detect_os_name() -> String {

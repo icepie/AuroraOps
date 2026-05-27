@@ -36,6 +36,7 @@ pub const INDEX_HTML: &str = std::include_str!("../www/templates/index.html");
 pub const ACCESS_HTML: &str = std::include_str!("../www/static/access_code.html");
 pub const STYLE_CSS: &str = std::include_str!("../www/static/style.css");
 pub const LIB_JS: &str = std::include_str!("../www/static/lib.js");
+pub const APPLE_LEFT_PTR_SVG: &str = std::include_str!("../www/static/apple-left-ptr.svg");
 
 #[derive(Serialize)]
 struct IndexTemplateContext {
@@ -125,7 +126,7 @@ async fn serve(
             let config = IndexTemplateContext {
                 access_code: context.web_config.access_code.clone(),
                 uinput_enabled: cfg!(target_os = "linux"),
-                capture_cursor_enabled: cfg!(not(target_os = "windows")),
+                capture_cursor_enabled: true,
                 log_level: crate::log::get_log_level().to_string(),
                 enable_custom_input_areas: context.web_config.enable_custom_input_areas,
             };
@@ -213,6 +214,9 @@ async fn serve(
         )
         .await
         .map(|r| r.boxed())),
+        "/apple-left-ptr.svg" => {
+            Ok(response_from_str(APPLE_LEFT_PTR_SVG, "image/svg+xml").map(|r| r.boxed()))
+        }
         _ => Ok(response_not_found().map(|r| r.boxed())),
     }
 }

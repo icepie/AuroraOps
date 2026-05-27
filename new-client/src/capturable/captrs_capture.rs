@@ -6,19 +6,22 @@ use std::error::Error;
 use std::mem;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
-use winapi::shared::minwindef::{BOOL, LPARAM, TRUE};
-use winapi::shared::windef::{HWND, RECT};
+use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE};
+use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::um::wingdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
     SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, SRCCOPY,
 };
 use winapi::um::winuser::{
-    BringWindowToTop, EnumWindows, GetAncestor, GetDC, GetWindowRect, GetWindowTextLengthW,
-    GetWindowTextW, IsIconic, IsWindowVisible, PrintWindow, ReleaseDC, SetForegroundWindow,
-    ShowWindow, GA_ROOT, SW_RESTORE,
+    BringWindowToTop, CopyIcon, DestroyIcon, DrawIconEx, EnumWindows, GetAncestor, GetCursorInfo,
+    GetCursorPos, GetDC, GetIconInfo, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
+    IsIconic, IsWindowVisible, LoadCursorW, PrintWindow, ReleaseDC, SetForegroundWindow,
+    ShowWindow, CURSORINFO, CURSOR_SHOWING, GA_ROOT, ICONINFO, IDC_ARROW, SW_RESTORE,
 };
 
 use super::Geometry;
+
+const DI_NORMAL: u32 = 0x0003;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowsCaptureSource {
@@ -100,8 +103,12 @@ impl Capturable for WindowCapturable {
         Ok(())
     }
 
-    fn recorder(&self, _capture_cursor: bool) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
-        Ok(Box::new(WindowRecorder::new(self.hwnd(), self.rect)?))
+    fn recorder(&self, capture_cursor: bool) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
+        Ok(Box::new(WindowRecorder::new(
+            self.hwnd(),
+            self.rect,
+            capture_cursor,
+        )?))
     }
 
     fn geometry(&self) -> Result<Geometry, Box<dyn Error>> {
@@ -145,10 +152,15 @@ impl Capturable for DesktopCapturable {
     fn before_input(&mut self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
-    fn recorder(&self, _capture_cursor: bool) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
+    fn recorder(&self, capture_cursor: bool) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
         match self.source {
-            WindowsCaptureSource::Gdi => Ok(Box::new(GdiRecorder::new(self.screen)?)),
+            WindowsCaptureSource::Gdi => {
+                Ok(Box::new(GdiRecorder::new(self.screen, capture_cursor)?))
+            }
             WindowsCaptureSource::Auto | WindowsCaptureSource::Dxgi => {
+                if capture_cursor && self.source == WindowsCaptureSource::Auto {
+                    return Ok(Box::new(GdiRecorder::new(self.screen, true)?));
+                }
                 match CaptrsRecorder::new(self.id, self.screen) {
                     Ok(recorder) => Ok(Box::new(recorder)),
                     Err(err) => {
@@ -157,7 +169,7 @@ impl Capturable for DesktopCapturable {
                             self.name,
                             err
                         );
-                        Ok(Box::new(GdiRecorder::new(self.screen)?))
+                        Ok(Box::new(GdiRecorder::new(self.screen, false)?))
                     }
                 }
             }
@@ -207,7 +219,7 @@ impl CaptrsRecorder {
     fn fallback_capture(&mut self) -> Result<crate::video::PixelProvider, Box<dyn Error>> {
         if self.fallback.is_none() {
             tracing::warn!("Switching Windows screen capture from DXGI to GDI fallback.");
-            self.fallback = Some(GdiRecorder::new(self.fallback_rect)?);
+            self.fallback = Some(GdiRecorder::new(self.fallback_rect, false)?);
         }
         self.fallback.as_mut().unwrap().capture()
     }
@@ -218,6 +230,7 @@ pub struct GdiRecorder {
     width: usize,
     height: usize,
     buffer: Vec<u8>,
+    capture_cursor: bool,
 }
 
 pub struct WindowRecorder {
@@ -227,10 +240,11 @@ pub struct WindowRecorder {
     height: usize,
     buffer: Vec<u8>,
     gdi_fallback: GdiRecorder,
+    capture_cursor: bool,
 }
 
 impl GdiRecorder {
-    pub fn new(rect: RECT) -> Result<Self, Box<dyn Error>> {
+    pub fn new(rect: RECT, capture_cursor: bool) -> Result<Self, Box<dyn Error>> {
         let width = (rect.right - rect.left).max(0) as usize;
         let height = (rect.bottom - rect.top).max(0) as usize;
         if width == 0 || height == 0 {
@@ -243,7 +257,12 @@ impl GdiRecorder {
             width,
             height,
             buffer: vec![0; width * height * 4],
+            capture_cursor,
         })
+    }
+
+    fn draw_cursor(&self, dc: winapi::shared::windef::HDC) {
+        draw_cursor_on_dc(dc, self.rect);
     }
 }
 
@@ -292,6 +311,9 @@ impl Recorder for GdiRecorder {
                 ReleaseDC(ptr::null_mut(), screen_dc);
                 return Err(Box::new(CaptrsError("GDI BitBlt failed".into())));
             }
+            if self.capture_cursor {
+                self.draw_cursor(mem_dc);
+            }
 
             let mut info: BITMAPINFO = mem::zeroed();
             info.bmiHeader = BITMAPINFOHEADER {
@@ -334,7 +356,7 @@ impl Recorder for GdiRecorder {
 }
 
 impl WindowRecorder {
-    pub fn new(hwnd: HWND, rect: RECT) -> Result<Self, Box<dyn Error>> {
+    pub fn new(hwnd: HWND, rect: RECT, capture_cursor: bool) -> Result<Self, Box<dyn Error>> {
         let width = (rect.right - rect.left).max(0) as usize;
         let height = (rect.bottom - rect.top).max(0) as usize;
         if width == 0 || height == 0 {
@@ -348,7 +370,8 @@ impl WindowRecorder {
             width,
             height,
             buffer: vec![0; width * height * 4],
-            gdi_fallback: GdiRecorder::new(rect)?,
+            gdi_fallback: GdiRecorder::new(rect, capture_cursor)?,
+            capture_cursor,
         })
     }
 
@@ -388,6 +411,9 @@ impl Recorder for WindowRecorder {
                 ReleaseDC(ptr::null_mut(), screen_dc);
                 return self.gdi_fallback.capture();
             }
+            if self.capture_cursor {
+                draw_cursor_on_dc(mem_dc, self.rect);
+            }
 
             let mut info: BITMAPINFO = mem::zeroed();
             info.bmiHeader = BITMAPINFOHEADER {
@@ -426,6 +452,57 @@ impl Recorder for WindowRecorder {
             self.height,
             &self.buffer,
         ))
+    }
+}
+
+fn draw_cursor_on_dc(dc: winapi::shared::windef::HDC, rect: RECT) {
+    unsafe {
+        let mut cursor_info: CURSORINFO = mem::zeroed();
+        cursor_info.cbSize = mem::size_of::<CURSORINFO>() as DWORD;
+        let has_cursor_info = GetCursorInfo(&mut cursor_info) != 0;
+        let mut pos = cursor_info.ptScreenPos;
+        if !has_cursor_info || cursor_info.flags != CURSOR_SHOWING {
+            pos = POINT { x: 0, y: 0 };
+            if GetCursorPos(&mut pos) == 0 {
+                return;
+            }
+        }
+
+        let source_cursor = if has_cursor_info && !cursor_info.hCursor.is_null() {
+            cursor_info.hCursor
+        } else {
+            LoadCursorW(ptr::null_mut(), IDC_ARROW)
+        };
+        if source_cursor.is_null() {
+            return;
+        }
+
+        let cursor = CopyIcon(source_cursor);
+        if cursor.is_null() {
+            return;
+        }
+
+        let mut icon_info: ICONINFO = mem::zeroed();
+        let has_icon_info = GetIconInfo(cursor, &mut icon_info) != 0;
+        let hotspot_x = if has_icon_info { icon_info.xHotspot } else { 0 };
+        let hotspot_y = if has_icon_info { icon_info.yHotspot } else { 0 };
+        if has_icon_info {
+            if !icon_info.hbmMask.is_null() {
+                DeleteObject(icon_info.hbmMask.cast());
+            }
+            if !icon_info.hbmColor.is_null() {
+                DeleteObject(icon_info.hbmColor.cast());
+            }
+        }
+
+        let x = pos.x - rect.left - hotspot_x as i32;
+        let y = pos.y - rect.top - hotspot_y as i32;
+        if x > rect.right - rect.left || y > rect.bottom - rect.top {
+            DestroyIcon(cursor);
+            return;
+        }
+        DrawIconEx(dc, x, y, cursor, 0, 0, 0, ptr::null_mut(), DI_NORMAL);
+        DestroyIcon(cursor);
     }
 }
 

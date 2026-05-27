@@ -20,6 +20,7 @@ pub enum MessageInbound {
     WheelEvent(WheelEvent),
     KeyboardEvent(KeyboardEvent),
     TextInputEvent(TextInputEvent),
+    ReleaseKeyboard,
     GetCapturableList,
     Config(ClientConfiguration),
     PauseVideo,
