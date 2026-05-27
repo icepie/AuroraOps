@@ -30,12 +30,7 @@ fn main() {
     if target_os == "windows" {
         config.define("CMAKE_SYSTEM_NAME", "Windows");
         config.define("FASTFETCH_SYS_WINDOWS_AGENT_BUILD", "ON");
-        if target_env != "msvc" && !host.contains("windows") {
-            let shim_dir = out.join("windows-include-shim");
-            create_windows_include_shims(&shim_dir);
-            let include_flags = format!("-I{}", shim_dir.display());
-            config.cflag(&include_flags).cxxflag(&include_flags);
-        } else {
+        if target_env == "msvc" {
             let shim_dir = out.join("windows-msvc-include-shim");
             create_windows_msvc_include_shims(&shim_dir);
             let include_flags = format!("-I{}", shim_dir.display());
@@ -55,6 +50,11 @@ fn main() {
             ] {
                 config.cflag(flag).cxxflag(flag);
             }
+        } else if !host.contains("windows") {
+            let shim_dir = out.join("windows-include-shim");
+            create_windows_include_shims(&shim_dir);
+            let include_flags = format!("-I{}", shim_dir.display());
+            config.cflag(&include_flags).cxxflag(&include_flags);
         }
         if target_arch == "x86_64" {
             config.define("CMAKE_SYSTEM_PROCESSOR", "x86_64");
