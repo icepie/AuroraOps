@@ -12,6 +12,7 @@ fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    let host_os = env::var("CARGO_CFG_HOST_OS").unwrap_or_default();
     let mut config = cmake::Config::new("fastfetch");
     config
         .out_dir(out.clone())
@@ -29,7 +30,7 @@ fn main() {
     if target_os == "windows" {
         config.define("CMAKE_SYSTEM_NAME", "Windows");
         config.define("FASTFETCH_SYS_WINDOWS_AGENT_BUILD", "ON");
-        if target_env != "msvc" {
+        if target_env != "msvc" && host_os != "windows" {
             let shim_dir = out.join("windows-include-shim");
             create_windows_include_shims(&shim_dir);
             let include_flags = format!("-I{}", shim_dir.display());
