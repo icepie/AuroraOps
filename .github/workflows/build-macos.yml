@@ -35,6 +35,9 @@ jobs:
       - name: Install TypeScript compiler
         run: npm install -g typescript
 
+      - name: Install video build tools
+        run: brew install nasm
+
       - name: Build AuroraOps client
         working-directory: new-client
         env:
