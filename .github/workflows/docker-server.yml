@@ -1,16 +1,6 @@
 name: docker-server
 
 on:
-  push:
-    branches: [main]
-    tags:
-      - 'v*'
-    paths:
-      - 'Dockerfile.server'
-      - '.dockerignore'
-      - 'server/**'
-      - 'web/**'
-      - '.github/workflows/docker-server.yml'
   workflow_dispatch:
     inputs:
       image:

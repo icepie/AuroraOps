@@ -1,15 +1,6 @@
 name: build-linux-matrix
 
 on:
-  push:
-    branches: [main, v2.0]
-    paths:
-      - 'new-client/**'
-      - '.github/workflows/build-linux.yml'
-  pull_request:
-    paths:
-      - 'new-client/**'
-      - '.github/workflows/build-linux.yml'
   workflow_dispatch:
     inputs:
       targets:

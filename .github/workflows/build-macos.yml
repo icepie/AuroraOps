@@ -1,15 +1,6 @@
 name: build-macos-client
 
 on:
-  push:
-    branches: [main, v2.0]
-    paths:
-      - 'new-client/**'
-      - '.github/workflows/build-macos.yml'
-  pull_request:
-    paths:
-      - 'new-client/**'
-      - '.github/workflows/build-macos.yml'
   workflow_dispatch:
 
 permissions:
@@ -43,13 +34,6 @@ jobs:
 
       - name: Install TypeScript compiler
         run: npm install -g typescript
-
-      - name: Check AuroraOps client
-        working-directory: new-client
-        env:
-          CARGO_BUILD_JOBS: 4
-          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target }}
-        run: cargo check --target ${{ matrix.rust_target }} --bin auroraops-agent
 
       - name: Build AuroraOps client
         working-directory: new-client

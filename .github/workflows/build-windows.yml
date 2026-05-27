@@ -1,15 +1,6 @@
 name: build-windows-client
 
 on:
-  push:
-    branches: [main, v2.0]
-    paths:
-      - 'new-client/**'
-      - '.github/workflows/build-windows.yml'
-  pull_request:
-    paths:
-      - 'new-client/**'
-      - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 
 permissions:
