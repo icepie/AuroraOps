@@ -17,6 +17,7 @@ type OpsDeviceUpdateFields struct {
 	Name         string `json:"name"       dc:"设备名称"`
 	Hostname     string `json:"hostname"   dc:"主机名"`
 	Ip           string `json:"ip"         dc:"IP地址"`
+	MacAddress   string `json:"macAddress" dc:"MAC地址"`
 	DeviceType   string `json:"deviceType" dc:"设备类型"`
 	OsName       string `json:"osName"     dc:"操作系统"`
 	Architecture string `json:"architecture" dc:"系统架构"`
@@ -31,6 +32,7 @@ type OpsDeviceInsertFields struct {
 	Name         string `json:"name"       dc:"设备名称"`
 	Hostname     string `json:"hostname"   dc:"主机名"`
 	Ip           string `json:"ip"         dc:"IP地址"`
+	MacAddress   string `json:"macAddress" dc:"MAC地址"`
 	DeviceType   string `json:"deviceType" dc:"设备类型"`
 	OsName       string `json:"osName"     dc:"操作系统"`
 	Architecture string `json:"architecture" dc:"系统架构"`
@@ -92,6 +94,7 @@ type OpsDeviceListInp struct {
 	Name       string        `json:"name"       dc:"设备名称"`
 	Hostname   string        `json:"hostname"   dc:"主机名"`
 	Ip         string        `json:"ip"         dc:"IP地址"`
+	MacAddress string        `json:"macAddress" dc:"MAC地址"`
 	DeviceType string        `json:"deviceType" dc:"设备类型"`
 	Status     int           `json:"status"     dc:"状态"`
 	CreatedAt  []*gtime.Time `json:"createdAt"  dc:"创建时间"`
@@ -108,6 +111,7 @@ type OpsDeviceListModel struct {
 	Name              string                `json:"name"       dc:"设备名称"`
 	Hostname          string                `json:"hostname"   dc:"主机名"`
 	Ip                string                `json:"ip"         dc:"IP地址"`
+	MacAddress        string                `json:"macAddress" dc:"MAC地址"`
 	DeviceType        string                `json:"deviceType" dc:"设备类型"`
 	OsName            string                `json:"osName"     dc:"操作系统"`
 	Architecture      string                `json:"architecture" dc:"系统架构"`
@@ -196,6 +200,7 @@ type OpsDeviceClientRegisterInp struct {
 	Name         string `json:"name"       dc:"设备名称"`
 	Hostname     string `json:"hostname"   dc:"主机名"`
 	Ip           string `json:"ip"         dc:"IP地址"`
+	MacAddress   string `json:"macAddress" dc:"MAC地址"`
 	DeviceType   string `json:"deviceType" dc:"设备类型"`
 	OsName       string `json:"osName"     dc:"操作系统"`
 	Architecture string `json:"architecture" dc:"系统架构"`
@@ -220,6 +225,7 @@ type OpsDeviceClientRegisterModel struct {
 	Name       string `json:"name"       dc:"设备名称"`
 	Hostname   string `json:"hostname"   dc:"主机名"`
 	Ip         string `json:"ip"         dc:"IP地址"`
+	MacAddress string `json:"macAddress" dc:"MAC地址"`
 	Created    bool   `json:"created"    dc:"是否新建设备"`
 	CreatedAt  string `json:"createdAt"  dc:"创建结果"`
 	Token      string `json:"token"      dc:"设备接入令牌"`
@@ -230,6 +236,7 @@ type OpsDeviceClientHeartbeatInp struct {
 	Id           uint64 `json:"id"       dc:"设备ID"`
 	Hostname     string `json:"hostname" dc:"主机名"`
 	Ip           string `json:"ip"       dc:"IP地址"`
+	MacAddress   string `json:"macAddress" dc:"MAC地址"`
 	OsName       string `json:"osName"   dc:"操作系统"`
 	Architecture string `json:"architecture" dc:"系统架构"`
 }
@@ -254,4 +261,32 @@ type OpsDeviceTcpLoginModel struct {
 	Name        string `json:"name"       dc:"设备名称"`
 	Hostname    string `json:"hostname"   dc:"主机名"`
 	ConnectedAt string `json:"connectedAt" dc:"连接时间"`
+}
+
+type OpsDeviceWakeInp struct {
+	Id         uint64 `json:"id"         v:"required#设备ID不能为空" dc:"设备ID"`
+	MacAddress string `json:"macAddress" dc:"MAC地址"`
+	Broadcast  string `json:"broadcast"  dc:"广播地址"`
+	Port       int    `json:"port"       dc:"UDP端口"`
+	Repeat     int    `json:"repeat"     dc:"重复发送次数"`
+}
+
+func (in *OpsDeviceWakeInp) Filter(ctx context.Context) (err error) {
+	if in.Id == 0 {
+		return gerror.New("设备ID不能为空")
+	}
+	if in.Port < 0 || in.Port > 65535 {
+		return gerror.New("WOL端口不正确")
+	}
+	if in.Repeat < 0 || in.Repeat > 10 {
+		return gerror.New("重复次数不能超过10次")
+	}
+	return
+}
+
+type OpsDeviceWakeModel struct {
+	Id         uint64   `json:"id"         dc:"设备ID"`
+	MacAddress string   `json:"macAddress" dc:"MAC地址"`
+	Targets    []string `json:"targets"    dc:"发送目标"`
+	Packets    int      `json:"packets"    dc:"发送包数"`
 }

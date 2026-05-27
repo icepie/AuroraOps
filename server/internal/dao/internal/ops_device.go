@@ -26,6 +26,7 @@ type OpsDeviceColumns struct {
 	Name              string // 设备名称
 	Hostname          string // 主机名
 	Ip                string // IP地址
+	MacAddress        string // MAC地址
 	DeviceType        string // 设备类型
 	OsName            string // 操作系统
 	Architecture      string // 系统架构
@@ -47,6 +48,7 @@ var opsDeviceColumns = OpsDeviceColumns{
 	Name:              "name",
 	Hostname:          "hostname",
 	Ip:                "ip",
+	MacAddress:        "mac_address",
 	DeviceType:        "device_type",
 	OsName:            "os_name",
 	Architecture:      "architecture",

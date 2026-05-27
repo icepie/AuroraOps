@@ -426,6 +426,8 @@ type (
 		View(ctx context.Context, in *sysin.OpsDeviceViewInp) (res *sysin.OpsDeviceViewModel, err error)
 		// Status 更新运维设备状态
 		Status(ctx context.Context, in *sysin.OpsDeviceStatusInp) (err error)
+		// Wake 通过 Wake-on-LAN 发送标准 Magic Packet
+		Wake(ctx context.Context, in *sysin.OpsDeviceWakeInp) (res *sysin.OpsDeviceWakeModel, err error)
 		// Option 获取运维设备选项
 		Option(ctx context.Context) (opts []*model.Option, err error)
 		// ClientRegister 客户端检查连接并自动注册设备

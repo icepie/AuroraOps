@@ -77,6 +77,11 @@
                 </label>
                 <label>最小压感阈值<br><input type="range" id="min_pressure" min="0" max="1" step="0.01"
                         value="0" /></label>
+                <div class="input-capture-group">
+                    <button id="keyboard_capture_toggle" title="Ctrl+Alt+Shift+K">捕获键盘</button>
+                    <button id="pointer_capture_toggle" title="Ctrl+Alt+Shift+K">捕获鼠标</button>
+                    <button id="input_capture_toggle" title="Ctrl+Alt+Shift+K">同时捕获</button>
+                </div>
                 <button id="custom_input_areas" {{#if (not enable_custom_input_areas)}}class="hide" {{/if}}>自定义输入区域</button>
                 <label {{#if (not enable_custom_input_areas)}}class="hide" {{/if}}><input type="checkbox"
                         id="enable_custom_input_areas" /> <span>启用自定义输入区域</span></label>

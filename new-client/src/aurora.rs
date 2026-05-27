@@ -1163,6 +1163,7 @@ struct RegisterRequest {
     name: String,
     hostname: String,
     ip: String,
+    mac_address: String,
     device_type: String,
     os_name: String,
     architecture: String,
@@ -1184,6 +1185,7 @@ struct HeartbeatRequest {
     id: u64,
     hostname: String,
     ip: String,
+    mac_address: String,
     os_name: String,
     architecture: String,
 }
@@ -1691,10 +1693,12 @@ fn register_device(
     ip: &str,
 ) -> Result<AgentConfig, BoxError> {
     let os_name = detect_os_name();
+    let mac_address = detect_primary_mac(ip);
     let req = RegisterRequest {
         name: cfg.device_name.clone(),
         hostname: hostname.to_string(),
         ip: ip.to_string(),
+        mac_address,
         device_type: detect_device_type(),
         os_name,
         architecture: std::env::consts::ARCH.to_string(),
@@ -1739,10 +1743,12 @@ fn post_heartbeat(client: &reqwest::blocking::Client, cfg: &AgentConfig) {
     if cfg.device_id == 0 {
         return;
     }
+    let ip = detect_ip();
     let req = HeartbeatRequest {
         id: cfg.device_id,
         hostname: cfg.hostname.clone(),
-        ip: detect_ip(),
+        ip: ip.clone(),
+        mac_address: detect_primary_mac(&ip),
         os_name: detect_os_name(),
         architecture: std::env::consts::ARCH.to_string(),
     };
@@ -4339,6 +4345,28 @@ fn detect_ip() -> String {
             socket.local_addr()
         })
         .map(|addr| addr.ip().to_string())
+        .unwrap_or_default()
+}
+
+fn detect_primary_mac(ip: &str) -> String {
+    let target_ip = ip.parse::<IpAddr>().ok();
+    let interfaces = pnet_datalink::interfaces();
+    if let Some(target_ip) = target_ip {
+        for interface in &interfaces {
+            if interface.is_loopback() || !interface.is_up() {
+                continue;
+            }
+            if interface.ips.iter().any(|network| network.ip() == target_ip) {
+                if let Some(mac) = interface.mac {
+                    return mac.to_string();
+                }
+            }
+        }
+    }
+    interfaces
+        .into_iter()
+        .filter(|interface| !interface.is_loopback() && interface.is_up())
+        .find_map(|interface| interface.mac.map(|mac| mac.to_string()))
         .unwrap_or_default()
 }
 

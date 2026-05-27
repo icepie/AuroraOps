@@ -198,7 +198,7 @@
   import { BasicForm, useForm } from '@/components/Form/index';
   import { usePermission } from '@/hooks/web/usePermission';
   import { useDictStore } from '@/store/modules/dict';
-  import { List, Delete, Status, CreateTerminal, CreateDesktop } from '@/api/opsDevice';
+  import { List, Delete, Status, Wake, CreateTerminal, CreateDesktop } from '@/api/opsDevice';
   import { Delete as DeleteGroup, List as GroupList } from '@/api/opsDeviceGroup';
   import { SocketEnum } from '@/enums/socketEnum';
   import { addOnMessage, removeOnMessage, sendMsg, WebSocketMessage } from '@/utils/websocket';
@@ -210,6 +210,7 @@
     EllipsisOutlined,
     CodeOutlined,
     DesktopOutlined,
+    ThunderboltOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
   } from '@vicons/antd';
@@ -300,6 +301,14 @@
           handleDesktop.bind(null, record),
           record.online === true ? 'primary' : 'default'
         ),
+        !record.online
+          ? renderActionButton(
+              '网络唤醒',
+              ThunderboltOutlined,
+              handleWake.bind(null, record),
+              record.macAddress ? 'primary' : 'default'
+            )
+          : null,
         options.length
           ? h(
               NDropdown,
@@ -560,6 +569,26 @@
         sessionId: res.sessionId,
         deviceId: record.id,
         name: record.name || '',
+      },
+    });
+  }
+
+  function handleWake(record: Recordable) {
+    if (!record.macAddress) {
+      message.warning('该设备没有MAC地址，无法发送网络唤醒');
+      return;
+    }
+    dialog.warning({
+      title: '网络唤醒',
+      content: `确认向“${record.name || record.hostname || record.id}”发送 Wake-on-LAN 魔术包？`,
+      positiveText: '发送',
+      negativeText: '取消',
+      onPositiveClick: () => {
+        return Wake({ id: record.id }).then((res) => {
+          const packets = Number(res?.packets || 0);
+          const targets = Array.isArray(res?.targets) ? res.targets.join('、') : '';
+          message.success(`已发送${packets ? ` ${packets} 个` : ''}唤醒包${targets ? `：${targets}` : ''}`);
+        });
       },
     });
   }

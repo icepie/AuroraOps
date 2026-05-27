@@ -17,6 +17,7 @@ type OpsDevice struct {
 	Name              any         // 设备名称
 	Hostname          any         // 主机名
 	Ip                any         // IP地址
+	MacAddress        any         // MAC地址
 	DeviceType        any         // 设备类型
 	OsName            any         // 操作系统
 	Architecture      any         // 系统架构

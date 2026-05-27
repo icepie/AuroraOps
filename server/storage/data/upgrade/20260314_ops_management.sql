@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS `hg_ops_device` (
   `name` varchar(128) NOT NULL DEFAULT '' COMMENT '设备名称',
   `hostname` varchar(128) NOT NULL DEFAULT '' COMMENT '主机名',
   `ip` varchar(64) NOT NULL DEFAULT '' COMMENT 'IP地址',
+  `mac_address` varchar(32) NOT NULL DEFAULT '' COMMENT 'MAC地址',
   `device_type` varchar(64) NOT NULL DEFAULT '' COMMENT '设备类型',
   `os_name` varchar(128) NOT NULL DEFAULT '' COMMENT '操作系统',
   `architecture` varchar(64) NOT NULL DEFAULT '' COMMENT '系统架构',
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS `hg_ops_device` (
   KEY `idx_ops_device_name` (`name`),
   KEY `idx_ops_device_hostname` (`hostname`),
   KEY `idx_ops_device_ip` (`ip`),
+  KEY `idx_ops_device_mac_address` (`mac_address`),
   KEY `idx_ops_device_status` (`status`),
   KEY `idx_ops_device_sort` (`sort`),
   KEY `idx_ops_device_deleted_at` (`deleted_at`)
@@ -57,6 +59,36 @@ SET @stmt := (
   WHERE TABLE_SCHEMA = DATABASE()
     AND TABLE_NAME = 'hg_ops_device'
     AND COLUMN_NAME = 'group_id'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `hg_ops_device` ADD COLUMN `mac_address` varchar(32) NOT NULL DEFAULT '''' COMMENT ''MAC地址'' AFTER `ip`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_device'
+    AND COLUMN_NAME = 'mac_address'
+);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @stmt := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'CREATE INDEX `idx_ops_device_mac_address` ON `hg_ops_device` (`mac_address`)',
+    'SELECT 1'
+  )
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'hg_ops_device'
+    AND INDEX_NAME = 'idx_ops_device_mac_address'
 );
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;

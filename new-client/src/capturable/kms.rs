@@ -144,9 +144,15 @@ struct ActiveOutput {
 pub struct KmsCapturable {
     device_path: String,
     connector_name: String,
+    x: u32,
+    y: u32,
     crtc_handle: crtc::Handle,
     width: u32,
     height: u32,
+    desktop_x: u32,
+    desktop_y: u32,
+    desktop_width: u32,
+    desktop_height: u32,
     fb_handle: framebuffer::Handle,
     capture_all: bool,
 }
@@ -161,7 +167,16 @@ impl Capturable for KmsCapturable {
     }
 
     fn geometry(&self) -> Result<Geometry, Box<dyn Error>> {
-        Ok(Geometry::Relative(0.0, 0.0, 1.0, 1.0))
+        if self.capture_all || self.desktop_width == 0 || self.desktop_height == 0 {
+            return Ok(Geometry::Relative(0.0, 0.0, 1.0, 1.0));
+        }
+
+        Ok(Geometry::Relative(
+            self.x.saturating_sub(self.desktop_x) as f64 / self.desktop_width as f64,
+            self.y.saturating_sub(self.desktop_y) as f64 / self.desktop_height as f64,
+            self.width as f64 / self.desktop_width as f64,
+            self.height as f64 / self.desktop_height as f64,
+        ))
     }
 
     fn before_input(&mut self) -> Result<(), Box<dyn Error>> {
@@ -224,16 +239,20 @@ fn probe_card(path: &str) -> Result<Vec<KmsCapturable>, Box<dyn Error>> {
     let card =
         KmsCard::open(path).map_err(|err| io_error(format!("Failed to open {path}: {err}")))?;
     let outputs = probe_outputs(&card)?;
+    let desktop_x = outputs.iter().map(|output| output.x).min().unwrap_or(0);
+    let desktop_y = outputs.iter().map(|output| output.y).min().unwrap_or(0);
     let desktop_width = outputs
         .iter()
         .map(|output| output.x.saturating_add(output.width))
         .max()
-        .unwrap_or(0);
+        .unwrap_or(desktop_x)
+        .saturating_sub(desktop_x);
     let desktop_height = outputs
         .iter()
         .map(|output| output.y.saturating_add(output.height))
         .max()
-        .unwrap_or(0);
+        .unwrap_or(desktop_y)
+        .saturating_sub(desktop_y);
     let mut capturables = Vec::new();
 
     if outputs.len() > 1 && desktop_width > 0 && desktop_height > 0 {
@@ -248,9 +267,15 @@ fn probe_card(path: &str) -> Result<Vec<KmsCapturable>, Box<dyn Error>> {
             capturables.push(KmsCapturable {
                 device_path: path.to_string(),
                 connector_name: "所有屏幕".to_string(),
+                x: desktop_x,
+                y: desktop_y,
                 crtc_handle: output.crtc_handle,
                 width: desktop_width,
                 height: desktop_height,
+                desktop_x,
+                desktop_y,
+                desktop_width,
+                desktop_height,
                 fb_handle: output.fb_handle,
                 capture_all: true,
             });
@@ -260,9 +285,15 @@ fn probe_card(path: &str) -> Result<Vec<KmsCapturable>, Box<dyn Error>> {
     capturables.extend(outputs.into_iter().map(|output| KmsCapturable {
         device_path: path.to_string(),
         connector_name: output.connector_name,
+        x: output.x,
+        y: output.y,
         crtc_handle: output.crtc_handle,
         width: output.width,
         height: output.height,
+        desktop_x,
+        desktop_y,
+        desktop_width,
+        desktop_height,
         fb_handle: output.fb_handle,
         capture_all: false,
     }));

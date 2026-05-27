@@ -32,6 +32,14 @@ export function Status(params) {
   });
 }
 
+export function Wake(params) {
+  return http.request({
+    url: '/opsDevice/wake',
+    method: 'POST',
+    params,
+  });
+}
+
 export function View(params) {
   return http.request({
     url: '/opsDevice/view',

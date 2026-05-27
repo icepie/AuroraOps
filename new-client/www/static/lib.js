@@ -173,8 +173,8 @@ function isEditableTarget(target) {
     const tagName = target.tagName;
     return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
 }
-function focusRemoteInputSurface() {
-    if (isEditableTarget(document.activeElement))
+function focusRemoteInputSurface(force = false) {
+    if (!force && isEditableTarget(document.activeElement))
         return;
     for (const id of ["video", "canvas"]) {
         const elem = document.getElementById(id);
@@ -192,6 +192,124 @@ function focusRemoteInputSurface() {
         }
     }
 }
+function elemForPointerLock() {
+    const canvas = document.getElementById("canvas");
+    const video = document.getElementById("video");
+    for (const elem of [canvas, video]) {
+        if (elem && !elem.classList.contains("vanish"))
+            return elem;
+    }
+    return canvas || video || document.body;
+}
+function isPointerLocked() {
+    return document.pointerLockElement === elemForPointerLock();
+}
+function requestPointerLock() {
+    const elem = elemForPointerLock();
+    if (!elem || document.pointerLockElement === elem)
+        return;
+    try {
+        elem.requestPointerLock();
+    }
+    catch (_err) { }
+}
+function requestKeyboardLock() {
+    if (!navigator.keyboard?.lock)
+        return false;
+    navigator.keyboard.lock().then(() => {
+        if (inputCapture)
+            inputCapture.keyboardLockRequested = true;
+        if (keyboard_backend_out)
+            keyboard_backend_out.value = "keyboard lock active";
+    }).catch((err) => {
+        if (inputCapture)
+            inputCapture.keyboardLockRequested = false;
+        log(LogLevel.DEBUG, "Keyboard lock failed: " + err);
+    });
+    return true;
+}
+function releaseKeyboardLock() {
+    try {
+        navigator.keyboard?.unlock?.();
+    }
+    catch (_err) { }
+}
+class InputCaptureState {
+    constructor() {
+        this.keyboard = false;
+        this.pointer = false;
+        this.onKeyboardRelease = () => { };
+        this.keyboardLockRequested = false;
+        this.keyboardButton = document.getElementById("keyboard_capture_toggle");
+        this.pointerButton = document.getElementById("pointer_capture_toggle");
+        this.bothButton = document.getElementById("input_capture_toggle");
+        if (this.keyboardButton)
+            this.keyboardButton.onclick = (e) => { this.handleButton(e, !this.keyboard, this.pointer); };
+        if (this.pointerButton)
+            this.pointerButton.onclick = (e) => { this.handleButton(e, this.keyboard, !this.pointer); };
+        if (this.bothButton)
+            this.bothButton.onclick = (e) => { this.handleButton(e, !(this.keyboard && this.pointer), !(this.keyboard && this.pointer)); };
+        document.addEventListener("pointerlockchange", () => {
+            if (this.pointer && document.pointerLockElement !== elemForPointerLock())
+                this.set(this.keyboard, false);
+        });
+        document.addEventListener("pointerlockerror", () => {
+            if (this.pointer)
+                this.set(this.keyboard, false);
+        });
+        this.updateButtons();
+    }
+    handleButton(event, keyboard, pointer) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.set(keyboard, pointer);
+    }
+    set(keyboard, pointer) {
+        if (!keyboard && this.keyboard)
+            this.onKeyboardRelease();
+        if (!keyboard) {
+            releaseKeyboardLock();
+            this.keyboardLockRequested = false;
+        }
+        this.keyboard = keyboard;
+        this.pointer = pointer;
+        this.updateButtons();
+        focusRemoteInputSurface(keyboard || pointer);
+        if (keyboard && !this.keyboardLockRequested)
+            this.keyboardLockRequested = requestKeyboardLock();
+        if (pointer)
+            requestPointerLock();
+        else if (document.pointerLockElement)
+            document.exitPointerLock();
+        if (keyboard_backend_out)
+            keyboard_backend_out.value = this.label();
+    }
+    releaseAll() {
+        this.set(false, false);
+    }
+    label() {
+        if (this.keyboard && this.pointer)
+            return "capture keyboard+mouse";
+        if (this.keyboard)
+            return "capture keyboard";
+        if (this.pointer)
+            return "capture mouse";
+        return "capture off";
+    }
+    updateButtons() {
+        this.updateButton(this.keyboardButton, this.keyboard, this.keyboard ? "键盘已捕获" : "捕获键盘");
+        this.updateButton(this.pointerButton, this.pointer, this.pointer ? "鼠标已捕获" : "捕获鼠标");
+        this.updateButton(this.bothButton, this.keyboard && this.pointer, this.keyboard && this.pointer ? "全部已捕获" : "同时捕获");
+    }
+    updateButton(button, active, text) {
+        if (!button)
+            return;
+        button.textContent = text;
+        button.classList.toggle("active", active);
+        button.title = "Ctrl+Alt+Shift+K";
+    }
+}
+let inputCapture;
 class Rect {
 }
 class CustomInputAreas {
@@ -305,7 +423,10 @@ class Settings {
         document.getElementById("custom_input_areas").onclick = () => {
             this.webSocket.send('"ChooseCustomInputAreas"');
         };
-        this.capturable_select.onchange = () => this.send_server_config();
+        this.capturable_select.onchange = () => {
+            this.send_server_config();
+            focusRemoteInputSurface(inputCapture?.keyboard || inputCapture?.pointer);
+        };
     }
     send_server_config() {
         if (this.capturable_select.value === "")
@@ -489,7 +610,7 @@ let settings;
 let debug_overlay;
 let last_pointer_data;
 class PEvent {
-    constructor(eventType, event, targetRect) {
+    constructor(eventType, event, targetRect, lockedPoint) {
         let diag_len = Math.sqrt(targetRect.width * targetRect.width + targetRect.height * targetRect.height);
         this.event_type = eventType.toString();
         this.pointer_id = event.pointerId;
@@ -527,8 +648,14 @@ class PEvent {
                 y_offset = custom_input_area.y;
             }
         }
-        this.x = (event.clientX - targetRect.left) / targetRect.width * x_scale + x_offset;
-        this.y = (event.clientY - targetRect.top) / targetRect.height * y_scale + y_offset;
+        if (lockedPoint) {
+            this.x = lockedPoint[0] * x_scale + x_offset;
+            this.y = lockedPoint[1] * y_scale + y_offset;
+        }
+        else {
+            this.x = (event.clientX - targetRect.left) / targetRect.width * x_scale + x_offset;
+            this.y = (event.clientY - targetRect.top) / targetRect.height * y_scale + y_offset;
+        }
         [this.x, this.y] = transform_video_point(this.x, this.y, get_input_rotation());
         this.movement_x = event.movementX ? event.movementX : 0;
         this.movement_y = event.movementY ? event.movementY : 0;
@@ -712,11 +839,13 @@ class Painter {
 }
 class PointerHandler {
     constructor(webSocket) {
+        this.lockedMouseX = null;
+        this.lockedMouseY = null;
         let video = document.getElementById("video");
         let canvas = document.getElementById("canvas");
         this.webSocket = webSocket;
         this.pointerTypes = settings.pointer_types();
-        focusRemoteInputSurface();
+        focusRemoteInputSurface(inputCapture?.pointer);
         video.onpointerdown = (e) => this.onEvent(e, "pointerdown");
         video.onpointerup = (e) => this.onEvent(e, "pointerup");
         video.onpointercancel = (e) => this.onEvent(e, "pointercancel");
@@ -760,6 +889,21 @@ class PointerHandler {
                 this.webSocket.send(JSON.stringify({ "WheelEvent": new WEvent(e) }));
             }, { passive: false });
         }
+    }
+    lockedMousePoint(event, eventType, rect) {
+        if (!inputCapture?.pointer || !isPointerLocked() || event.pointerType !== "mouse")
+            return undefined;
+        if (this.lockedMouseX === null || this.lockedMouseY === null || eventType !== "pointermove") {
+            this.lockedMouseX = (event.clientX - rect.left) / rect.width;
+            this.lockedMouseY = (event.clientY - rect.top) / rect.height;
+        }
+        else {
+            this.lockedMouseX += event.movementX / rect.width;
+            this.lockedMouseY += event.movementY / rect.height;
+        }
+        this.lockedMouseX = Math.max(0, Math.min(1, this.lockedMouseX));
+        this.lockedMouseY = Math.max(0, Math.min(1, this.lockedMouseY));
+        return [this.lockedMouseX, this.lockedMouseY];
     }
     onEvent(event, event_type) {
         if (!socketOpen(this.webSocket)) {
@@ -828,7 +972,9 @@ class PointerHandler {
             }
         }
         if (this.pointerTypes.includes(event.pointerType)) {
-            focusRemoteInputSurface();
+            focusRemoteInputSurface(inputCapture?.pointer);
+            if (inputCapture?.pointer && event_type === "pointerdown")
+                requestPointerLock();
             const currentTarget = event.currentTarget;
             let rect = currentTarget.getBoundingClientRect();
             const events = event_type === "pointermove" ? getPointerEvents(event) : [event];
@@ -843,8 +989,9 @@ class PointerHandler {
                 pointer_backend_out.value = `web send #${pointer_event_count} ${event_type} type=${event.pointerType} button=${event.button} buttons=${event.buttons} x=${event.x.toFixed(0)} y=${event.y.toFixed(0)}`;
             }
             for (let event of events) {
+                const lockedPoint = this.lockedMousePoint(event, event_type, rect);
                 this.webSocket.send(JSON.stringify({
-                    "PointerEvent": new PEvent(event_type, event, rect)
+                    "PointerEvent": new PEvent(event_type, event, rect, lockedPoint)
                 }));
             }
             event.preventDefault();
@@ -875,23 +1022,23 @@ class TextInputEventMessage {
 class KeyboardHandler {
     constructor(webSocket) {
         this.webSocket = webSocket;
-        // Consume KeyboardEvents globally. Keep only form editing local so the
-        // settings panel can stay open while keyboard input still reaches the
-        // controlled desktop.
+        this.heldKeys = new Map();
+        this.composing = false;
+        if (inputCapture)
+            inputCapture.onKeyboardRelease = () => this.releaseHeldKeys();
         function should_keep_local(event) {
             return isEditableTarget(event.target);
         }
-        function already_handled(event) {
-            const marker = "__auroraops_keyboard_handled";
-            if (event[marker])
-                return true;
-            event[marker] = true;
-            return false;
-        }
         const handleKeyDown = (e) => {
-            if (already_handled(e))
+            if (this.isReleaseChord(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                inputCapture?.releaseAll();
                 return;
-            if (should_keep_local(e))
+            }
+            if (!inputCapture?.keyboard && should_keep_local(e))
+                return;
+            if (!inputCapture?.keyboard && (e.isComposing || this.composing || e.key === "Process"))
                 return;
             if (e.repeat)
                 this.onEvent(e, "repeat");
@@ -899,22 +1046,36 @@ class KeyboardHandler {
                 this.onEvent(e, "down");
         };
         const handleKeyUp = (e) => {
-            if (already_handled(e))
+            if (!inputCapture?.keyboard && should_keep_local(e))
                 return;
-            if (should_keep_local(e))
+            if (!inputCapture?.keyboard && e.key === "Process")
                 return;
             this.onEvent(e, "up");
         };
         const handleKeyPress = (e) => {
-            if (already_handled(e))
-                return;
-            if (should_keep_local(e))
+            if (!inputCapture?.keyboard && should_keep_local(e))
                 return;
             e.preventDefault();
             e.stopPropagation();
         };
+        const handleBeforeInput = (e) => {
+            if (!inputCapture?.keyboard && isEditableTarget(e.target))
+                return;
+            if (inputCapture?.keyboard) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            if (e.inputType !== "insertText" && e.inputType !== "insertLineBreak")
+                return;
+            const text = e.inputType === "insertLineBreak" ? "\n" : e.data;
+            if (text)
+                this.flushTextInput(text);
+            e.preventDefault();
+            e.stopPropagation();
+        };
         const handlePaste = (e) => {
-            if (isEditableTarget(e.target))
+            if (!inputCapture?.keyboard && isEditableTarget(e.target))
                 return;
             const text = e.clipboardData?.getData("text") || "";
             if (!text)
@@ -923,17 +1084,51 @@ class KeyboardHandler {
             e.preventDefault();
             e.stopPropagation();
         };
+        const handleCompositionStart = () => {
+            this.composing = true;
+        };
+        const handleCompositionEnd = (e) => {
+            this.composing = false;
+            if (!inputCapture?.keyboard && isEditableTarget(e.target))
+                return;
+            if (inputCapture?.keyboard) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            if (e.data)
+                this.flushTextInput(e.data);
+            e.preventDefault();
+            e.stopPropagation();
+        };
         window.addEventListener("focus", () => focusRemoteInputSurface(), true);
+        window.addEventListener("blur", () => this.releaseHeldKeys(), true);
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden)
+                this.releaseHeldKeys();
+        }, true);
         document.addEventListener("pointerdown", () => focusRemoteInputSurface(), true);
         window.addEventListener("keydown", handleKeyDown, true);
         window.addEventListener("keyup", handleKeyUp, true);
         window.addEventListener("keypress", handleKeyPress, true);
+        window.addEventListener("beforeinput", handleBeforeInput, true);
         window.addEventListener("paste", handlePaste, true);
-        document.addEventListener("keydown", handleKeyDown, true);
-        document.addEventListener("keyup", handleKeyUp, true);
-        document.addEventListener("keypress", handleKeyPress, true);
-        document.addEventListener("paste", handlePaste, true);
+        window.addEventListener("compositionstart", handleCompositionStart, true);
+        window.addEventListener("compositionend", handleCompositionEnd, true);
         focusRemoteInputSurface();
+    }
+    isReleaseChord(event) {
+        return (inputCapture?.keyboard || inputCapture?.pointer)
+            && event.code === "KeyK"
+            && event.ctrlKey
+            && event.altKey
+            && event.shiftKey;
+    }
+    keyId(event) {
+        return `${event.code}:${event.location}`;
+    }
+    sendKeyboardEvent(event) {
+        this.webSocket.send(JSON.stringify({ "KeyboardEvent": event }));
     }
     flushTextInput(text) {
         if (!text)
@@ -950,18 +1145,38 @@ class KeyboardHandler {
         }
         this.webSocket.send(JSON.stringify({ "TextInputEvent": new TextInputEventMessage(text) }));
     }
+    releaseHeldKeys() {
+        if (this.heldKeys.size === 0 || !socketOpen(this.webSocket)) {
+            this.heldKeys.clear();
+            return;
+        }
+        for (const held of this.heldKeys.values()) {
+            const up = Object.assign(Object.create(KEvent.prototype), held);
+            up.event_type = "up";
+            this.sendKeyboardEvent(up);
+        }
+        this.heldKeys.clear();
+        if (keyboard_backend_out)
+            keyboard_backend_out.value = "web released held keys";
+    }
     onEvent(event, event_type) {
         if (!socketOpen(this.webSocket)) {
             if (keyboard_backend_out)
                 keyboard_backend_out.value = `websocket ${socketStateLabel(this.webSocket)}，键盘事件未发送`;
             return false;
         }
-        focusRemoteInputSurface();
+        focusRemoteInputSurface(inputCapture?.keyboard);
         keyboard_event_count += 1;
+        const kEvent = new KEvent(event_type, event);
+        const keyId = this.keyId(kEvent);
+        if (event_type === "down")
+            this.heldKeys.set(keyId, kEvent);
+        else if (event_type === "up")
+            this.heldKeys.delete(keyId);
         if (keyboard_backend_out) {
             keyboard_backend_out.value = `web send #${keyboard_event_count} ${event_type} code=${event.code} key=${event.key}`;
         }
-        this.webSocket.send(JSON.stringify({ "KeyboardEvent": new KEvent(event_type, event) }));
+        this.sendKeyboardEvent(kEvent);
         event.preventDefault();
         event.stopPropagation();
         return false;
@@ -1109,6 +1324,8 @@ function init() {
     webSocket.binaryType = "arraybuffer";
     debug_overlay = document.getElementById("debug_overlay");
     settings = new Settings(webSocket);
+    inputCapture = new InputCaptureState();
+    inputCapture.set(true, false);
     let video = document.getElementById("video");
     let canvas = document.getElementById("canvas");
     video.oncontextmenu = function (event) {

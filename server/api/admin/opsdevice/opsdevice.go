@@ -57,6 +57,15 @@ type StatusReq struct {
 
 type StatusRes struct{}
 
+type WakeReq struct {
+	g.Meta `path:"/opsDevice/wake" method:"post" tags:"运维设备" summary:"通过 Wake-on-LAN 唤醒设备"`
+	sysin.OpsDeviceWakeInp
+}
+
+type WakeRes struct {
+	*sysin.OpsDeviceWakeModel
+}
+
 type OptionReq struct {
 	g.Meta `path:"/opsDevice/option" method:"get" tags:"运维设备" summary:"获取运维设备选项"`
 }

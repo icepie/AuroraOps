@@ -162,6 +162,16 @@ func (c *cOpsDevice) Status(ctx context.Context, req *opsdevice.StatusReq) (res 
 	return
 }
 
+func (c *cOpsDevice) Wake(ctx context.Context, req *opsdevice.WakeReq) (res *opsdevice.WakeRes, err error) {
+	data, err := service.SysOpsDevice().Wake(ctx, &req.OpsDeviceWakeInp)
+	if err != nil {
+		return nil, err
+	}
+	res = new(opsdevice.WakeRes)
+	res.OpsDeviceWakeModel = data
+	return
+}
+
 func (c *cOpsDevice) Option(ctx context.Context, req *opsdevice.OptionReq) (res opsdevice.OptionRes, err error) {
 	data, err := service.SysOpsDevice().Option(ctx)
 	if err != nil {

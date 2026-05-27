@@ -69,6 +69,7 @@ export class State {
   public name = '';
   public hostname = '';
   public ip = '';
+  public macAddress = '';
   public deviceType = 'physical';
   public osName = '';
   public architecture = '';
@@ -150,6 +151,14 @@ export const schemas = ref<FormSchema[]>([
     label: 'IP地址',
     componentProps: {
       placeholder: '请输入IP地址',
+    },
+  },
+  {
+    field: 'macAddress',
+    component: 'NInput',
+    label: 'MAC地址',
+    componentProps: {
+      placeholder: '请输入MAC地址',
     },
   },
   {
@@ -628,6 +637,15 @@ export const columns = [
     key: 'ip',
     align: 'left',
     width: 160,
+  },
+  {
+    title: 'MAC地址',
+    key: 'macAddress',
+    align: 'left',
+    width: 170,
+    render(row: State) {
+      return h('span', {}, row.macAddress || '-');
+    },
   },
   {
     title: '设备类型',

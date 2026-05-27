@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -29,6 +30,10 @@ import (
 )
 
 type sSysOpsDevice struct{}
+
+type opsDeviceSchema struct {
+	HasMacAddress bool
+}
 
 func NewSysOpsDevice() *sSysOpsDevice {
 	return &sSysOpsDevice{}
@@ -43,6 +48,29 @@ func (s *sSysOpsDevice) Model(ctx context.Context, option ...*handler.Option) *g
 }
 
 func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (list []*sysin.OpsDeviceListModel, totalCount int, err error) {
+	schema, err := s.deviceSchema(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	fields := []any{
+		"d.id",
+		"d.group_id",
+		"g.name as group_name",
+		"d.name",
+		"d.hostname",
+		"d.ip",
+		"d.device_type",
+		"d.os_name",
+		"COALESCE(NULLIF(d.architecture, ''), host_asset.model) as architecture",
+		"d.location",
+		"d.monitor_snapshot",
+		"d.monitor_reported_at",
+		"d.status",
+		"d.created_at",
+	}
+	if schema.HasMacAddress {
+		fields = append(fields, "d.mac_address")
+	}
 	mod := s.Model(ctx).As("d").
 		LeftJoin(
 			fmt.Sprintf("%s g", dao.OpsDeviceGroup.Table()),
@@ -52,22 +80,7 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 			fmt.Sprintf("%s host_asset", dao.OpsAsset.Table()),
 			"host_asset.device_id = d.id AND host_asset.asset_type = 'host' AND host_asset.deleted_at IS NULL AND host_asset.status = 1",
 		).
-		Fields(
-			"d.id",
-			"d.group_id",
-			"g.name as group_name",
-			"d.name",
-			"d.hostname",
-			"d.ip",
-			"d.device_type",
-			"d.os_name",
-			"COALESCE(NULLIF(d.architecture, ''), host_asset.model) as architecture",
-			"d.location",
-			"d.monitor_snapshot",
-			"d.monitor_reported_at",
-			"d.status",
-			"d.created_at",
-		)
+		Fields(fields...)
 
 	if in.Id > 0 {
 		mod = mod.Where("d."+dao.OpsDevice.Columns().Id, in.Id)
@@ -85,6 +98,9 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 	}
 	if in.Ip != "" {
 		mod = mod.WhereLike("d."+dao.OpsDevice.Columns().Ip, "%"+in.Ip+"%")
+	}
+	if schema.HasMacAddress && in.MacAddress != "" {
+		mod = mod.WhereLike("d."+dao.OpsDevice.Columns().MacAddress, "%"+in.MacAddress+"%")
 	}
 	if in.DeviceType != "" {
 		mod = mod.Where("d."+dao.OpsDevice.Columns().DeviceType, in.DeviceType)
@@ -109,6 +125,9 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 		}
 		_, item.Online = onlineSet[item.Id]
 		s.normalizeDeviceListFields(item)
+		if item.MacAddress == "" {
+			item.MacAddress = s.findDeviceNetworkMac(ctx, item.Id)
+		}
 	}
 	return
 }
@@ -169,6 +188,10 @@ func isArchitectureValue(value string) bool {
 }
 
 func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (err error) {
+	schema, err := s.deviceSchema(ctx)
+	if err != nil {
+		return err
+	}
 	if in.GroupId > 0 {
 		exists, countErr := dao.OpsDeviceGroup.Ctx(ctx).WherePri(in.GroupId).Count()
 		if countErr != nil {
@@ -184,6 +207,7 @@ func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (e
 		Name:         in.Name,
 		Hostname:     in.Hostname,
 		Ip:           in.Ip,
+		MacAddress:   normalizeMacAddress(in.MacAddress),
 		DeviceType:   normalizeDeviceType(in.DeviceType),
 		OsName:       in.OsName,
 		Architecture: normalizeDeviceArchitecture(in.Architecture),
@@ -196,7 +220,7 @@ func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (e
 	return g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) (err error) {
 		if in.Id > 0 {
 			if _, err = s.Model(ctx).
-				Fields(sysin.OpsDeviceUpdateFields{}).
+				Fields(s.deviceUpdateFields(schema)...).
 				WherePri(in.Id).
 				Data(data).
 				Update(); err != nil {
@@ -206,7 +230,7 @@ func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (e
 		}
 
 		if _, err = s.Model(ctx, &handler.Option{FilterAuth: false}).
-			Fields(sysin.OpsDeviceInsertFields{}).
+			Fields(s.deviceInsertFields(schema)...).
 			Data(data).
 			OmitEmptyData().
 			Insert(); err != nil {
@@ -246,8 +270,19 @@ func (s *sSysOpsDevice) MaxSort(ctx context.Context, in *sysin.OpsDeviceMaxSortI
 }
 
 func (s *sSysOpsDevice) View(ctx context.Context, in *sysin.OpsDeviceViewInp) (res *sysin.OpsDeviceViewModel, err error) {
-	if err = s.Model(ctx).WherePri(in.Id).Scan(&res); err != nil {
+	schema, err := s.deviceSchema(ctx)
+	if err != nil {
+		return nil, err
+	}
+	mod := s.Model(ctx).WherePri(in.Id)
+	if !schema.HasMacAddress {
+		mod = mod.FieldsEx(dao.OpsDevice.Columns().MacAddress)
+	}
+	if err = mod.Scan(&res); err != nil {
 		return nil, gerror.Wrap(err, "获取运维设备信息失败，请稍后重试！")
+	}
+	if res != nil && strings.TrimSpace(res.MacAddress) == "" {
+		res.MacAddress = s.findDeviceNetworkMac(ctx, res.Id)
 	}
 	return
 }
@@ -260,6 +295,289 @@ func (s *sSysOpsDevice) Status(ctx context.Context, in *sysin.OpsDeviceStatusInp
 		return gerror.Wrap(err, "更新运维设备状态失败，请稍后重试！")
 	}
 	return nil
+}
+
+func (s *sSysOpsDevice) deviceSchema(ctx context.Context) (opsDeviceSchema, error) {
+	fields, err := dao.OpsDevice.Ctx(ctx).TableFields(dao.OpsDevice.Table())
+	if err != nil {
+		return opsDeviceSchema{}, gerror.Wrap(err, "读取设备表结构失败，请稍后重试！")
+	}
+	return opsDeviceSchema{
+		HasMacAddress: hasTableField(fields, dao.OpsDevice.Columns().MacAddress),
+	}, nil
+}
+
+func (s *sSysOpsDevice) deviceBaseWriteFields(schema opsDeviceSchema) []any {
+	fields := []any{
+		dao.OpsDevice.Columns().GroupId,
+		dao.OpsDevice.Columns().Name,
+		dao.OpsDevice.Columns().Hostname,
+		dao.OpsDevice.Columns().Ip,
+		dao.OpsDevice.Columns().DeviceType,
+		dao.OpsDevice.Columns().OsName,
+		dao.OpsDevice.Columns().Architecture,
+		dao.OpsDevice.Columns().Location,
+		dao.OpsDevice.Columns().Sort,
+		dao.OpsDevice.Columns().Remark,
+		dao.OpsDevice.Columns().Status,
+	}
+	if schema.HasMacAddress {
+		fields = append(fields, dao.OpsDevice.Columns().MacAddress)
+	}
+	return fields
+}
+
+func (s *sSysOpsDevice) deviceUpdateFields(schema opsDeviceSchema) []any {
+	return s.deviceBaseWriteFields(schema)
+}
+
+func (s *sSysOpsDevice) deviceInsertFields(schema opsDeviceSchema) []any {
+	return s.deviceBaseWriteFields(schema)
+}
+
+func (s *sSysOpsDevice) deviceRegisterFields(schema opsDeviceSchema) []any {
+	fields := []any{
+		dao.OpsDevice.Columns().Name,
+		dao.OpsDevice.Columns().Hostname,
+		dao.OpsDevice.Columns().Ip,
+		dao.OpsDevice.Columns().DeviceType,
+		dao.OpsDevice.Columns().OsName,
+		dao.OpsDevice.Columns().Architecture,
+	}
+	if schema.HasMacAddress {
+		fields = append(fields, dao.OpsDevice.Columns().MacAddress)
+	}
+	return fields
+}
+
+func (s *sSysOpsDevice) deviceHeartbeatFields(schema opsDeviceSchema) []any {
+	fields := []any{
+		dao.OpsDevice.Columns().Hostname,
+		dao.OpsDevice.Columns().Ip,
+		dao.OpsDevice.Columns().OsName,
+		dao.OpsDevice.Columns().Architecture,
+		dao.OpsDevice.Columns().Status,
+	}
+	if schema.HasMacAddress {
+		fields = append(fields, dao.OpsDevice.Columns().MacAddress)
+	}
+	return fields
+}
+
+func (s *sSysOpsDevice) findDeviceNetworkMac(ctx context.Context, deviceID uint64) string {
+	if deviceID == 0 {
+		return ""
+	}
+	var assets []*entity.OpsAsset
+	if err := dao.OpsAsset.Ctx(ctx).
+		Where(dao.OpsAsset.Columns().DeviceId, deviceID).
+		Where(dao.OpsAsset.Columns().AssetType, "network").
+		Where(dao.OpsAsset.Columns().Status, consts.StatusEnabled).
+		OrderDesc(dao.OpsAsset.Columns().LastSeenAt).
+		OrderDesc(dao.OpsAsset.Columns().Id).
+		Limit(16).
+		Scan(&assets); err != nil {
+		return ""
+	}
+	for _, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		if mac := normalizeMacAddress(firstMacCandidate(
+			asset.SerialNo,
+			asset.Model,
+			asset.Specification,
+			asset.UniqueKey,
+			asset.Remark,
+		)); mac != "" {
+			return mac
+		}
+	}
+	return ""
+}
+
+func firstMacCandidate(values ...string) string {
+	for _, value := range values {
+		if mac := extractFirstMac(value); mac != "" {
+			return mac
+		}
+	}
+	return ""
+}
+
+func extractFirstMac(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}`),
+		regexp.MustCompile(`(?i)[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}`),
+		regexp.MustCompile(`(?i)\b[0-9a-f]{12}\b`),
+	}
+	for _, pattern := range patterns {
+		if match := pattern.FindString(value); match != "" {
+			return match
+		}
+	}
+	return ""
+}
+
+func normalizeMacAddress(value string) string {
+	mac, err := parseWakeMac(value)
+	if err != nil {
+		return strings.TrimSpace(value)
+	}
+	return formatWakeMac(mac)
+}
+
+func parseWakeMac(value string) ([6]byte, error) {
+	var out [6]byte
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return out, gerror.New("MAC地址不能为空，无法发送WOL魔术包")
+	}
+	parsed, err := net.ParseMAC(value)
+	if err != nil || len(parsed) != 6 {
+		hexOnly := regexp.MustCompile(`(?i)[^0-9a-f]`).ReplaceAllString(value, "")
+		if len(hexOnly) != 12 {
+			return out, gerror.New("MAC地址格式不正确")
+		}
+		parsed = make([]byte, 6)
+		for i := 0; i < 6; i++ {
+			if _, err = fmt.Sscanf(hexOnly[i*2:i*2+2], "%02x", &parsed[i]); err != nil {
+				return out, gerror.New("MAC地址格式不正确")
+			}
+		}
+	}
+	copy(out[:], parsed[:6])
+	return out, nil
+}
+
+func formatWakeMac(mac [6]byte) string {
+	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])
+}
+
+func buildMagicPacket(mac [6]byte) []byte {
+	packet := make([]byte, 6+16*6)
+	for i := 0; i < 6; i++ {
+		packet[i] = 0xFF
+	}
+	for i := 0; i < 16; i++ {
+		copy(packet[6+i*6:6+(i+1)*6], mac[:])
+	}
+	return packet
+}
+
+func buildWakeTargets(broadcast, deviceIP string, port int) []string {
+	seen := make(map[string]struct{})
+	targets := make([]string, 0, 3)
+	add := func(host string) {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			return
+		}
+		if _, _, err := net.SplitHostPort(host); err != nil {
+			host = net.JoinHostPort(host, fmt.Sprintf("%d", port))
+		}
+		if _, ok := seen[host]; ok {
+			return
+		}
+		seen[host] = struct{}{}
+		targets = append(targets, host)
+	}
+	add(broadcast)
+	if ip := net.ParseIP(deviceIP).To4(); ip != nil {
+		add(fmt.Sprintf("%d.%d.%d.255", ip[0], ip[1], ip[2]))
+	}
+	add("255.255.255.255")
+	return targets
+}
+
+func sendWakePacket(target string, packet []byte) error {
+	addr, err := net.ResolveUDPAddr("udp4", target)
+	if err != nil {
+		return err
+	}
+	conn, err := net.ListenUDP("udp4", nil)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_, err = conn.WriteToUDP(packet, addr)
+	return err
+}
+
+func (s *sSysOpsDevice) Wake(ctx context.Context, in *sysin.OpsDeviceWakeInp) (res *sysin.OpsDeviceWakeModel, err error) {
+	device := new(entity.OpsDevice)
+	schema, err := s.deviceSchema(ctx)
+	if err != nil {
+		return nil, err
+	}
+	mod := dao.OpsDevice.Ctx(ctx).WherePri(in.Id)
+	if !schema.HasMacAddress {
+		mod = mod.FieldsEx(dao.OpsDevice.Columns().MacAddress)
+	}
+	if err = mod.Scan(device); err != nil {
+		return nil, gerror.Wrap(err, "获取运维设备信息失败，请稍后重试！")
+	}
+	if device.Id == 0 {
+		return nil, gerror.New("设备不存在")
+	}
+
+	macText := firstNonEmpty(strings.TrimSpace(in.MacAddress), strings.TrimSpace(device.MacAddress))
+	if macText == "" {
+		macText = s.findDeviceNetworkMac(ctx, device.Id)
+	}
+	mac, err := parseWakeMac(macText)
+	if err != nil {
+		return nil, err
+	}
+
+	port := in.Port
+	if port == 0 {
+		port = 9
+	}
+	repeat := in.Repeat
+	if repeat == 0 {
+		repeat = 3
+	}
+	targets := buildWakeTargets(strings.TrimSpace(in.Broadcast), strings.TrimSpace(device.Ip), port)
+	packet := buildMagicPacket(mac)
+	sentTargets := make([]string, 0, len(targets))
+	packets := 0
+	var sendErrs []string
+
+	for _, target := range targets {
+		if target == "" {
+			continue
+		}
+		ok := false
+		var lastErr error
+		for i := 0; i < repeat; i++ {
+			if err = sendWakePacket(target, packet); err != nil {
+				lastErr = err
+				continue
+			}
+			ok = true
+			packets++
+		}
+		if ok {
+			sentTargets = append(sentTargets, target)
+		} else if lastErr != nil {
+			sendErrs = append(sendErrs, fmt.Sprintf("%s: %v", target, lastErr))
+		}
+	}
+	if packets == 0 {
+		return nil, gerror.New("WOL魔术包发送失败：" + strings.Join(sendErrs, "; "))
+	}
+
+	return &sysin.OpsDeviceWakeModel{
+		Id:         device.Id,
+		MacAddress: formatWakeMac(mac),
+		Targets:    sentTargets,
+		Packets:    packets,
+	}, nil
 }
 
 func (s *sSysOpsDevice) Option(ctx context.Context) (opts []*model.Option, err error) {
@@ -342,10 +660,15 @@ func (s *sSysOpsDevice) isDeviceOnline(deviceID uint64) bool {
 }
 
 func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceClientRegisterInp) (res *sysin.OpsDeviceClientRegisterModel, err error) {
+	schema, err := s.deviceSchema(ctx)
+	if err != nil {
+		return nil, err
+	}
 	res = &sysin.OpsDeviceClientRegisterModel{
-		Name:     in.Name,
-		Hostname: in.Hostname,
-		Ip:       in.Ip,
+		Name:       in.Name,
+		Hostname:   in.Hostname,
+		Ip:         in.Ip,
+		MacAddress: normalizeMacAddress(in.MacAddress),
 	}
 
 	deviceType := normalizeDeviceType(in.DeviceType)
@@ -372,6 +695,7 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 				Name:         in.Name,
 				Hostname:     in.Hostname,
 				Ip:           in.Ip,
+				MacAddress:   normalizeMacAddress(in.MacAddress),
 				DeviceType:   deviceType,
 				OsName:       in.OsName,
 				Architecture: architecture,
@@ -379,6 +703,7 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 
 			if _, err = dao.OpsDevice.Ctx(ctx).
 				WherePri(current.Id).
+				Fields(s.deviceRegisterFields(schema)...).
 				Data(updateData).
 				OmitEmptyData().
 				Update(); err != nil {
@@ -405,6 +730,7 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 			Name:         in.Name,
 			Hostname:     in.Hostname,
 			Ip:           in.Ip,
+			MacAddress:   normalizeMacAddress(in.MacAddress),
 			DeviceType:   deviceType,
 			OsName:       in.OsName,
 			Architecture: architecture,
@@ -415,7 +741,7 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 		}
 
 		result, err := dao.OpsDevice.Ctx(ctx).
-			Fields(sysin.OpsDeviceInsertFields{}).
+			Fields(s.deviceInsertFields(schema)...).
 			Data(insertData).
 			OmitEmptyData().
 			InsertAndGetId()
@@ -443,7 +769,15 @@ func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDevice
 	}
 
 	device := &entity.OpsDevice{}
-	if err = dao.OpsDevice.Ctx(ctx).WherePri(in.Id).Scan(device); err != nil {
+	schema, err := s.deviceSchema(ctx)
+	if err != nil {
+		return nil, err
+	}
+	mod := dao.OpsDevice.Ctx(ctx).WherePri(in.Id)
+	if !schema.HasMacAddress {
+		mod = mod.FieldsEx(dao.OpsDevice.Columns().MacAddress)
+	}
+	if err = mod.Scan(device); err != nil {
 		if !isNoRowsError(err) {
 			return nil, gerror.Wrap(err, "查询设备信息失败，请稍后重试！")
 		}
@@ -458,12 +792,14 @@ func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDevice
 	updateData := do.OpsDevice{
 		Hostname:     in.Hostname,
 		Ip:           in.Ip,
+		MacAddress:   normalizeMacAddress(in.MacAddress),
 		OsName:       in.OsName,
 		Architecture: normalizeDeviceArchitecture(in.Architecture, device.Architecture, device.Location),
 		Status:       consts.StatusEnabled,
 	}
 	if _, err = dao.OpsDevice.Ctx(ctx).
 		WherePri(in.Id).
+		Fields(s.deviceHeartbeatFields(schema)...).
 		Data(updateData).
 		OmitEmptyData().
 		Update(); err != nil {

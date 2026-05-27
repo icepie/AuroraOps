@@ -48,6 +48,11 @@
                 </n-form-item>
               </n-gi>
               <n-gi span="1">
+                <n-form-item label="MAC地址" path="macAddress">
+                  <n-input v-model:value="formValue.macAddress" placeholder="如 00:11:22:33:44:55" />
+                </n-form-item>
+              </n-gi>
+              <n-gi span="1">
                 <n-form-item label="设备类型" path="deviceType">
                   <n-select v-model:value="formValue.deviceType" :options="deviceTypeOptions" />
                 </n-form-item>

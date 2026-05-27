@@ -305,7 +305,7 @@ impl InputDevice for UInputDevice {
                                 .map_input_device_to_entire_screen(&self.name_touch_device, false);
                         }
                     }
-                    self.num_touch_mapping_tries += 1;
+                    self.num_stylus_mapping_tries += 1;
                 }
 
                 // This is a workaround for browsers that send events when the pen is hovering but
@@ -488,7 +488,7 @@ impl InputDevice for UInputDevice {
                                 .map_input_device_to_entire_screen(&self.name_stylus_device, true);
                         }
                     }
-                    self.num_touch_mapping_tries += 1;
+                    self.num_mouse_mapping_tries += 1;
                 }
                 match event.event_type {
                     PointerEventType::DOWN

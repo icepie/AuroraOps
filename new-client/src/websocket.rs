@@ -7,7 +7,7 @@ use std::sync::{mpsc, Arc};
 use std::thread::{spawn, JoinHandle};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::channel;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::capturable::{get_capturables, Capturable, Recorder};
 use crate::input::device::{InputDevice, InputDeviceType};
@@ -48,10 +48,7 @@ fn normalize_encoder(value: Option<&str>) -> Option<String> {
     }
 }
 
-fn encoder_options_for_selection(
-    base: EncoderOptions,
-    selected: Option<&str>,
-) -> EncoderOptions {
+fn encoder_options_for_selection(base: EncoderOptions, selected: Option<&str>) -> EncoderOptions {
     match normalize_encoder(selected).as_deref() {
         Some("libx264") => EncoderOptions {
             try_vaapi: false,
@@ -497,6 +494,17 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
 
         if capturable_id < self.capturables.len() {
             let capturable = self.capturables[capturable_id].clone();
+            info!(
+                "Client config: capturable_id={} uinput_support={} capture_cursor={} max={}x{} frame_rate={:.1} encoder={} client_name={}",
+                capturable_id,
+                config.uinput_support,
+                config.capture_cursor,
+                config.max_width,
+                config.max_height,
+                config.frame_rate,
+                config.encoder.as_deref().unwrap_or("auto"),
+                self.client_name.as_deref().unwrap_or("")
+            );
             debug!(
                 "Selected capturable[{}]: {}",
                 capturable_id,
@@ -651,6 +659,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                     device.device_type().label().to_string()
                 })
                 .unwrap_or_else(|| "不可用".to_string());
+            info!("Input backend selected: {input_backend}");
             send_input_status(&mut self.sender, &input_backend);
 
             if let Err(err) = self.video_sender.send(VideoCommands::Start(VideoConfig {
@@ -736,8 +745,10 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                         encoder_backend = "等待视频流".to_string();
                         recorder = Some(r);
                         video_encoder = None;
-                        active_encoder_options =
-                            encoder_options_for_selection(encoder_options, config.encoder.as_deref());
+                        active_encoder_options = encoder_options_for_selection(
+                            encoder_options,
+                            config.encoder.as_deref(),
+                        );
                         max_width = config.max_width;
                         max_height = config.max_height;
                         send_message(&mut sender, MessageOutbound::ConfigOk);
@@ -775,9 +786,9 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
             }
             Ok(VideoCommands::Restart) => {
                 video_encoder = None;
-                        encoder_backend = "重启中".to_string();
-                        active_encoder_options = encoder_options;
-                        send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
+                encoder_backend = "重启中".to_string();
+                active_encoder_options = encoder_options;
+                send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
             }
             Err(RecvTimeoutError::Timeout) => {
                 if recorder.is_none() {

@@ -15,6 +15,7 @@ type OpsDevice struct {
 	Name              string      `json:"name"       orm:"name"        description:"设备名称"`
 	Hostname          string      `json:"hostname"   orm:"hostname"    description:"主机名"`
 	Ip                string      `json:"ip"         orm:"ip"          description:"IP地址"`
+	MacAddress        string      `json:"macAddress" orm:"mac_address" description:"MAC地址"`
 	DeviceType        string      `json:"deviceType" orm:"device_type" description:"设备类型"`
 	OsName            string      `json:"osName"     orm:"os_name"     description:"操作系统"`
 	Architecture      string      `json:"architecture" orm:"architecture" description:"系统架构"`
