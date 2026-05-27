@@ -97,6 +97,9 @@ pub struct AgentConfig {
     pub try_nvenc: bool,
     #[serde(default)]
     pub try_mediafoundation: bool,
+    #[cfg(target_os = "windows")]
+    #[serde(default = "default_windows_capture_source")]
+    pub windows_capture_source: String,
     #[serde(default)]
     pub wayland_support: bool,
     #[serde(default)]
@@ -117,6 +120,11 @@ fn default_weylus_port() -> u16 {
 
 fn default_control_display_manager() -> bool {
     true
+}
+
+#[cfg(target_os = "windows")]
+fn default_windows_capture_source() -> String {
+    "auto".to_string()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -183,12 +191,26 @@ struct ControlResponse {
     ok: bool,
     status: AgentStatus,
     config: AgentConfig,
+    capabilities: AgentCapabilities,
     #[serde(skip_serializing_if = "Option::is_none")]
     assets: Option<Vec<AssetEntry>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     diagnostics: Option<Vec<AssetDiagnostic>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentCapabilities {
+    platform: &'static str,
+    wayland: bool,
+    kms: bool,
+    vaapi: bool,
+    nvenc: bool,
+    mediafoundation: bool,
+    windows_capture_source: bool,
+    display_manager: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,6 +233,9 @@ struct SaveDesktopConfigPayload {
     try_nvenc: bool,
     #[serde(default)]
     try_mediafoundation: bool,
+    #[cfg(target_os = "windows")]
+    #[serde(default = "default_windows_capture_source")]
+    windows_capture_source: String,
     #[serde(default)]
     wayland_support: bool,
     #[serde(default)]
@@ -408,6 +433,11 @@ impl AgentRuntime {
         cfg.try_vaapi = payload.try_vaapi;
         cfg.try_nvenc = payload.try_nvenc;
         cfg.try_mediafoundation = payload.try_mediafoundation;
+        #[cfg(target_os = "windows")]
+        {
+            cfg.windows_capture_source =
+                normalize_windows_capture_source(&payload.windows_capture_source);
+        }
         cfg.wayland_support = payload.wayland_support;
         cfg.kms_support = payload.kms_support;
         cfg.kms_device = payload
@@ -851,6 +881,8 @@ fn start_weylus_service(conf: &WeylusConfig, runtime: &AgentRuntime) {
     {
         weylus_conf.try_nvenc = agent_cfg.try_nvenc;
         weylus_conf.try_mediafoundation = agent_cfg.try_mediafoundation;
+        weylus_conf.windows_capture_source =
+            normalize_windows_capture_source(&agent_cfg.windows_capture_source);
     }
     weylus_conf.no_gui = true;
     runtime.set_desktop_url(&agent_cfg);
@@ -1059,6 +1091,16 @@ fn envelope(
         ok,
         status: runtime.get_status(),
         config: runtime.get_display_config(),
+        capabilities: AgentCapabilities {
+            platform: std::env::consts::OS,
+            wayland: cfg!(all(target_os = "linux", feature = "pipewire")),
+            kms: cfg!(target_os = "linux"),
+            vaapi: cfg!(all(target_os = "linux", feature = "vaapi")),
+            nvenc: cfg!(any(target_os = "linux", target_os = "windows")),
+            mediafoundation: cfg!(target_os = "windows"),
+            windows_capture_source: cfg!(target_os = "windows"),
+            display_manager: cfg!(target_os = "linux"),
+        },
         assets,
         diagnostics,
         message,
@@ -4232,6 +4274,19 @@ fn normalize_config(cfg: &mut AgentConfig) {
     {
         cfg.kms_device = None;
     }
+    #[cfg(target_os = "windows")]
+    {
+        cfg.windows_capture_source = normalize_windows_capture_source(&cfg.windows_capture_source);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_capture_source(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "dxgi" => "dxgi".to_string(),
+        "gdi" => "gdi".to_string(),
+        _ => "auto".to_string(),
+    }
 }
 
 fn reserve_loopback_port() -> Result<u16, BoxError> {
@@ -4528,7 +4583,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     h2 { font-size: 16px; margin: 0 0 14px; }
     section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-bottom: 14px; }
     label { display: block; font-size: 13px; margin-bottom: 6px; color: #46515c; }
-    input { width: 100%; height: 38px; border: 1px solid #c6ccd2; border-radius: 6px; padding: 0 10px; font-size: 14px; background: #fff; color: var(--text); }
+    input, select { width: 100%; height: 38px; border: 1px solid #c6ccd2; border-radius: 6px; padding: 0 10px; font-size: 14px; background: #fff; color: var(--text); }
     input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .switches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
@@ -4545,6 +4600,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     dd { margin: 0; overflow-wrap: anywhere; }
     pre { white-space: pre-wrap; background: #111827; color: #e5e7eb; padding: 12px; border-radius: 6px; min-height: 72px; max-height: 180px; overflow: auto; }
     .pill { display: inline-flex; align-items: center; height: 28px; border-radius: 999px; border: 1px solid var(--line); padding: 0 10px; color: var(--muted); background: #fff; font-size: 13px; }
+    [data-cap] { display: none; }
     @media (max-width: 800px) { .grid, .switches, dl { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } }
   </style>
 </head>
@@ -4573,15 +4629,16 @@ const INDEX_HTML: &str = r##"<!doctype html>
       <div class="grid">
         <div><label for="bindAddress">绑定地址</label><input id="bindAddress" placeholder="127.0.0.1" /></div>
         <div><label for="webPort">Web 端口</label><input id="webPort" type="number" min="0" max="65535" placeholder="0 表示随机本地端口" /></div>
-        <div><label for="kmsDevice">KMS 设备</label><input id="kmsDevice" placeholder="/dev/dri/card0" /></div>
+        <div data-cap="kms"><label for="kmsDevice">KMS 设备</label><input id="kmsDevice" placeholder="/dev/dri/card0" /></div>
+        <div data-cap="windowsCaptureSource"><label for="windowsCaptureSource">Windows 画面来源</label><select id="windowsCaptureSource"><option value="auto">AUTO（DXGI 优先）</option><option value="dxgi">DXGI Desktop Duplication</option><option value="gdi">GDI BitBlt</option></select></div>
       </div>
       <div class="switches" style="margin-top: 14px;">
-        <label class="switch"><input id="waylandSupport" type="checkbox" /><span><strong>Wayland / PipeWire</strong>启用 Wayland 捕获和自定义输入区域支持。</span></label>
-        <label class="switch"><input id="kmsSupport" type="checkbox" /><span><strong>KMS / DRM</strong>直接通过 DRM/KMS 捕获帧缓冲。</span></label>
-        <label class="switch"><input id="tryVaapi" type="checkbox" /><span><strong>VAAPI</strong>尝试使用 Linux VAAPI 硬件编码。</span></label>
-        <label class="switch"><input id="tryNvenc" type="checkbox" /><span><strong>NVENC</strong>尝试使用 NVIDIA NVENC 硬件编码。</span></label>
-        <label class="switch"><input id="tryMediafoundation" type="checkbox" /><span><strong>MediaFoundation</strong>尝试使用 Windows 硬件编码。</span></label>
-        <label class="switch"><input id="controlDisplayManager" type="checkbox" /><span><strong>登录界面控制</strong>root 服务启动时自动探测 DISPLAY / XAUTHORITY。</span></label>
+        <label class="switch" data-cap="wayland"><input id="waylandSupport" type="checkbox" /><span><strong>Wayland / PipeWire</strong>启用 Wayland 捕获和自定义输入区域支持。</span></label>
+        <label class="switch" data-cap="kms"><input id="kmsSupport" type="checkbox" /><span><strong>KMS / DRM</strong>直接通过 DRM/KMS 捕获帧缓冲。</span></label>
+        <label class="switch" data-cap="vaapi"><input id="tryVaapi" type="checkbox" /><span><strong>VAAPI</strong>尝试使用 Linux VAAPI 硬件编码。</span></label>
+        <label class="switch" data-cap="nvenc"><input id="tryNvenc" type="checkbox" /><span><strong>NVENC</strong>尝试使用 NVIDIA NVENC 硬件编码。</span></label>
+        <label class="switch" data-cap="mediafoundation"><input id="tryMediafoundation" type="checkbox" /><span><strong>MediaFoundation</strong>尝试使用 Windows 硬件编码。</span></label>
+        <label class="switch" data-cap="displayManager"><input id="controlDisplayManager" type="checkbox" /><span><strong>登录界面控制</strong>root 服务启动时自动探测 DISPLAY / XAUTHORITY。</span></label>
       </div>
       <div class="actions">
         <button onclick="saveDesktopConfig()">保存桌面配置</button>
@@ -4612,7 +4669,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     </section>
   </main>
   <script>
-    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager'];
+    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager'];
     const $ = (id) => document.getElementById(id);
     const dirty = new Set();
     ids.forEach((id) => {
@@ -4646,14 +4703,23 @@ const INDEX_HTML: &str = r##"<!doctype html>
     function setBusy(busy) {
       document.querySelectorAll('button').forEach((button) => button.disabled = busy);
     }
+    function renderCapabilities(caps) {
+      const supported = caps || {};
+      document.querySelectorAll('[data-cap]').forEach((el) => {
+        const key = el.getAttribute('data-cap');
+        el.style.display = supported[key] ? '' : 'none';
+      });
+    }
     function render(data) {
       const cfg = data.config || {};
       const status = data.status || {};
+      renderCapabilities(data.capabilities || {});
       setInput('serverHost', cfg.serverHost || '');
       setInput('deviceName', cfg.deviceName || '');
       setInput('bindAddress', cfg.bindAddress || '127.0.0.1');
       setInput('webPort', cfg.webPort ?? 0);
       setInput('kmsDevice', cfg.kmsDevice || '');
+      setInput('windowsCaptureSource', cfg.windowsCaptureSource || 'auto');
       setChecked('waylandSupport', !!cfg.waylandSupport);
       setChecked('kmsSupport', !!cfg.kmsSupport);
       setChecked('tryVaapi', !!cfg.tryVaapi);
@@ -4685,9 +4751,10 @@ const INDEX_HTML: &str = r##"<!doctype html>
       await call('/api/desktop-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 0),
         kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked,
+        windowsCaptureSource: $('windowsCaptureSource').value || 'auto',
         tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, tryMediafoundation: $('tryMediafoundation').checked, controlDisplayManager: $('controlDisplayManager').checked
       }) }, '桌面配置已保存，重启桌面服务后生效');
-      clearDirty('bindAddress','webPort','kmsDevice','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager');
+      clearDirty('bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager');
       await loadStatus();
     }
     async function startAgent() { await call('/api/start', { method: 'POST' }, '连接已启动'); }

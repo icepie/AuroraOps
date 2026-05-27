@@ -285,29 +285,25 @@ void init_scaler(
 	switch (pix_fmt_out)
 	{
 	case AV_PIX_FMT_CUDA:
-		if (pix_fmt_in == AV_PIX_FMT_RGB24)
-		{
-			snprintf(
-				args,
-				sizeof(args),
-				"scale=w=%d:h=%d:flags=fast_bilinear,hwupload_cuda",
-				width_out,
-				height_out);
-		}
-		else
-		{
-			snprintf(
-				args,
-				sizeof(args),
 #ifdef HAS_LIBNPP
-				"scale,format=nv12,hwupload_cuda,scale_npp=w=%d:h=%d:format=%s:interp_algo=nn",
+		snprintf(
+			args,
+			sizeof(args),
+			"scale,format=nv12,hwupload_cuda,scale_npp=w=%d:h=%d:format=%s:interp_algo=nn",
+			width_out,
+			height_out,
+			av_get_pix_fmt_name(pix_fmt_sw_out));
 #else
-				"hwupload_cuda,scale_cuda=w=%d:h=%d:format=%s:interp_algo=nearest",
+		// Keep the default NVENC path independent from scale_cuda. Some static
+		// builds include h264_nvenc and hwupload_cuda but not the CUDA scaler.
+		snprintf(
+			args,
+			sizeof(args),
+			"scale=w=%d:h=%d:flags=fast_bilinear,format=%s,hwupload_cuda",
+			width_out,
+			height_out,
+			av_get_pix_fmt_name(pix_fmt_sw_out));
 #endif
-				width_out,
-				height_out,
-				av_get_pix_fmt_name(pix_fmt_sw_out));
-		}
 		break;
 #ifdef HAS_VAAPI
 	case AV_PIX_FMT_VAAPI:
@@ -749,11 +745,7 @@ void open_video(VideoContext* ctx, Error* err)
 					ctx->width_out,
 					ctx->height_out,
 					AV_PIX_FMT_CUDA,
-#ifdef HAS_LIBNPP
 					AV_PIX_FMT_NV12,
-#else
-					AV_PIX_FMT_BGR0,
-#endif
 					ctx->hw_device_ctx,
 					&err);
 				if (err.code)

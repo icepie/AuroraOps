@@ -10,6 +10,8 @@ pub struct ClientConfiguration {
     pub max_height: usize,
     pub client_name: Option<String>,
     pub frame_rate: f64,
+    #[serde(default)]
+    pub encoder: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -32,9 +34,23 @@ pub enum MessageOutbound {
     NewVideo,
     ConfigOk,
     RuntimeStatus(RuntimeStatus),
+    EncoderCapabilities(EncoderCapabilities),
     CustomInputAreas(CustomInputAreas),
     ConfigError(String),
     Error(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EncoderCapabilities {
+    pub options: Vec<EncoderOption>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EncoderOption {
+    pub value: String,
+    pub label: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

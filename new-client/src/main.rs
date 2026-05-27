@@ -78,6 +78,13 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     if conf.session_agent {
+        let _single_instance = match windows_service_instance_guard(conf.agent_port) {
+            Ok(guard) => guard,
+            Err(err) => {
+                warn!("{err}");
+                return;
+            }
+        };
         if let Err(err) = aurora::run_service(&conf) {
             error!("AuroraOps session agent failed: {err}");
             std::process::exit(1);
@@ -117,6 +124,14 @@ fn main() {
     }
 
     if conf.service || conf.headless {
+        #[cfg(target_os = "windows")]
+        let _single_instance = match windows_service_instance_guard(conf.agent_port) {
+            Ok(guard) => guard,
+            Err(err) => {
+                warn!("{err}");
+                return;
+            }
+        };
         if let Err(err) = aurora::run_service(&conf) {
             error!("AuroraOps service failed: {err}");
             std::process::exit(1);
@@ -158,6 +173,51 @@ fn main() {
         }
     } else {
         gui::run(&conf, receiver);
+    }
+}
+
+#[cfg(target_os = "windows")]
+struct WindowsServiceInstanceGuard(winapi::shared::ntdef::HANDLE);
+
+#[cfg(target_os = "windows")]
+impl Drop for WindowsServiceInstanceGuard {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.0.is_null() {
+                winapi::um::handleapi::CloseHandle(self.0);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_service_instance_guard(port: u16) -> Result<WindowsServiceInstanceGuard, String> {
+    use std::iter;
+    use std::os::windows::ffi::OsStrExt;
+    use winapi::shared::winerror::ERROR_ALREADY_EXISTS;
+    use winapi::um::errhandlingapi::GetLastError;
+    use winapi::um::synchapi::CreateMutexW;
+
+    let name = format!("Local\\AuroraOpsAgentService-{port}");
+    let wide: Vec<u16> = std::ffi::OsStr::new(&name)
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect();
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null_mut(), 1, wide.as_ptr());
+        if handle.is_null() {
+            return Err(format!(
+                "AuroraOps service instance guard failed: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        if GetLastError() == ERROR_ALREADY_EXISTS {
+            winapi::um::handleapi::CloseHandle(handle);
+            return Err(format!(
+                "AuroraOps service is already running in this Windows session on port {port}."
+            ));
+        }
+        Ok(WindowsServiceInstanceGuard(handle))
     }
 }
 

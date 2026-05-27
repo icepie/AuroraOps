@@ -33,7 +33,29 @@
             <section>
                 <label><input type="checkbox" id="enable_video" checked /> <span>启用视频</span></label>
                 <label><input type="checkbox" id="energysaving" /> <span>节能模式（无视频，黑屏）</span></label>
-                <label><input type="checkbox" id="stretch" checked /> <span>拉伸画面</span></label>
+                <label><input type="checkbox" id="stretch" /> <span>拉伸画面</span></label>
+                <label>编码方式<br>
+                    <select id="encoder">
+                        <option value="auto">自动</option>
+                        <option value="libx264">libx264</option>
+                    </select>
+                </label>
+                <label>画面旋转<br>
+                    <select id="display_rotation">
+                        <option value="0">不旋转</option>
+                        <option value="90">顺时针 90°</option>
+                        <option value="180">180°</option>
+                        <option value="270">逆时针 90°</option>
+                    </select>
+                </label>
+                <label>输入旋转<br>
+                    <select id="input_rotation">
+                        <option value="0">不旋转</option>
+                        <option value="90">顺时针 90°</option>
+                        <option value="180">180°</option>
+                        <option value="270">逆时针 90°</option>
+                    </select>
+                </label>
                 <button id="fullscreen">切换全屏</button>
                 <label {{#if (not capture_cursor_enabled)}}class="hide" {{/if}}>
                     <input type="checkbox" id="capture_cursor" />

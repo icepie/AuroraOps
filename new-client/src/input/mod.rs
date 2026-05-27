@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "windows"))]
 pub mod autopilot_device;
 pub mod device;
 

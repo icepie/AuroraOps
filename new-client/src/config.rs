@@ -9,6 +9,11 @@ fn default_agent_port() -> u16 {
     18765
 }
 
+#[cfg(target_os = "windows")]
+fn default_windows_capture_source() -> String {
+    "auto".to_string()
+}
+
 #[derive(Serialize, Deserialize, Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct Config {
@@ -42,6 +47,14 @@ pub struct Config {
     )]
     #[serde(default)]
     pub try_mediafoundation: bool,
+    #[cfg(target_os = "windows")]
+    #[arg(
+        long,
+        default_value = "auto",
+        help = "Windows screen capture source: auto, dxgi, or gdi."
+    )]
+    #[serde(default = "default_windows_capture_source")]
+    pub windows_capture_source: String,
     #[arg(long, help = "Start Weylus server immediately on program start.")]
     #[serde(default)]
     pub auto_start: bool,

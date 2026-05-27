@@ -15,7 +15,6 @@ name = "auroraops-agent-service"
 path = "src/agent_service.rs"
 
 [dependencies]
-autopilot = { git = "https://github.com/autopilot-rs/autopilot-rs.git" }
 base64 = "0.22"
 bitflags = { version = "^2.6", features = ["serde"] }
 bytes = "1.7.1"
@@ -28,7 +27,6 @@ http-body-util = "0.1.2"
 hyper = { version = "^1.4", features = ["server", "http1", "http2"] }
 hyper-util = { version = "0.1.8", features = ["tokio"] }
 image = { version = "^0.25", features = ["png"], default-features = false }
-image_autopilot = { package = "image", version = "0.22.5", features = [], default-features = false }
 libc = "0.2"
 percent-encoding = "2.1.0"
 portable-pty = "0.9"
@@ -48,7 +46,7 @@ url = "^2.5"
 
 [target.'cfg(windows)'.dependencies]
 fastfetch-sys = { path = "vendor/fastfetch-sys" }
-winapi = { version = "0.3.9", features = ["d3d11", "d3dcommon", "dxgi", "dxgi1_2", "dxgitype", "errhandlingapi", "handleapi", "minwindef", "processthreadsapi", "securitybaseapi", "shellapi", "synchapi", "userenv", "winbase", "winnt", "winuser", "winsvc", "wtsapi32"] }
+winapi = { version = "0.3.9", features = ["d3d11", "d3dcommon", "dxgi", "dxgi1_2", "dxgitype", "errhandlingapi", "handleapi", "minwindef", "processthreadsapi", "securitybaseapi", "shellapi", "synchapi", "userenv", "winbase", "wingdi", "winnt", "winuser", "winsvc", "wtsapi32"] }
 wio = "0.2.2"
 captrs = "^0.3.1"
 
@@ -70,6 +68,8 @@ rustix = { version = "0.38", features = ["mm"] }
 x11 = { version = "2.21", features = ["xlib", "xtest"] }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
+autopilot = { git = "https://github.com/autopilot-rs/autopilot-rs.git" }
+image_autopilot = { package = "image", version = "0.22.5", features = [], default-features = false }
 pnet_datalink = "^0.35"
 
 [target.'cfg(target_os = "macos")'.dependencies]

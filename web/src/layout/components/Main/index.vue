@@ -2,18 +2,28 @@
   <RouterView>
     <template #default="{ Component, route }">
       <template v-if="mode === 'production'">
-        <transition :name="getTransitionName" appear mode="out-in">
-          <keep-alive v-if="shouldKeepAlive(route)" :max="keepAliveMax">
-            <component :is="Component" :key="getCacheKey(route)" />
+        <transition :name="getTransitionName" appear>
+          <keep-alive :max="keepAliveMax">
+            <component
+              v-if="shouldKeepAlive(route)"
+              :is="Component"
+              :key="getCacheKey(route)"
+            />
           </keep-alive>
-          <component v-else :is="Component" :key="route.fullPath" />
+        </transition>
+        <transition :name="getTransitionName" appear mode="out-in">
+          <component v-if="!shouldKeepAlive(route)" :is="Component" :key="route.fullPath" />
         </transition>
       </template>
       <template v-else>
-        <keep-alive v-if="shouldKeepAlive(route)" :max="keepAliveMax">
-          <component :is="Component" :key="getCacheKey(route)" />
+        <keep-alive :max="keepAliveMax">
+          <component
+            v-if="shouldKeepAlive(route)"
+            :is="Component"
+            :key="getCacheKey(route)"
+          />
         </keep-alive>
-        <component v-else :is="Component" :key="route.fullPath" />
+        <component v-if="!shouldKeepAlive(route)" :is="Component" :key="route.fullPath" />
       </template>
     </template>
   </RouterView>
@@ -49,6 +59,9 @@
       }
 
       function getCacheKey(route) {
+        if (route?.meta?.cacheKeyByFullPath) {
+          return route.fullPath;
+        }
         return route?.name || route?.path || route?.fullPath;
       }
 

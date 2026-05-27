@@ -1143,6 +1143,7 @@ pub struct KmsRecorder {
     converted_frame: Vec<u8>,
     logged_sample: bool,
     retried_with_prime: bool,
+    helper_disabled: bool,
 }
 
 impl KmsRecorder {
@@ -1152,10 +1153,14 @@ impl KmsRecorder {
             converted_frame: Vec::new(),
             logged_sample: false,
             retried_with_prime: false,
+            helper_disabled: false,
         })
     }
 
     fn capture_helper_frame(&mut self) -> Result<Option<(usize, usize)>, Box<dyn Error>> {
+        if self.helper_disabled {
+            return Ok(None);
+        }
         let (frame, width, height) = self.frame_source.capture_bgra_with_helper()?;
         self.converted_frame = frame;
         Ok(Some((width, height)))
@@ -1168,8 +1173,15 @@ impl Recorder for KmsRecorder {
     }
 
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
-        if let Some((width, height)) = self.capture_helper_frame()? {
-            return Ok(PixelProvider::BGR0(width, height, &self.converted_frame));
+        match self.capture_helper_frame() {
+            Ok(Some((width, height))) => {
+                return Ok(PixelProvider::BGR0(width, height, &self.converted_frame));
+            }
+            Ok(None) => {}
+            Err(err) => {
+                warn!("KMS EGL helper failed, falling back to direct framebuffer mapping: {err}");
+                self.helper_disabled = true;
+            }
         }
         let map_mode_forced = self.frame_source.map_mode_forced();
         let using_prime = self.frame_source.using_prime();

@@ -12,8 +12,9 @@ use tracing::{debug, error, trace, warn};
 use crate::capturable::{get_capturables, Capturable, Recorder};
 use crate::input::device::{InputDevice, InputDeviceType};
 use crate::protocol::{
-    ClientConfiguration, KeyboardEvent, MessageInbound, MessageOutbound, PointerEvent,
-    RuntimeStatus, TextInputEvent, WeylusReceiver, WeylusSender, WheelEvent,
+    ClientConfiguration, EncoderCapabilities, EncoderOption, KeyboardEvent, MessageInbound,
+    MessageOutbound, PointerEvent, RuntimeStatus, TextInputEvent, WeylusReceiver, WeylusSender,
+    WheelEvent,
 };
 
 use crate::cerror::CErrorCode;
@@ -25,6 +26,7 @@ struct VideoConfig {
     max_width: usize,
     max_height: usize,
     frame_rate: f64,
+    encoder: Option<String>,
 }
 
 enum VideoCommands {
@@ -32,6 +34,95 @@ enum VideoCommands {
     Pause,
     Resume,
     Restart,
+}
+
+fn normalize_encoder(value: Option<&str>) -> Option<String> {
+    match value.unwrap_or("auto").trim().to_ascii_lowercase().as_str() {
+        "" | "auto" => None,
+        "libx264" | "x264" | "software" => Some("libx264".to_string()),
+        "nvenc" | "h264_nvenc" => Some("nvenc".to_string()),
+        "vaapi" | "h264_vaapi" => Some("vaapi".to_string()),
+        "mediafoundation" | "mf" | "h264_mf" => Some("mediafoundation".to_string()),
+        "videotoolbox" | "h264_videotoolbox" => Some("videotoolbox".to_string()),
+        _ => None,
+    }
+}
+
+fn encoder_options_for_selection(
+    base: EncoderOptions,
+    selected: Option<&str>,
+) -> EncoderOptions {
+    match normalize_encoder(selected).as_deref() {
+        Some("libx264") => EncoderOptions {
+            try_vaapi: false,
+            try_nvenc: false,
+            try_videotoolbox: false,
+            try_mediafoundation: false,
+        },
+        Some("nvenc") => EncoderOptions {
+            try_vaapi: false,
+            try_nvenc: base.try_nvenc,
+            try_videotoolbox: false,
+            try_mediafoundation: false,
+        },
+        Some("vaapi") => EncoderOptions {
+            try_vaapi: base.try_vaapi,
+            try_nvenc: false,
+            try_videotoolbox: false,
+            try_mediafoundation: false,
+        },
+        Some("mediafoundation") => EncoderOptions {
+            try_vaapi: false,
+            try_nvenc: false,
+            try_videotoolbox: false,
+            try_mediafoundation: base.try_mediafoundation,
+        },
+        Some("videotoolbox") => EncoderOptions {
+            try_vaapi: false,
+            try_nvenc: false,
+            try_videotoolbox: base.try_videotoolbox,
+            try_mediafoundation: false,
+        },
+        _ => base,
+    }
+}
+
+fn encoder_capabilities(options: EncoderOptions) -> EncoderCapabilities {
+    let mut encoders = vec![
+        EncoderOption {
+            value: "auto".to_string(),
+            label: "自动".to_string(),
+        },
+        EncoderOption {
+            value: "libx264".to_string(),
+            label: "libx264".to_string(),
+        },
+    ];
+    if options.try_nvenc {
+        encoders.push(EncoderOption {
+            value: "nvenc".to_string(),
+            label: "NVENC".to_string(),
+        });
+    }
+    if options.try_vaapi {
+        encoders.push(EncoderOption {
+            value: "vaapi".to_string(),
+            label: "VAAPI".to_string(),
+        });
+    }
+    if options.try_mediafoundation {
+        encoders.push(EncoderOption {
+            value: "mediafoundation".to_string(),
+            label: "MediaFoundation".to_string(),
+        });
+    }
+    if options.try_videotoolbox {
+        encoders.push(EncoderOption {
+            value: "videotoolbox".to_string(),
+            label: "VideoToolbox".to_string(),
+        });
+    }
+    EncoderCapabilities { options: encoders }
 }
 
 fn send_message<S>(sender: &mut S, message: MessageOutbound)
@@ -170,6 +261,9 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         S: WeylusSender + Clone + Send + Sync + 'static,
         FnUInput: Fn(),
     {
+        self.send_message(MessageOutbound::EncoderCapabilities(encoder_capabilities(
+            self.config.encoder_options,
+        )));
         for message in self.receiver.take().unwrap() {
             match message {
                 Ok(message) => {
@@ -559,15 +653,20 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 .unwrap_or_else(|| "不可用".to_string());
             send_input_status(&mut self.sender, &input_backend);
 
-            self.video_sender
-                .send(VideoCommands::Start(VideoConfig {
-                    capturable,
-                    capture_cursor: config.capture_cursor,
-                    max_width: config.max_width,
-                    max_height: config.max_height,
-                    frame_rate: config.frame_rate,
-                }))
-                .unwrap();
+            if let Err(err) = self.video_sender.send(VideoCommands::Start(VideoConfig {
+                capturable,
+                capture_cursor: config.capture_cursor,
+                max_width: config.max_width,
+                max_height: config.max_height,
+                frame_rate: config.frame_rate,
+                encoder: config.encoder.clone(),
+            })) {
+                warn!("Failed to start video thread: {}", err);
+                self.send_message(MessageOutbound::ConfigError(
+                    "Video worker is not available; reconnect to restart the desktop session."
+                        .to_string(),
+                ));
+            }
         }
     }
 }
@@ -581,6 +680,7 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
 
     let mut recorder: Option<Box<dyn Recorder>> = None;
     let mut video_encoder: Option<Box<VideoEncoder>> = None;
+    let mut active_encoder_options = encoder_options;
     let mut capture_backend = "未启动".to_string();
     let mut encoder_backend = "未启动".to_string();
 
@@ -636,6 +736,8 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                         encoder_backend = "等待视频流".to_string();
                         recorder = Some(r);
                         video_encoder = None;
+                        active_encoder_options =
+                            encoder_options_for_selection(encoder_options, config.encoder.as_deref());
                         max_width = config.max_width;
                         max_height = config.max_height;
                         send_message(&mut sender, MessageOutbound::ConfigOk);
@@ -673,8 +775,9 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
             }
             Ok(VideoCommands::Restart) => {
                 video_encoder = None;
-                encoder_backend = "重启中".to_string();
-                send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
+                        encoder_backend = "重启中".to_string();
+                        active_encoder_options = encoder_options;
+                        send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
             }
             Err(RecvTimeoutError::Timeout) => {
                 if recorder.is_none() {
@@ -718,7 +821,7 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                                 warn!("Failed to send video frame: {err}!");
                             }
                         },
-                        encoder_options,
+                        active_encoder_options,
                     );
                     match res {
                         Ok(r) => {

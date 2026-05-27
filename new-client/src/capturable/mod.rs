@@ -153,17 +153,39 @@ pub fn get_capturables(
 
     #[cfg(target_os = "windows")]
     {
-        use crate::capturable::captrs_capture::CaptrsCapturable;
+        use crate::capturable::captrs_capture::{
+            get_window_capturables, DesktopCapturable, WindowsCaptureSource,
+        };
         use crate::capturable::win_ctx::WinCtx;
+        let configured_source = std::env::var("AURORAOPS_WINDOWS_CAPTURE")
+            .map(|value| WindowsCaptureSource::parse(&value))
+            .unwrap_or(WindowsCaptureSource::Auto);
+        let sources: Vec<WindowsCaptureSource> = match configured_source {
+            WindowsCaptureSource::Auto => vec![
+                WindowsCaptureSource::Auto,
+                WindowsCaptureSource::Dxgi,
+                WindowsCaptureSource::Gdi,
+            ],
+            source => vec![source],
+        };
         let winctx = WinCtx::new();
         for output in winctx.get_capture_outputs() {
-            let captr = CaptrsCapturable::new(
-                output.capture_id,
-                String::from_utf16_lossy(output.desc.DeviceName.as_ref()),
-                output.desc.DesktopCoordinates,
-                winctx.get_union_rect().clone(),
-            );
-            capturables.push(Box::new(captr));
+            let name = String::from_utf16_lossy(output.desc.DeviceName.as_ref());
+            for source in &sources {
+                let captr = DesktopCapturable::new(
+                    output.capture_id,
+                    name.clone(),
+                    output.desc.DesktopCoordinates,
+                    winctx.get_union_rect().clone(),
+                    *source,
+                );
+                capturables.push(Box::new(captr));
+            }
+        }
+        let mut windows = get_window_capturables(winctx.get_union_rect().clone());
+        windows.sort_by(|a, b| a.name().to_lowercase().cmp(&b.name().to_lowercase()));
+        for window in windows {
+            capturables.push(Box::new(window));
         }
     }
 

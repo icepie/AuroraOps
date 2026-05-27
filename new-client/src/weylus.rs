@@ -47,6 +47,17 @@ impl Weylus {
             try_mediafoundation: false,
         };
 
+        #[cfg(target_os = "windows")]
+        {
+            std::env::set_var(
+                "AURORAOPS_WINDOWS_CAPTURE",
+                crate::capturable::captrs_capture::WindowsCaptureSource::parse(
+                    &config.windows_capture_source,
+                )
+                .as_str(),
+            );
+        }
+
         let (sender_ui, mut receiver_ui) = tokio::sync::mpsc::channel(100);
         let (sender_startup, receiver_startup) = tokio::sync::oneshot::channel();
 

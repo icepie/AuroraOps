@@ -22,6 +22,33 @@ let pointer_event_count = 0;
 let frame_count = 0;
 let last_fps_calc = performance.now();
 let check_video;
+function normalized_rotation(value) {
+    const raw = typeof value === "number" ? value : Number(value);
+    const normalized = ((raw % 360) + 360) % 360;
+    return [0, 90, 180, 270].includes(normalized) ? normalized : 0;
+}
+function get_display_rotation() {
+    if (!settings)
+        return 0;
+    return normalized_rotation(settings.display_rotation_select?.value || "0");
+}
+function get_input_rotation() {
+    if (!settings)
+        return 0;
+    return normalized_rotation(settings.input_rotation_select?.value || "0");
+}
+function transform_video_point(x, y, rotation) {
+    switch (normalized_rotation(rotation)) {
+        case 90:
+            return [y, 1 - x];
+        case 180:
+            return [1 - x, 1 - y];
+        case 270:
+            return [1 - y, x];
+        default:
+            return [x, y];
+    }
+}
 function run(level) {
     window.onload = () => {
         log_pre = document.getElementById("log");
@@ -180,6 +207,9 @@ class Settings {
         this.frame_rate_output = this.frame_rate_input.nextElementSibling;
         this.scale_video_input = document.getElementById("scale_video");
         this.scale_video_output = this.scale_video_input.nextElementSibling;
+        this.encoder_select = document.getElementById("encoder");
+        this.display_rotation_select = document.getElementById("display_rotation");
+        this.input_rotation_select = document.getElementById("input_rotation");
         this.range_min_pressure = document.getElementById("min_pressure");
         this.client_name_input = document.getElementById("client_name");
         this.frame_rate_input.oninput = () => {
@@ -212,6 +242,13 @@ class Settings {
         };
         this.checks.get("stretch").onchange = () => {
             stretch_video();
+            this.save_settings();
+        };
+        this.display_rotation_select.onchange = () => {
+            stretch_video();
+            this.save_settings();
+        };
+        this.input_rotation_select.onchange = () => {
             this.save_settings();
         };
         this.checks.get("enable_debug_overlay").onchange = (e) => {
@@ -261,6 +298,7 @@ class Settings {
         this.checks.get("uinput_support").onchange = upd_server_config;
         this.checks.get("capture_cursor").onchange = upd_server_config;
         this.scale_video_input.onchange = upd_server_config;
+        this.encoder_select.onchange = upd_server_config;
         this.client_name_input.onchange = upd_server_config;
         this.frame_rate_input.onchange = upd_server_config;
         document.getElementById("refresh").onclick = () => this.webSocket.send('"GetCapturableList"');
@@ -283,6 +321,7 @@ class Settings {
         config["max_width"] = w;
         config["max_height"] = h;
         config["frame_rate"] = frame_rate_scale(this.frame_rate_input.valueAsNumber);
+        config["encoder"] = this.encoder_select.value || "auto";
         if (this.client_name_input.value)
             config["client_name"] = this.client_name_input.value;
         this.webSocket.send(JSON.stringify({ "Config": config }));
@@ -293,6 +332,9 @@ class Settings {
             settings[key] = elem.checked;
         settings["frame_rate"] = frame_rate_scale(this.frame_rate_input.valueAsNumber).toString();
         settings["scale_video"] = this.scale_video_input.value;
+        settings["encoder"] = this.encoder_select.value;
+        settings["display_rotation"] = this.display_rotation_select.value;
+        settings["input_rotation"] = this.input_rotation_select.value;
         settings["min_pressure"] = this.range_min_pressure.value;
         settings["custom_input_areas"] = this.custom_input_areas;
         settings["client_name"] = this.client_name_input.value;
@@ -324,6 +366,10 @@ class Settings {
                 this.scale_video_input.value = scale_video;
             let [w, h] = calc_max_video_resolution(this.scale_video_input.valueAsNumber);
             this.scale_video_output.value = w + "x" + h;
+            if (settings["encoder"])
+                this.encoder_select.value = settings["encoder"];
+            this.display_rotation_select.value = normalized_rotation(settings["display_rotation"] || "0").toString();
+            this.input_rotation_select.value = normalized_rotation(settings["input_rotation"] || "0").toString();
             let min_pressure = settings["min_pressure"];
             if (min_pressure)
                 this.range_min_pressure.value = min_pressure;
@@ -387,6 +433,11 @@ class Settings {
             if (name === current_selection)
                 new_index = i;
         });
+        if (new_index !== undefined && /\(DXGI\)$/.test(String(current_selection))) {
+            let auto_index = window_names.findIndex((name) => name === String(current_selection).replace(/\(DXGI\)$/, "(AUTO)"));
+            if (auto_index >= 0)
+                new_index = auto_index;
+        }
         if (new_index !== undefined)
             this.capturable_select.value = String(new_index);
         else if (window_names.length > 0)
@@ -415,6 +466,23 @@ class Settings {
     }
     video_enabled() {
         return this.checks.get("enable_video").checked;
+    }
+    update_encoder_options(options) {
+        const current = this.encoder_select.value || "auto";
+        this.encoder_select.innerText = "";
+        for (const option of options) {
+            if (!option || !option.value)
+                continue;
+            const elem = document.createElement("option");
+            elem.value = option.value;
+            elem.innerText = option.label || option.value;
+            this.encoder_select.appendChild(elem);
+        }
+        if ([...this.encoder_select.options].some((option) => option.value === current))
+            this.encoder_select.value = current;
+        else
+            this.encoder_select.value = "auto";
+        this.save_settings();
     }
 }
 let settings;
@@ -461,6 +529,7 @@ class PEvent {
         }
         this.x = (event.clientX - targetRect.left) / targetRect.width * x_scale + x_offset;
         this.y = (event.clientY - targetRect.top) / targetRect.height * y_scale + y_offset;
+        [this.x, this.y] = transform_video_point(this.x, this.y, get_input_rotation());
         this.movement_x = event.movementX ? event.movementX : 0;
         this.movement_y = event.movementY ? event.movementY : 0;
         this.pressure = Math.max(event.pressure, settings.range_min_pressure.valueAsNumber);
@@ -988,6 +1057,9 @@ function handle_messages(webSocket, video, onConfigOk, onConfigError, onCapturab
                     if (status["keyboardBackend"] !== undefined)
                         keyboard_backend_out.value = status["keyboardBackend"] || "未知";
                 }
+                else if ("EncoderCapabilities" in msg) {
+                    settings.update_encoder_options(msg["EncoderCapabilities"]["options"] || []);
+                }
             }
             return;
         }
@@ -1113,11 +1185,22 @@ function init() {
 // workaround
 function stretch_video() {
     let video = document.getElementById("video");
+    const rotation = get_display_rotation();
+    const rotated = rotation === 90 || rotation === 270;
+    const visualWidth = rotated ? video.clientHeight : video.clientWidth;
+    const visualHeight = rotated ? video.clientWidth : video.clientHeight;
+    if (visualWidth <= 0 || visualHeight <= 0)
+        return;
+    let scaleX;
+    let scaleY;
     if (settings.stretched_video()) {
-        video.style.transform = "scaleX(" + document.body.clientWidth / video.clientWidth + ") scaleY(" + document.body.clientHeight / video.clientHeight + ")";
+        scaleX = document.body.clientWidth / visualWidth;
+        scaleY = document.body.clientHeight / visualHeight;
     }
     else {
-        let scale = Math.min(document.body.clientWidth / video.clientWidth, document.body.clientHeight / video.clientHeight);
-        video.style.transform = "scale(" + scale + ")";
+        let scale = Math.min(document.body.clientWidth / visualWidth, document.body.clientHeight / visualHeight);
+        scaleX = scale;
+        scaleY = scale;
     }
+    video.style.transform = `rotate(${rotation}deg) scaleX(${scaleX}) scaleY(${scaleY})`;
 }
