@@ -136,10 +136,14 @@ else()
     message(STATUS "Threads type: disabled")
 endif()
 
-set(WARNING_FLAGS "-Wall -Wextra -Wconversion -Werror=uninitialized -Werror=return-type -Werror=vla")
-
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${WARNING_FLAGS} -Werror=incompatible-pointer-types -Werror=implicit-function-declaration -Werror=int-conversion")
+if(MSVC)
+    set(WARNING_FLAGS "/W0")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${WARNING_FLAGS}")
+else()
+    set(WARNING_FLAGS "-Wall -Wextra -Wconversion -Werror=uninitialized -Werror=return-type -Werror=vla")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${WARNING_FLAGS} -Werror=incompatible-pointer-types -Werror=implicit-function-declaration -Werror=int-conversion")
+endif()
 
 if(WIN32 OR Haiku OR ENABLE_DIRECTX_HEADERS)
     enable_language(CXX)
