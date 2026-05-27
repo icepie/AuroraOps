@@ -48,6 +48,8 @@ fn main() {
                 "-Dssize_t=intptr_t",
                 "-Dstrcasecmp=_stricmp",
                 "-Dstrncasecmp=_strnicmp",
+                "-Dmin=ff_msvc_min",
+                "-Dmax=ff_msvc_max",
                 "/clang:-fshort-enums",
             ] {
                 config.cflag(flag).cxxflag(flag);
