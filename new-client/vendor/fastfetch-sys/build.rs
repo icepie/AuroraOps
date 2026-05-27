@@ -36,8 +36,14 @@ fn main() {
             config.cflag(&include_flags).cxxflag(&include_flags);
         } else {
             config.generator_toolset("ClangCL,host=x64");
-            config.cflag("-Dssize_t=intptr_t");
-            config.cxxflag("-Dssize_t=intptr_t");
+            for flag in [
+                "-Dssize_t=intptr_t",
+                "-Dstrcasecmp=_stricmp",
+                "-Dstrncasecmp=_strnicmp",
+                "-fshort-enums",
+            ] {
+                config.cflag(flag).cxxflag(flag);
+            }
         }
         if target_arch == "x86_64" {
             config.define("CMAKE_SYSTEM_PROCESSOR", "x86_64");
