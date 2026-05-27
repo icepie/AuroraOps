@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -17,12 +17,10 @@ jobs:
             rust_target: x86_64-apple-darwin
             runner: macos-15-intel
             deployment_target: "10.15"
-            artifact: auroraops-agent-macos-x64
           - arch: arm64
             rust_target: aarch64-apple-darwin
             runner: macos-latest
             deployment_target: "11.0"
-            artifact: auroraops-agent-macos-arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -45,13 +43,27 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target }}
         run: cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
 
-      - name: Stage artifacts
+      - name: Stage release files
+        id: stage
         working-directory: new-client
         run: |
+          version="$(awk -F '"' '/^version = / { print $2; exit }' Cargo.toml)"
+          release="${RELEASE:-1}"
+          package_version="${version}-${release}"
           mkdir -p "dist/macos/${{ matrix.arch }}"
-          cp "target/${{ matrix.rust_target }}/release/auroraops-agent" "dist/macos/${{ matrix.arch }}/${{ matrix.artifact }}"
+          cp "target/${{ matrix.rust_target }}/release/auroraops-agent" "dist/macos/${{ matrix.arch }}/auroraops-agent"
+          tar -czf "dist/macos/${{ matrix.arch }}/auroraops-agent-${package_version}-macos-${{ matrix.arch }}.tar.gz" -C "dist/macos/${{ matrix.arch }}" auroraops-agent
+          rm "dist/macos/${{ matrix.arch }}/auroraops-agent"
+          echo "package_version=${package_version}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: new-client/dist/macos/${{ matrix.arch }}/*
+      - name: Publish to dev rolling release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_name="AuroraOps Agent ${{ steps.stage.outputs.package_version }} dev rolling build"
+          if ! gh release view dev >/dev/null 2>&1; then
+            gh release create dev --prerelease --title "$release_name" --notes "AuroraOps Agent dev rolling build."
+          else
+            gh release edit dev --title "$release_name" --prerelease
+          fi
+          gh release upload dev new-client/dist/macos/${{ matrix.arch }}/* --clobber
