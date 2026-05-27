@@ -99,7 +99,11 @@ jobs:
         shell: pwsh
         run: |
           $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
-          makensis.exe /DVERSION=$version /DARCH=${{ matrix.arch }} /DSOURCE_EXE="$PWD\target\${{ matrix.rust_target }}\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
+          $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            $makensis = "makensis.exe"
+          }
+          & $makensis /DVERSION=$version /DARCH=${{ matrix.arch }} /DSOURCE_EXE="$PWD\target\${{ matrix.rust_target }}\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
 
       - name: Stage artifacts
         working-directory: new-client
