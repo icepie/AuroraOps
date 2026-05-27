@@ -19,6 +19,8 @@ fn build_ffmpeg(dist_dir: &Path, enable_libnpp: bool) {
         return;
     }
 
+    let dist_env = shell_path(dist_dir);
+
     bash_command()
         .arg(Path::new("clean.sh"))
         .current_dir("deps")
@@ -28,7 +30,7 @@ fn build_ffmpeg(dist_dir: &Path, enable_libnpp: bool) {
     if !bash_command()
         .arg(Path::new("build.sh"))
         .current_dir("deps")
-        .env("DIST", dist_dir)
+        .env("DIST", dist_env)
         .env("ENABLE_LIBNPP", if enable_libnpp { "y" } else { "n" })
         .env(
             "ENABLE_VAAPI",
@@ -44,6 +46,20 @@ fn build_ffmpeg(dist_dir: &Path, enable_libnpp: bool) {
     {
         println!("cargo:warning=Failed to build ffmpeg!");
         std::process::exit(1);
+    }
+}
+
+fn shell_path(path: &Path) -> String {
+    let path = path.to_string_lossy();
+    #[cfg(target_os = "windows")]
+    {
+        path.strip_prefix(r"\\?\")
+            .unwrap_or(&path)
+            .replace('\\', "/")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        path.into_owned()
     }
 }
 
