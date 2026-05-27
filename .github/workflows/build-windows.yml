@@ -80,7 +80,13 @@ jobs:
           CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER: clang
         run: |
           export LIBCLANG_PATH="$(cygpath -w "$MSYSTEM_PREFIX/bin")"
+          unset GIT_EXEC_PATH
+          export PATH="/usr/bin:$PATH"
           echo "LIBCLANG_PATH=$LIBCLANG_PATH"
+          which git
+          git --version
+          git --exec-path
+          test -x "$(git --exec-path)/git-remote-https"
           cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
 
       - name: Install NSIS
