@@ -40,7 +40,7 @@ fn main() {
                 "-Dssize_t=intptr_t",
                 "-Dstrcasecmp=_stricmp",
                 "-Dstrncasecmp=_strnicmp",
-                "-fshort-enums",
+                "/clang:-fshort-enums",
             ] {
                 config.cflag(flag).cxxflag(flag);
             }
