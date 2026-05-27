@@ -244,6 +244,13 @@ fn create_windows_msvc_include_shims(dir: &PathBuf) {
         dir.join("msvc-compat.h"),
         [
             "#pragma once",
+            "#ifndef WIN32_LEAN_AND_MEAN",
+            "#define WIN32_LEAN_AND_MEAN",
+            "#endif",
+            "#ifndef NOMINMAX",
+            "#define NOMINMAX",
+            "#endif",
+            "#include <windows.h>",
             "#include <string.h>",
             "static inline void* ff_msvc_mempcpy(void* dest, const void* src, size_t len)",
             "{",
