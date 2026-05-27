@@ -62,7 +62,9 @@ jobs:
 
       - name: Add MSYS2 to PATH
         shell: pwsh
-        run: echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
+        run: |
+          echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
+          echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
 
       - name: Keep MSVC linker first
         shell: pwsh
@@ -75,6 +77,7 @@ jobs:
         run: |
           where.exe cl
           where.exe link
+          where.exe clang-cl
           bash --version | Select-Object -First 1
           make --version | Select-Object -First 1
 

@@ -11,7 +11,7 @@
     #include "3rdparty/yyjson/yyjson.h"
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
     #define __attribute__(x)
 #endif
 

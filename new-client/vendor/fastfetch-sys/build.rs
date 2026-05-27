@@ -34,11 +34,31 @@ fn main() {
             create_windows_include_shims(&shim_dir);
             let include_flags = format!("-I{}", shim_dir.display());
             config.cflag(&include_flags).cxxflag(&include_flags);
+        } else {
+            config.generator_toolset("ClangCL,host=x64");
+            config.cflag("-Dssize_t=intptr_t");
+            config.cxxflag("-Dssize_t=intptr_t");
         }
         if target_arch == "x86_64" {
             config.define("CMAKE_SYSTEM_PROCESSOR", "x86_64");
+            if target_env == "msvc" {
+                config
+                    .cflag("-D_M_AMD64=100")
+                    .cflag("-D_M_X64=100")
+                    .cflag("-D_AMD64_=1")
+                    .cxxflag("-D_M_AMD64=100")
+                    .cxxflag("-D_M_X64=100")
+                    .cxxflag("-D_AMD64_=1");
+            }
         } else if target_arch == "aarch64" {
             config.define("CMAKE_SYSTEM_PROCESSOR", "ARM64");
+            if target_env == "msvc" {
+                config
+                    .cflag("-D_M_ARM64=1")
+                    .cflag("-D_ARM64_=1")
+                    .cxxflag("-D_M_ARM64=1")
+                    .cxxflag("-D_ARM64_=1");
+            }
         }
     } else if target_os == "macos" {
         config.define("CMAKE_SYSTEM_NAME", "Darwin");
@@ -69,7 +89,7 @@ fn main() {
         for lib in [
             "dwmapi", "gdi32", "iphlpapi", "ole32", "oleaut32", "ws2_32", "ntdll", "version",
             "setupapi", "hid", "wtsapi32", "imagehlp", "cfgmgr32", "winbrand", "propsys",
-            "secur32", "pdh", "wbemuuid", "uuid",
+            "secur32", "pdh", "wbemuuid", "uuid", "shlwapi",
         ] {
             println!("cargo:rustc-link-lib={lib}");
         }

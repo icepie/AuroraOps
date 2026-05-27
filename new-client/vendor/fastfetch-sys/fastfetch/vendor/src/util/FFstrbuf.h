@@ -12,7 +12,7 @@
 
 #ifdef _WIN32
     // #include <shlwapi.h>
-    __stdcall char* StrStrIA(const char* lpFirst, const char* lpSrch);
+    char* __stdcall StrStrIA(const char* lpFirst, const char* lpSrch);
     #define strcasestr StrStrIA
 #endif
 
