@@ -15,7 +15,7 @@ name = "auroraops-agent-service"
 path = "src/agent_service.rs"
 
 [dependencies]
-autopilot = { git = "https://github.com/H-M-H/autopilot-rs.git", rev = "63eed09c715bfb665bb23172a3930a528e11691c" }
+autopilot = { git = "https://github.com/autopilot-rs/autopilot-rs.git" }
 base64 = "0.22"
 bitflags = { version = "^2.6", features = ["serde"] }
 bytes = "1.7.1"
