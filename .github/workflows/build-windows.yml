@@ -103,7 +103,7 @@ jobs:
           }
           & $makensis /DVERSION=$version /DARCH=${{ matrix.arch }} /DSOURCE_EXE="$PWD\target\${{ matrix.rust_target }}\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
 
-      - name: Stage artifacts
+      - name: Stage release files
         id: stage
         working-directory: new-client
         shell: pwsh
@@ -113,7 +113,7 @@ jobs:
           $packageVersion = "$version-$release"
           New-Item -ItemType Directory -Force dist\windows\${{ matrix.arch }} | Out-Null
           Copy-Item target\${{ matrix.rust_target }}\release\auroraops-agent.exe dist\windows\${{ matrix.arch }}\auroraops-agent-$packageVersion-windows-${{ matrix.arch }}.exe
-          $setup = Get-ChildItem AuroraOps-Client-Setup-*-${{ matrix.arch }}.exe | Select-Object -First 1
+          $setup = Get-ChildItem packaging\windows\AuroraOps-Client-Setup-*-${{ matrix.arch }}.exe | Select-Object -First 1
           if (-not $setup) {
             throw "Windows setup exe was not produced"
           }
