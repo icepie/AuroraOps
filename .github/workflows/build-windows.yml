@@ -9,19 +9,25 @@ permissions:
 jobs:
   build:
     name: windows-${{ matrix.arch }}
-    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x64
-            rust_target: x86_64-pc-windows-msvc
-            msvc_arch: x64
+            rust_target: x86_64-pc-windows-gnullvm
+            runner: windows-latest
+            msystem: CLANG64
+            package_prefix: mingw-w64-clang-x86_64
+            extra_packages: mingw-w64-clang-x86_64-nasm
             artifact: auroraops-client-windows-x64
           - arch: arm64
-            rust_target: aarch64-pc-windows-msvc
-            msvc_arch: amd64_arm64
+            rust_target: aarch64-pc-windows-gnullvm
+            runner: windows-11-arm
+            msystem: CLANGARM64
+            package_prefix: mingw-w64-clang-aarch64
+            extra_packages: ''
             artifact: auroraops-client-windows-arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,15 +36,10 @@ jobs:
         with:
           targets: ${{ matrix.rust_target }}
 
-      - name: Select MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.msvc_arch }}
-
       - name: Install MSYS2 build tools
         uses: msys2/setup-msys2@v2
         with:
-          msystem: UCRT64
+          msystem: ${{ matrix.msystem }}
           path-type: inherit
           update: true
           install: >-
@@ -47,37 +48,37 @@ jobs:
             git
             make
             patch
-            pkgconf
+            ${{ matrix.package_prefix }}-clang
+            ${{ matrix.package_prefix }}-cmake
+            ${{ matrix.package_prefix }}-cppwinrt
+            ${{ matrix.package_prefix }}-ninja
+            ${{ matrix.package_prefix }}-pkgconf
+            ${{ matrix.extra_packages }}
 
       - name: Install TypeScript compiler
         run: npm install -g typescript
 
-      - name: Add MSYS2 to PATH
-        shell: pwsh
-        run: |
-          echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
-          echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
-
-      - name: Keep MSVC linker first
-        shell: pwsh
-        run: |
-          $cl = (where.exe cl | Select-Object -First 1)
-          Split-Path $cl | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Verify build tools
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          where.exe cl
-          where.exe link
-          where.exe clang-cl
-          bash --version | Select-Object -First 1
-          make --version | Select-Object -First 1
+          clang --version | head -1
+          cmake --version | head -1
+          pkg-config --version
+          make --version | head -1
+          cargo --version
 
       - name: Build AuroraOps client
         working-directory: new-client
+        shell: msys2 {0}
         env:
+          AR: llvm-ar
+          CC: clang
+          CXX: clang++
           CARGO_BUILD_JOBS: 4
-          LIBCLANG_PATH: C:\Program Files\LLVM\bin
+          CMAKE_GENERATOR: Ninja
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_LINKER: clang
+          CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER: clang
+          LIBCLANG_PATH: C:\msys64\${{ matrix.msystem }}\bin
         run: cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
 
       - name: Install NSIS

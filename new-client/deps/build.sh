@@ -19,6 +19,7 @@ fi
 [ -z "$DIST" ] && export DIST="$PWD/dist"
 [ -z "$TARGET_OS" ] && export TARGET_OS="$HOST_OS"
 [ -z "$TARGET_ARCH" ] && export TARGET_ARCH="$CARGO_CFG_TARGET_ARCH"
+[ -z "$TARGET_ENV" ] && export TARGET_ENV="$CARGO_CFG_TARGET_ENV"
 [ -z "$ENABLE_VAAPI" ] && export ENABLE_VAAPI="y"
 
 export NPROCS="$(nproc || echo 4)"
@@ -31,6 +32,19 @@ if [ "$TARGET_OS" == "windows" ]; then
         export FFMPEG_EXTRA_ARGS="--arch=x86_64 --target-os=mingw64 \
             --cross-prefix=x86_64-w64-mingw32- --enable-nvenc --enable-ffnvcodec \
             --enable-mediafoundation --pkg-config=pkg-config --enable-d3d11va"
+        export FFMPEG_CFLAGS="-I$DIST/include"
+        export FFMPEG_LIBRARY_PATH="-L$DIST/lib"
+    elif [ "$TARGET_ENV" != "msvc" ]; then
+        if [ "$TARGET_ARCH" == "aarch64" ]; then
+            export FFMPEG_EXTRA_ARGS="--arch=aarch64 --target-os=win64 \
+                --disable-asm --disable-nvenc --disable-ffnvcodec \
+                --enable-mediafoundation --enable-d3d11va"
+            export X264_EXTRA_ARGS="--host=aarch64-w64-mingw32 --disable-asm"
+        else
+            export FFMPEG_EXTRA_ARGS="--arch=x86_64 --target-os=mingw64 \
+                --enable-nvenc --enable-ffnvcodec \
+                --enable-mediafoundation --pkg-config=pkg-config --enable-d3d11va"
+        fi
         export FFMPEG_CFLAGS="-I$DIST/include"
         export FFMPEG_LIBRARY_PATH="-L$DIST/lib"
     elif [ "$TARGET_ARCH" == "aarch64" ]; then
