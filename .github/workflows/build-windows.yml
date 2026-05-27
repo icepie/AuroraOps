@@ -64,10 +64,17 @@ jobs:
         shell: pwsh
         run: echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
 
+      - name: Keep MSVC linker first
+        shell: pwsh
+        run: |
+          $cl = (where.exe cl | Select-Object -First 1)
+          Split-Path $cl | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Verify build tools
         shell: pwsh
         run: |
           where.exe cl
+          where.exe link
           bash --version | Select-Object -First 1
           make --version | Select-Object -First 1
 
