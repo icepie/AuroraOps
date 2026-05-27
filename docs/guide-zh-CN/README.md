@@ -6,6 +6,7 @@
 - [环境搭建](start-environment.md)
 - [系统安装](start-installation.md)
 - [生产部署](start-deploy.md)
+- [Docker 部署服务端](docker-server.md)
 - [如何提问](start-questions.md)
 - [常见问题](start-issue.md)
 - [更新历史](start-update-log.md)

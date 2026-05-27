@@ -66,6 +66,14 @@ cd web
 pnpm run build
 ```
 
+服务端 Docker 镜像：
+
+```bash
+docker build -f Dockerfile.server -t your-dockerhub-user/auroraops-server:latest .
+```
+
+Docker Hub 发布和运行教程见 [Docker 部署服务端](docs/guide-zh-CN/docker-server.md)。
+
 ## 说明
 
 本项目基于 HotGo/GoFrame 生态做二次开发，保留上游源码授权和必要署名。面向用户展示的产品名称统一为 AuroraOps。

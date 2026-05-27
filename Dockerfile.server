@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1.7
+
+ARG NODE_IMAGE=node:22-bookworm-slim
+ARG GO_IMAGE=golang:1.25.10-bookworm
+ARG RUNTIME_IMAGE=debian:bookworm-slim
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG GOPROXY=https://goproxy.cn,direct
+
+FROM ${NODE_IMAGE} AS web-builder
+ARG NPM_REGISTRY
+WORKDIR /src/web
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN corepack enable \
+    && pnpm config set registry "${NPM_REGISTRY}" \
+    && pnpm install --frozen-lockfile
+COPY web/ ./
+RUN pnpm run build
+
+FROM ${GO_IMAGE} AS server-builder
+ARG GOPROXY
+WORKDIR /src/server
+ENV CGO_ENABLED=0 \
+    GOPROXY=${GOPROXY}
+COPY server/go.mod server/go.sum ./
+RUN go mod download
+COPY server/ ./
+COPY --from=web-builder /src/web/dist/ ./resource/public/admin/
+RUN go build -trimpath -ldflags="-s -w" -o /out/auroraops-server ./main.go
+
+FROM ${RUNTIME_IMAGE} AS runtime
+LABEL org.opencontainers.image.title="AuroraOps Server" \
+      org.opencontainers.image.description="AuroraOps management server with embedded admin frontend" \
+      org.opencontainers.image.source="https://github.com/bufanyun/auroraops"
+
+WORKDIR /app
+ENV TZ=Asia/Shanghai \
+    GF_GCFG_PATH=/app/manifest/config \
+    GF_SERVER_ADDRESS=:8000 \
+    GF_TCP_SERVER_ADDRESS=:8099
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata netbase \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system auroraops \
+    && useradd --system --gid auroraops --home-dir /app --shell /usr/sbin/nologin auroraops \
+    && mkdir -p /app/manifest/config /app/logs /app/storage /app/resource/public \
+    && chown -R auroraops:auroraops /app
+
+COPY --from=server-builder --chown=auroraops:auroraops /out/auroraops-server /app/auroraops-server
+COPY --from=server-builder --chown=auroraops:auroraops /src/server/manifest/config/ /app/manifest/config/
+COPY --from=server-builder --chown=auroraops:auroraops /src/server/resource/ /app/resource/
+COPY --from=server-builder --chown=auroraops:auroraops /src/server/storage/data/ /app/storage/data/
+
+USER auroraops
+EXPOSE 8000 8099
+VOLUME ["/app/manifest/config", "/app/storage", "/app/logs", "/app/resource/public/upload"]
+
+ENTRYPOINT ["/app/auroraops-server"]
+CMD ["http"]
