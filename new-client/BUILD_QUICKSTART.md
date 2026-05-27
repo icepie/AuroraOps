@@ -124,12 +124,27 @@ cd new-client
 dist/linux-matrix/<target>-<arch>/
 ```
 
+当前矩阵目标：
+
+| 目标 | 基础镜像 | 兼容侧重点 |
+| --- | --- | --- |
+| `ubuntu2004` | `ubuntu:20.04` | Ubuntu 20.04+，X11 优先 |
+| `ubuntu2204` | `ubuntu:22.04` | Ubuntu 22.04+，Wayland/PipeWire 优先 |
+| `uos-v20` | `debian:11` | 统信 UOS V20 桌面 |
+| `kylin-v10-v11` | `ubuntu:20.04` | 麒麟 V10/V11 桌面 |
+| `nfschina-desktop` | `debian:11` | 中科方德桌面 |
+| `centos7` | `centos:7` | 老系统，最低 glibc，X11-only |
+| `centos8` | `rockylinux:8` | RHEL/Rocky/Alma/CentOS 8+ |
+
+给老发行版分发时不要直接用新系统本机 release 产物，优先走 Docker 矩阵。`centos7` 目标 glibc 要求最低，但不启用 Wayland/PipeWire。
+
 ## 验证
 
 ```bash
 cargo fmt --manifest-path new-client/Cargo.toml --check
 cargo check --manifest-path new-client/Cargo.toml --bin auroraops-agent
-cargo check --manifest-path new-client/Cargo.toml --bin auroraops-agent-service --features agent-service-lite
+cargo check --manifest-path new-client/Cargo.toml --no-default-features --bin auroraops-agent
+cargo check --manifest-path new-client/Cargo.toml --no-default-features --bin auroraops-agent-service --features agent-service-lite
 cargo check --manifest-path new-client/Cargo.toml --target x86_64-pc-windows-gnu --bin auroraops-agent
 cargo check --manifest-path new-client/vendor/fastfetch-sys/Cargo.toml
 cargo check --manifest-path new-client/vendor/fastfetch-sys/Cargo.toml --target x86_64-pc-windows-gnu

@@ -60,12 +60,13 @@ new-client/target/aarch64-apple-darwin/release/auroraops-agent
 
 | `--target` | 基础镜像 | glibc | 覆盖系统 |
 | --- | --- | --- | --- |
-| `ubuntu1604` | `ubuntu:16.04` | 2.23 | Ubuntu 16.04 及以上 |
-| `uos-v20` | `debian:10` | 2.28 | 统信 UOS V20 |
-| `kylin-v10` | `rockylinux:8` | 2.28 | 麒麟 V10 SP1、V10/V11 桌面等 |
-| `centos7` | `centos:7` | 2.17 | CentOS 7 系列 |
-| `centos8` | `rockylinux:8` | 2.28 | CentOS/Rocky/Alma 8 及以上 |
-| `nfs-v4` | `rockylinux:8` | 2.28 | 中科方德 V4 |
+| `ubuntu2004` | `ubuntu:20.04` | 2.31 | Ubuntu 20.04 及以上，X11 优先 |
+| `ubuntu2204` | `ubuntu:22.04` | 2.35 | Ubuntu 22.04 及以上，Wayland/PipeWire 优先 |
+| `uos-v20` | `debian:11` | 2.31 | 统信 UOS V20 桌面 |
+| `kylin-v10-v11` | `ubuntu:20.04` | 2.31 | 麒麟 V10/V11 桌面 |
+| `nfschina-desktop` | `debian:11` | 2.31 | 中科方德桌面 |
+| `centos7` | `centos:7` | 2.17 | CentOS 7 系列，X11-only |
+| `centos8` | `rockylinux:8` | 2.28 | CentOS/RHEL/Rocky/Alma 8 及以上 |
 
 常用命令：
 
@@ -77,6 +78,9 @@ cd new-client
 
 # 只编 UOS V20 + 麒麟 V10/V11 桌面
 ./docker-build-linux.sh --target uos-v20,kylin-v10-v11
+
+# 老系统优先用 centos7 目标，glibc 要求最低，但不启用 Wayland/PipeWire
+./docker-build-linux.sh --target centos7
 
 # 只编 amd64
 ./docker-build-linux.sh --arch amd64
@@ -130,6 +134,13 @@ new-client/dist/uos-v10/auroraops-agent.ldd.txt
 ```
 
 说明：远程桌面依赖 X11、DBus、GStreamer、FFmpeg、DRM 等宿主桌面库，这些库不适合完全静态链接。Docker 构建主要解决 glibc 和编译环境兼容问题，目标机器仍需要对应运行库。
+
+兼容性选择建议：
+
+- 桌面系统较新，且需要 Wayland/PipeWire：优先 `ubuntu2204`、`uos-v20`、`kylin-v10-v11`。
+- 老系统或不确定 glibc 版本：优先 `centos7`，功能取舍为 X11-only。
+- RHEL/Rocky/Alma/CentOS 8+：优先 `centos8`。
+- 不建议在新发行版本机直接 release 后分发给老系统，因为二进制会绑定构建机的 glibc 版本。
 
 ## Linux 安装与服务
 
@@ -304,6 +315,7 @@ Lite 服务：
 ```bash
 cargo check --manifest-path new-client/Cargo.toml \
   --bin auroraops-agent-service \
+  --no-default-features \
   --features agent-service-lite
 ```
 
