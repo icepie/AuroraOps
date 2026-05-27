@@ -35,15 +35,25 @@ if [ "$TARGET_OS" == "windows" ]; then
         export FFMPEG_CFLAGS="-I$DIST/include"
         export FFMPEG_LIBRARY_PATH="-L$DIST/lib"
     elif [ "$TARGET_ENV" != "msvc" ]; then
+        export CC="clang"
+        export CXX="clang++"
+        export LD="clang"
+        export AR="llvm-ar"
+        export RANLIB="llvm-ranlib"
+        export NM="llvm-nm"
+        export STRIP="llvm-strip"
+        export FFMPEG_LLVM_ARGS="--cc=clang --cxx=clang++ --ld=clang \
+            --ar=llvm-ar --ranlib=llvm-ranlib --nm=llvm-nm --strip=llvm-strip"
         if [ "$TARGET_ARCH" == "aarch64" ]; then
             export FFMPEG_EXTRA_ARGS="--arch=aarch64 --target-os=win64 \
                 --disable-asm --disable-nvenc --disable-ffnvcodec \
-                --enable-mediafoundation --enable-d3d11va"
+                --enable-mediafoundation --enable-d3d11va $FFMPEG_LLVM_ARGS"
             export X264_EXTRA_ARGS="--host=aarch64-w64-mingw32 --disable-asm"
         else
             export FFMPEG_EXTRA_ARGS="--arch=x86_64 --target-os=mingw64 \
                 --enable-nvenc --enable-ffnvcodec \
-                --enable-mediafoundation --pkg-config=pkg-config --enable-d3d11va"
+                --enable-mediafoundation --pkg-config=pkg-config --enable-d3d11va \
+                $FFMPEG_LLVM_ARGS"
         fi
         export FFMPEG_CFLAGS="-I$DIST/include"
         export FFMPEG_LIBRARY_PATH="-L$DIST/lib"
