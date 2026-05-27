@@ -18,6 +18,7 @@ export const DEVICE_MONITOR_EVENT = SocketEnum.EventOpsDeviceMonitor;
 export interface DeviceMonitor {
   system?: string;
   architecture?: string;
+  kernelVersion?: string;
   cpuModel?: string;
   gpuModels?: string[];
   cpuPercent?: number;
@@ -73,6 +74,7 @@ export class State {
   public deviceType = 'physical';
   public osName = '';
   public architecture = '';
+  public kernelVersion = '';
   public location = '';
   public monitor: DeviceMonitor | null = null;
   public monitorReportedAt = '';
@@ -475,6 +477,7 @@ export const columns = [
               label: '系统',
               value: `${monitor.system || row.osName || '-'} - [${monitor.architecture || getArchitectureLabel(row)}]`,
             },
+            { label: '内核', value: monitor.kernelVersion || row.kernelVersion || '-' },
             { label: 'CPU', value: formatCpuDetail(monitor) },
             { label: 'GPU', value: formatGpuDetail(monitor) },
           ],
@@ -669,6 +672,15 @@ export const columns = [
     width: 120,
     render(row: State) {
       return h('span', {}, getArchitectureLabel(row));
+    },
+  },
+  {
+    title: '内核版本',
+    key: 'kernelVersion',
+    align: 'left',
+    width: 180,
+    render(row: State) {
+      return h('span', {}, row.kernelVersion || '-');
     },
   },
   {

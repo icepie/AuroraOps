@@ -21,6 +21,7 @@ type OpsDevice struct {
 	DeviceType        any         // 设备类型
 	OsName            any         // 操作系统
 	Architecture      any         // 系统架构
+	KernelVersion     any         // 内核版本
 	Location          any         // 部署位置
 	MonitorSnapshot   any         // 监视快照
 	MonitorReportedAt *gtime.Time // 监视上报时间

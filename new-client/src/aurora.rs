@@ -1167,6 +1167,7 @@ struct RegisterRequest {
     device_type: String,
     os_name: String,
     architecture: String,
+    kernel_version: String,
     location: String,
 }
 
@@ -1188,6 +1189,7 @@ struct HeartbeatRequest {
     mac_address: String,
     os_name: String,
     architecture: String,
+    kernel_version: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1195,6 +1197,7 @@ struct HeartbeatRequest {
 struct MonitorSnapshot {
     system: String,
     architecture: String,
+    kernel_version: String,
     cpu_model: String,
     gpu_models: Vec<String>,
     cpu_percent: f64,
@@ -1244,6 +1247,7 @@ struct MonitorCollector {
     last_sample_at: std::time::Instant,
     os_name: String,
     architecture: String,
+    kernel_version: String,
     cpu_model: String,
     gpu_models: Vec<String>,
     cpu_physical_cores: usize,
@@ -1277,6 +1281,7 @@ impl MonitorCollector {
             last_sample_at: std::time::Instant::now(),
             os_name: detect_os_name(),
             architecture: std::env::consts::ARCH.to_string(),
+            kernel_version: detect_kernel_version(),
             cpu_model,
             gpu_models: detect_gpu_models(),
             cpu_physical_cores,
@@ -1339,6 +1344,7 @@ impl MonitorCollector {
         MonitorSnapshot {
             system: self.os_name.clone(),
             architecture: self.architecture.clone(),
+            kernel_version: self.kernel_version.clone(),
             cpu_model: self.cpu_model.clone(),
             gpu_models: self.gpu_models.clone(),
             cpu_percent: round2(self.system.global_cpu_usage() as f64),
@@ -1693,6 +1699,7 @@ fn register_device(
     ip: &str,
 ) -> Result<AgentConfig, BoxError> {
     let os_name = detect_os_name();
+    let kernel_version = detect_kernel_version();
     let mac_address = detect_primary_mac(ip);
     let req = RegisterRequest {
         name: cfg.device_name.clone(),
@@ -1702,6 +1709,7 @@ fn register_device(
         device_type: detect_device_type(),
         os_name,
         architecture: std::env::consts::ARCH.to_string(),
+        kernel_version,
         location: String::new(),
     };
     let reg: RegisterResponse = post_json(
@@ -1751,6 +1759,7 @@ fn post_heartbeat(client: &reqwest::blocking::Client, cfg: &AgentConfig) {
         mac_address: detect_primary_mac(&ip),
         os_name: detect_os_name(),
         architecture: std::env::consts::ARCH.to_string(),
+        kernel_version: detect_kernel_version(),
     };
     if let Err(err) = post_json::<_, Value>(
         client,
@@ -4380,6 +4389,10 @@ fn detect_os_name() -> String {
         Some(std::env::consts::OS.to_string()),
     ])
     .unwrap_or_else(|| std::env::consts::OS.to_string())
+}
+
+fn detect_kernel_version() -> String {
+    first_meaningful_string([System::kernel_version()]).unwrap_or_default()
 }
 
 fn detect_device_type() -> String {

@@ -67,6 +67,11 @@
                   <n-input v-model:value="formValue.architecture" placeholder="如 x86_64 / aarch64" />
                 </n-form-item>
               </n-gi>
+              <n-gi span="1">
+                <n-form-item label="内核版本" path="kernelVersion">
+                  <n-input v-model:value="formValue.kernelVersion" placeholder="如 6.8.0-48-generic" />
+                </n-form-item>
+              </n-gi>
               <n-gi span="2">
                 <n-form-item label="部署位置" path="location">
                   <n-input v-model:value="formValue.location" placeholder="请输入部署位置" />

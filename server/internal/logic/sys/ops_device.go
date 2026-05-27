@@ -32,7 +32,8 @@ import (
 type sSysOpsDevice struct{}
 
 type opsDeviceSchema struct {
-	HasMacAddress bool
+	HasMacAddress    bool
+	HasKernelVersion bool
 }
 
 func NewSysOpsDevice() *sSysOpsDevice {
@@ -70,6 +71,9 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 	}
 	if schema.HasMacAddress {
 		fields = append(fields, "d.mac_address")
+	}
+	if schema.HasKernelVersion {
+		fields = append(fields, "d.kernel_version")
 	}
 	mod := s.Model(ctx).As("d").
 		LeftJoin(
@@ -203,18 +207,19 @@ func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (e
 	}
 
 	data := do.OpsDevice{
-		GroupId:      in.GroupId,
-		Name:         in.Name,
-		Hostname:     in.Hostname,
-		Ip:           in.Ip,
-		MacAddress:   normalizeMacAddress(in.MacAddress),
-		DeviceType:   normalizeDeviceType(in.DeviceType),
-		OsName:       in.OsName,
-		Architecture: normalizeDeviceArchitecture(in.Architecture),
-		Location:     in.Location,
-		Sort:         in.Sort,
-		Remark:       in.Remark,
-		Status:       in.Status,
+		GroupId:       in.GroupId,
+		Name:          in.Name,
+		Hostname:      in.Hostname,
+		Ip:            in.Ip,
+		MacAddress:    normalizeMacAddress(in.MacAddress),
+		DeviceType:    normalizeDeviceType(in.DeviceType),
+		OsName:        in.OsName,
+		Architecture:  normalizeDeviceArchitecture(in.Architecture),
+		KernelVersion: strings.TrimSpace(in.KernelVersion),
+		Location:      in.Location,
+		Sort:          in.Sort,
+		Remark:        in.Remark,
+		Status:        in.Status,
 	}
 
 	return g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) (err error) {
@@ -302,9 +307,50 @@ func (s *sSysOpsDevice) deviceSchema(ctx context.Context) (opsDeviceSchema, erro
 	if err != nil {
 		return opsDeviceSchema{}, gerror.Wrap(err, "读取设备表结构失败，请稍后重试！")
 	}
+	if !hasTableField(fields, dao.OpsDevice.Columns().KernelVersion) {
+		if err = s.ensureKernelVersionColumn(ctx); err == nil {
+			fields, err = dao.OpsDevice.Ctx(ctx).TableFields(dao.OpsDevice.Table())
+			if err != nil {
+				return opsDeviceSchema{}, gerror.Wrap(err, "读取设备表结构失败，请稍后重试！")
+			}
+		} else {
+			g.Log().Warningf(ctx, "ensure ops device kernel_version column failed: %v", err)
+		}
+	}
 	return opsDeviceSchema{
-		HasMacAddress: hasTableField(fields, dao.OpsDevice.Columns().MacAddress),
+		HasMacAddress:    hasTableField(fields, dao.OpsDevice.Columns().MacAddress),
+		HasKernelVersion: hasTableField(fields, dao.OpsDevice.Columns().KernelVersion),
 	}, nil
+}
+
+func (s *sSysOpsDevice) ensureKernelVersionColumn(ctx context.Context) error {
+	db := g.DB()
+	table := dao.OpsDevice.Table()
+	column := dao.OpsDevice.Columns().KernelVersion
+	var sql string
+	switch strings.ToLower(db.GetConfig().Type) {
+	case consts.DBPgsql:
+		sql = fmt.Sprintf(
+			`ALTER TABLE "%s" ADD COLUMN "%s" varchar(128) NOT NULL DEFAULT ''`,
+			table,
+			column,
+		)
+	case "sqlite":
+		sql = fmt.Sprintf(
+			`ALTER TABLE "%s" ADD COLUMN "%s" varchar(128) NOT NULL DEFAULT ''`,
+			table,
+			column,
+		)
+	default:
+		sql = fmt.Sprintf(
+			"ALTER TABLE `%s` ADD COLUMN `%s` varchar(128) NOT NULL DEFAULT '' COMMENT '内核版本' AFTER `%s`",
+			table,
+			column,
+			dao.OpsDevice.Columns().Architecture,
+		)
+	}
+	_, err := db.Exec(ctx, sql)
+	return err
 }
 
 func (s *sSysOpsDevice) deviceBaseWriteFields(schema opsDeviceSchema) []any {
@@ -323,6 +369,9 @@ func (s *sSysOpsDevice) deviceBaseWriteFields(schema opsDeviceSchema) []any {
 	}
 	if schema.HasMacAddress {
 		fields = append(fields, dao.OpsDevice.Columns().MacAddress)
+	}
+	if schema.HasKernelVersion {
+		fields = append(fields, dao.OpsDevice.Columns().KernelVersion)
 	}
 	return fields
 }
@@ -347,6 +396,9 @@ func (s *sSysOpsDevice) deviceRegisterFields(schema opsDeviceSchema) []any {
 	if schema.HasMacAddress {
 		fields = append(fields, dao.OpsDevice.Columns().MacAddress)
 	}
+	if schema.HasKernelVersion {
+		fields = append(fields, dao.OpsDevice.Columns().KernelVersion)
+	}
 	return fields
 }
 
@@ -360,6 +412,9 @@ func (s *sSysOpsDevice) deviceHeartbeatFields(schema opsDeviceSchema) []any {
 	}
 	if schema.HasMacAddress {
 		fields = append(fields, dao.OpsDevice.Columns().MacAddress)
+	}
+	if schema.HasKernelVersion {
+		fields = append(fields, dao.OpsDevice.Columns().KernelVersion)
 	}
 	return fields
 }
@@ -692,13 +747,14 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 
 		if current.Id > 0 {
 			updateData := do.OpsDevice{
-				Name:         in.Name,
-				Hostname:     in.Hostname,
-				Ip:           in.Ip,
-				MacAddress:   normalizeMacAddress(in.MacAddress),
-				DeviceType:   deviceType,
-				OsName:       in.OsName,
-				Architecture: architecture,
+				Name:          in.Name,
+				Hostname:      in.Hostname,
+				Ip:            in.Ip,
+				MacAddress:    normalizeMacAddress(in.MacAddress),
+				DeviceType:    deviceType,
+				OsName:        in.OsName,
+				Architecture:  architecture,
+				KernelVersion: strings.TrimSpace(in.KernelVersion),
 			}
 
 			if _, err = dao.OpsDevice.Ctx(ctx).
@@ -727,17 +783,18 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 		}
 
 		insertData := do.OpsDevice{
-			Name:         in.Name,
-			Hostname:     in.Hostname,
-			Ip:           in.Ip,
-			MacAddress:   normalizeMacAddress(in.MacAddress),
-			DeviceType:   deviceType,
-			OsName:       in.OsName,
-			Architecture: architecture,
-			Location:     location,
-			Sort:         maxSort.Sort,
-			Status:       consts.StatusEnabled,
-			Remark:       "AuroraOps Client 自动注册",
+			Name:          in.Name,
+			Hostname:      in.Hostname,
+			Ip:            in.Ip,
+			MacAddress:    normalizeMacAddress(in.MacAddress),
+			DeviceType:    deviceType,
+			OsName:        in.OsName,
+			Architecture:  architecture,
+			KernelVersion: strings.TrimSpace(in.KernelVersion),
+			Location:      location,
+			Sort:          maxSort.Sort,
+			Status:        consts.StatusEnabled,
+			Remark:        "AuroraOps Client 自动注册",
 		}
 
 		result, err := dao.OpsDevice.Ctx(ctx).
@@ -790,12 +847,13 @@ func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDevice
 	}
 
 	updateData := do.OpsDevice{
-		Hostname:     in.Hostname,
-		Ip:           in.Ip,
-		MacAddress:   normalizeMacAddress(in.MacAddress),
-		OsName:       in.OsName,
-		Architecture: normalizeDeviceArchitecture(in.Architecture, device.Architecture, device.Location),
-		Status:       consts.StatusEnabled,
+		Hostname:      in.Hostname,
+		Ip:            in.Ip,
+		MacAddress:    normalizeMacAddress(in.MacAddress),
+		OsName:        in.OsName,
+		Architecture:  normalizeDeviceArchitecture(in.Architecture, device.Architecture, device.Location),
+		KernelVersion: strings.TrimSpace(in.KernelVersion),
+		Status:        consts.StatusEnabled,
 	}
 	if _, err = dao.OpsDevice.Ctx(ctx).
 		WherePri(in.Id).

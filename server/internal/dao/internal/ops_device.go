@@ -30,6 +30,7 @@ type OpsDeviceColumns struct {
 	DeviceType        string // 设备类型
 	OsName            string // 操作系统
 	Architecture      string // 系统架构
+	KernelVersion     string // 内核版本
 	Location          string // 部署位置
 	MonitorSnapshot   string // 监视快照
 	MonitorReportedAt string // 监视上报时间
@@ -52,6 +53,7 @@ var opsDeviceColumns = OpsDeviceColumns{
 	DeviceType:        "device_type",
 	OsName:            "os_name",
 	Architecture:      "architecture",
+	KernelVersion:     "kernel_version",
 	Location:          "location",
 	MonitorSnapshot:   "monitor_snapshot",
 	MonitorReportedAt: "monitor_reported_at",

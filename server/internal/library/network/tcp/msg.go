@@ -108,6 +108,7 @@ type DeviceHeartbeatRes struct {
 type DeviceMonitorSnapshot struct {
 	System             string                      `json:"system"           description:"系统名称"`
 	Architecture       string                      `json:"architecture"     description:"系统架构"`
+	KernelVersion      string                      `json:"kernelVersion"    description:"内核版本"`
 	CpuModel           string                      `json:"cpuModel"         description:"CPU型号"`
 	GpuModels          []string                    `json:"gpuModels"        description:"GPU型号列表"`
 	CpuPercent         float64                     `json:"cpuPercent"       description:"CPU使用率"`
