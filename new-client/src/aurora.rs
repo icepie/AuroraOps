@@ -4371,10 +4371,15 @@ fn detect_primary_mac(ip: &str) -> String {
 }
 
 fn detect_os_name() -> String {
-    parse_os_release_name(&fs::read_to_string("/etc/os-release").unwrap_or_default())
-        .or_else(|| std::env::var("PRETTY_NAME").ok())
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| std::env::consts::OS.to_string())
+    first_meaningful_string([
+        System::long_os_version(),
+        format_os_name_version(System::name(), System::os_version()),
+        parse_os_release_name(&fs::read_to_string("/etc/os-release").unwrap_or_default()),
+        std::env::var("PRETTY_NAME").ok(),
+        Some(System::distribution_id()),
+        Some(std::env::consts::OS.to_string()),
+    ])
+    .unwrap_or_else(|| std::env::consts::OS.to_string())
 }
 
 fn detect_device_type() -> String {
@@ -4508,6 +4513,42 @@ fn parse_os_release_name(content: &str) -> Option<String> {
     None
 }
 
+fn format_os_name_version(name: Option<String>, version: Option<String>) -> Option<String> {
+    let name = name.and_then(|value| normalize_os_label_part(&value))?;
+    match version.and_then(|value| normalize_os_label_part(&value)) {
+        Some(version) if !label_contains_case_insensitive(&name, &version) => {
+            Some(format!("{name} {version}"))
+        }
+        _ => Some(name),
+    }
+}
+
+fn first_meaningful_string(values: impl IntoIterator<Item = Option<String>>) -> Option<String> {
+    values
+        .into_iter()
+        .flatten()
+        .filter_map(|value| normalize_os_label_part(&value))
+        .find(|value| {
+            let normalized = value.to_ascii_lowercase();
+            !matches!(normalized.as_str(), "unknown" | "unknown os")
+        })
+}
+
+fn normalize_os_label_part(value: &str) -> Option<String> {
+    let value = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn label_contains_case_insensitive(label: &str, part: &str) -> bool {
+    label
+        .to_ascii_lowercase()
+        .contains(&part.to_ascii_lowercase())
+}
+
 fn sanitize(value: &str) -> String {
     value
         .chars()
@@ -4533,7 +4574,7 @@ fn base64_decode(value: &str) -> Result<Vec<u8>, base64::DecodeError> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_os_release_name;
+    use super::{first_meaningful_string, format_os_name_version, parse_os_release_name};
 
     #[test]
     fn parse_os_release_prefers_pretty_name() {
@@ -4553,6 +4594,40 @@ PRETTY_NAME="Kylin Linux Advanced Server V10 (Lance)"
         assert_eq!(
             parse_os_release_name(content).as_deref(),
             Some("UnionTech OS Desktop")
+        );
+    }
+
+    #[test]
+    fn os_name_version_combines_short_values() {
+        assert_eq!(
+            format_os_name_version(Some("Windows".to_string()), Some("11 (22631)".to_string()))
+                .as_deref(),
+            Some("Windows 11 (22631)")
+        );
+    }
+
+    #[test]
+    fn os_name_version_avoids_duplicate_version() {
+        assert_eq!(
+            format_os_name_version(
+                Some("macOS 15.1.1 Sequoia".to_string()),
+                Some("15.1.1".to_string())
+            )
+            .as_deref(),
+            Some("macOS 15.1.1 Sequoia")
+        );
+    }
+
+    #[test]
+    fn first_meaningful_string_skips_empty_and_unknown() {
+        assert_eq!(
+            first_meaningful_string([
+                Some("  ".to_string()),
+                Some("Unknown".to_string()),
+                Some("Linux (Ubuntu 24.04)".to_string()),
+            ])
+            .as_deref(),
+            Some("Linux (Ubuntu 24.04)")
         );
     }
 }
