@@ -47,6 +47,7 @@ jobs:
             git
             make
             patch
+            pkgconf
 
       - name: Install TypeScript compiler
         run: npm install -g typescript

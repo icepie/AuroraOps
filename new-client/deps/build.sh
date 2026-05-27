@@ -77,6 +77,11 @@ if [ "$TARGET_OS" == "windows" ] && [ "$HOST_OS" == "linux" ]; then
     export X264_EXTRA_ARGS="--cross-prefix=x86_64-w64-mingw32- --host=x86_64-w64-mingw32"
 fi
 ./x264.sh
+if [ "$TARGET_OS" == "windows" ] && [ "$HOST_OS" == "windows" ]; then
+    if [ -f "$DIST/lib/libx264.lib" ]; then
+        cp "$DIST/lib/libx264.lib" "$DIST/lib/x264.lib"
+    fi
+fi
 if [ "$TARGET_OS" == "linux" ]; then
     ./nv-codec-headers.sh
     if [ "$ENABLE_VAAPI" == "y" ]; then

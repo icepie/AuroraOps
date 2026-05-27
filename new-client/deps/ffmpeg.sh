@@ -3,7 +3,12 @@
 set -ex
 
 cd ffmpeg
-PKG_CONFIG_PATH="$DIST/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/usr/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" ./configure \
+
+export PKG_CONFIG_PATH="$DIST/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/usr/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
+export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
+
+if ! ./configure \
 	--prefix="$DIST" \
 	--disable-debug \
 	--enable-static \
@@ -16,7 +21,12 @@ PKG_CONFIG_PATH="$DIST/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/x86_64-linux-
 	--disable-autodetect \
 	--extra-cflags="$FFMPEG_CFLAGS" \
 	--extra-ldflags="$FFMPEG_LIBRARY_PATH" \
-	$FFMPEG_EXTRA_ARGS
+	$FFMPEG_EXTRA_ARGS; then
+	if [ -f ffbuild/config.log ]; then
+		tail -200 ffbuild/config.log
+	fi
+	exit 1
+fi
 
 make -j$NPROCS
 make install
