@@ -39,7 +39,11 @@ fn main() {
             create_windows_msvc_include_shims(&shim_dir);
             let include_flags = format!("-I{}", shim_dir.display());
             config.generator_toolset("ClangCL,host=x64");
-            config.cflag(&include_flags).cxxflag(&include_flags);
+            config
+                .cflag(&include_flags)
+                .cxxflag(&include_flags)
+                .cflag(format!("/FI{}", shim_dir.join("msvc-compat.h").display()))
+                .cxxflag(format!("/FI{}", shim_dir.join("msvc-compat.h").display()));
             for flag in [
                 "-Dssize_t=intptr_t",
                 "-Dstrcasecmp=_stricmp",
@@ -236,4 +240,19 @@ fn create_windows_msvc_include_shims(dir: &PathBuf) {
         .join("\n"),
     )
     .expect("Unable to write Windows MSVC include shim");
+    fs::write(
+        dir.join("msvc-compat.h"),
+        [
+            "#pragma once",
+            "#include <string.h>",
+            "static inline void* ff_msvc_mempcpy(void* dest, const void* src, size_t len)",
+            "{",
+            "    return (char*) memcpy(dest, src, len) + len;",
+            "}",
+            "#define mempcpy ff_msvc_mempcpy",
+            "",
+        ]
+        .join("\n"),
+    )
+    .expect("Unable to write Windows MSVC compatibility shim");
 }
