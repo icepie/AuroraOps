@@ -35,7 +35,11 @@ fn main() {
             let include_flags = format!("-I{}", shim_dir.display());
             config.cflag(&include_flags).cxxflag(&include_flags);
         } else {
+            let shim_dir = out.join("windows-msvc-include-shim");
+            create_windows_msvc_include_shims(&shim_dir);
+            let include_flags = format!("-I{}", shim_dir.display());
             config.generator_toolset("ClangCL,host=x64");
+            config.cflag(&include_flags).cxxflag(&include_flags);
             for flag in [
                 "-Dssize_t=intptr_t",
                 "-Dstrcasecmp=_stricmp",
@@ -197,4 +201,39 @@ fn create_windows_include_shims(dir: &PathBuf) {
     }
     fs::write(dir.join("tbs.h"), "#include <windows.h>\n#include_next <tbs.h>\n")
         .expect("Unable to write Windows include shim");
+}
+
+fn create_windows_msvc_include_shims(dir: &PathBuf) {
+    fs::create_dir_all(dir).expect("Unable to create Windows MSVC include shim directory");
+    fs::write(
+        dir.join("unistd.h"),
+        [
+            "#pragma once",
+            "#include <io.h>",
+            "#include <process.h>",
+            "#define access _access",
+            "#define close _close",
+            "#define dup _dup",
+            "#define getpid _getpid",
+            "#define isatty _isatty",
+            "#ifndef F_OK",
+            "#define F_OK 0",
+            "#endif",
+            "#ifndef X_OK",
+            "#define X_OK 0",
+            "#endif",
+            "#ifndef STDIN_FILENO",
+            "#define STDIN_FILENO 0",
+            "#endif",
+            "#ifndef STDOUT_FILENO",
+            "#define STDOUT_FILENO 1",
+            "#endif",
+            "#ifndef STDERR_FILENO",
+            "#define STDERR_FILENO 2",
+            "#endif",
+            "",
+        ]
+        .join("\n"),
+    )
+    .expect("Unable to write Windows MSVC include shim");
 }

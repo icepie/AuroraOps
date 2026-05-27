@@ -2,18 +2,30 @@ use std::env;
 use std::path::Path;
 use std::process::Command;
 
+fn bash_command() -> Command {
+    #[cfg(target_os = "windows")]
+    {
+        let msys2_bash = Path::new(r"C:\msys64\usr\bin\bash.exe");
+        if msys2_bash.exists() {
+            return Command::new(msys2_bash);
+        }
+    }
+
+    Command::new("bash")
+}
+
 fn build_ffmpeg(dist_dir: &Path, enable_libnpp: bool) {
     if dist_dir.exists() {
         return;
     }
 
-    Command::new("bash")
+    bash_command()
         .arg(Path::new("clean.sh"))
         .current_dir("deps")
         .status()
         .expect("Failed to clean ffmpeg build!");
 
-    if !Command::new("bash")
+    if !bash_command()
         .arg(Path::new("build.sh"))
         .current_dir("deps")
         .env("DIST", dist_dir)
@@ -77,7 +89,7 @@ fn main() {
     let mut tsc_command = Command::new("tsc");
 
     #[cfg(target_os = "windows")]
-    let mut tsc_command = Command::new("bash");
+    let mut tsc_command = bash_command();
     #[cfg(target_os = "windows")]
     tsc_command.args(&["-c", "tsc"]);
 
