@@ -169,6 +169,7 @@
     window.addEventListener('keydown', forwardKeyboardToFrame, true);
     window.addEventListener('keyup', forwardKeyboardToFrame, true);
     window.addEventListener('keypress', forwardKeyboardToFrame, true);
+    focusFrame();
   });
 
   onBeforeUnmount(() => {
