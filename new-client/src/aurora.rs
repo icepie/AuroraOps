@@ -1168,6 +1168,7 @@ struct RegisterRequest {
     os_name: String,
     architecture: String,
     kernel_version: String,
+    client_version: String,
     location: String,
 }
 
@@ -1190,6 +1191,7 @@ struct HeartbeatRequest {
     os_name: String,
     architecture: String,
     kernel_version: String,
+    client_version: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1710,6 +1712,7 @@ fn register_device(
         os_name,
         architecture: std::env::consts::ARCH.to_string(),
         kernel_version,
+        client_version: env!("CARGO_PKG_VERSION").to_string(),
         location: String::new(),
     };
     let reg: RegisterResponse = post_json(
@@ -1760,6 +1763,7 @@ fn post_heartbeat(client: &reqwest::blocking::Client, cfg: &AgentConfig) {
         os_name: detect_os_name(),
         architecture: std::env::consts::ARCH.to_string(),
         kernel_version: detect_kernel_version(),
+        client_version: env!("CARGO_PKG_VERSION").to_string(),
     };
     if let Err(err) = post_json::<_, Value>(
         client,

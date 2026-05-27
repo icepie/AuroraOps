@@ -31,7 +31,9 @@ type OpsDeviceColumns struct {
 	OsName            string // 操作系统
 	Architecture      string // 系统架构
 	KernelVersion     string // 内核版本
+	ClientVersion     string // 客户端版本
 	Location          string // 部署位置
+	HeartbeatAt       string // 心跳时间
 	MonitorSnapshot   string // 监视快照
 	MonitorReportedAt string // 监视上报时间
 	Sort              string // 排序
@@ -54,7 +56,9 @@ var opsDeviceColumns = OpsDeviceColumns{
 	OsName:            "os_name",
 	Architecture:      "architecture",
 	KernelVersion:     "kernel_version",
+	ClientVersion:     "client_version",
 	Location:          "location",
+	HeartbeatAt:       "heartbeat_at",
 	MonitorSnapshot:   "monitor_snapshot",
 	MonitorReportedAt: "monitor_reported_at",
 	Sort:              "sort",

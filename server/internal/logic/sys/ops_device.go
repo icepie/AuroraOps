@@ -34,6 +34,8 @@ type sSysOpsDevice struct{}
 type opsDeviceSchema struct {
 	HasMacAddress    bool
 	HasKernelVersion bool
+	HasClientVersion bool
+	HasHeartbeatAt   bool
 }
 
 func NewSysOpsDevice() *sSysOpsDevice {
@@ -74,6 +76,12 @@ func (s *sSysOpsDevice) List(ctx context.Context, in *sysin.OpsDeviceListInp) (l
 	}
 	if schema.HasKernelVersion {
 		fields = append(fields, "d.kernel_version")
+	}
+	if schema.HasClientVersion {
+		fields = append(fields, "d.client_version")
+	}
+	if schema.HasHeartbeatAt {
+		fields = append(fields, "d.heartbeat_at")
 	}
 	mod := s.Model(ctx).As("d").
 		LeftJoin(
@@ -216,6 +224,7 @@ func (s *sSysOpsDevice) Edit(ctx context.Context, in *sysin.OpsDeviceEditInp) (e
 		OsName:        in.OsName,
 		Architecture:  normalizeDeviceArchitecture(in.Architecture),
 		KernelVersion: strings.TrimSpace(in.KernelVersion),
+		ClientVersion: strings.TrimSpace(in.ClientVersion),
 		Location:      in.Location,
 		Sort:          in.Sort,
 		Remark:        in.Remark,
@@ -307,46 +316,104 @@ func (s *sSysOpsDevice) deviceSchema(ctx context.Context) (opsDeviceSchema, erro
 	if err != nil {
 		return opsDeviceSchema{}, gerror.Wrap(err, "读取设备表结构失败，请稍后重试！")
 	}
-	if !hasTableField(fields, dao.OpsDevice.Columns().KernelVersion) {
-		if err = s.ensureKernelVersionColumn(ctx); err == nil {
-			fields, err = dao.OpsDevice.Ctx(ctx).TableFields(dao.OpsDevice.Table())
-			if err != nil {
-				return opsDeviceSchema{}, gerror.Wrap(err, "读取设备表结构失败，请稍后重试！")
-			}
-		} else {
-			g.Log().Warningf(ctx, "ensure ops device kernel_version column failed: %v", err)
-		}
+	fields, err = s.ensureOptionalDeviceColumns(ctx, fields)
+	if err != nil {
+		return opsDeviceSchema{}, err
 	}
 	return opsDeviceSchema{
 		HasMacAddress:    hasTableField(fields, dao.OpsDevice.Columns().MacAddress),
 		HasKernelVersion: hasTableField(fields, dao.OpsDevice.Columns().KernelVersion),
+		HasClientVersion: hasTableField(fields, dao.OpsDevice.Columns().ClientVersion),
+		HasHeartbeatAt:   hasTableField(fields, dao.OpsDevice.Columns().HeartbeatAt),
 	}, nil
 }
 
-func (s *sSysOpsDevice) ensureKernelVersionColumn(ctx context.Context) error {
+func (s *sSysOpsDevice) ensureOptionalDeviceColumns(ctx context.Context, fields map[string]*gdb.TableField) (map[string]*gdb.TableField, error) {
+	changed := false
+	optionalColumns := []struct {
+		name    string
+		comment string
+		after   string
+		kind    string
+	}{
+		{
+			name:    dao.OpsDevice.Columns().KernelVersion,
+			comment: "内核版本",
+			after:   dao.OpsDevice.Columns().Architecture,
+			kind:    "string",
+		},
+		{
+			name:    dao.OpsDevice.Columns().ClientVersion,
+			comment: "客户端版本",
+			after:   dao.OpsDevice.Columns().KernelVersion,
+			kind:    "string",
+		},
+		{
+			name:    dao.OpsDevice.Columns().HeartbeatAt,
+			comment: "心跳时间",
+			after:   dao.OpsDevice.Columns().Location,
+			kind:    "datetime",
+		},
+	}
+	for _, column := range optionalColumns {
+		if hasTableField(fields, column.name) {
+			continue
+		}
+		if err := s.ensureDeviceColumn(ctx, column.name, column.comment, column.after, column.kind); err != nil {
+			g.Log().Warningf(ctx, "ensure ops device %s column failed: %v", column.name, err)
+			continue
+		}
+		changed = true
+	}
+	if !changed {
+		return fields, nil
+	}
+	fields, err := dao.OpsDevice.Ctx(ctx).TableFields(dao.OpsDevice.Table())
+	if err != nil {
+		return nil, gerror.Wrap(err, "读取设备表结构失败，请稍后重试！")
+	}
+	return fields, nil
+}
+
+func (s *sSysOpsDevice) ensureDeviceColumn(ctx context.Context, column string, comment string, after string, kind string) error {
 	db := g.DB()
 	table := dao.OpsDevice.Table()
-	column := dao.OpsDevice.Columns().KernelVersion
 	var sql string
+	columnType := "varchar(128) NOT NULL DEFAULT ''"
+	if kind == "datetime" {
+		columnType = "datetime NULL DEFAULT NULL"
+	}
 	switch strings.ToLower(db.GetConfig().Type) {
 	case consts.DBPgsql:
+		columnType = "varchar(128) NOT NULL DEFAULT ''"
+		if kind == "datetime" {
+			columnType = "timestamp NULL DEFAULT NULL"
+		}
 		sql = fmt.Sprintf(
-			`ALTER TABLE "%s" ADD COLUMN "%s" varchar(128) NOT NULL DEFAULT ''`,
+			`ALTER TABLE "%s" ADD COLUMN "%s" %s`,
 			table,
 			column,
+			columnType,
 		)
 	case "sqlite":
+		columnType = "varchar(128) NOT NULL DEFAULT ''"
+		if kind == "datetime" {
+			columnType = "datetime NULL DEFAULT NULL"
+		}
 		sql = fmt.Sprintf(
-			`ALTER TABLE "%s" ADD COLUMN "%s" varchar(128) NOT NULL DEFAULT ''`,
+			`ALTER TABLE "%s" ADD COLUMN "%s" %s`,
 			table,
 			column,
+			columnType,
 		)
 	default:
 		sql = fmt.Sprintf(
-			"ALTER TABLE `%s` ADD COLUMN `%s` varchar(128) NOT NULL DEFAULT '' COMMENT '内核版本' AFTER `%s`",
+			"ALTER TABLE `%s` ADD COLUMN `%s` %s COMMENT '%s' AFTER `%s`",
 			table,
 			column,
-			dao.OpsDevice.Columns().Architecture,
+			columnType,
+			comment,
+			after,
 		)
 	}
 	_, err := db.Exec(ctx, sql)
@@ -372,6 +439,12 @@ func (s *sSysOpsDevice) deviceBaseWriteFields(schema opsDeviceSchema) []any {
 	}
 	if schema.HasKernelVersion {
 		fields = append(fields, dao.OpsDevice.Columns().KernelVersion)
+	}
+	if schema.HasClientVersion {
+		fields = append(fields, dao.OpsDevice.Columns().ClientVersion)
+	}
+	if schema.HasHeartbeatAt {
+		fields = append(fields, dao.OpsDevice.Columns().HeartbeatAt)
 	}
 	return fields
 }
@@ -399,6 +472,12 @@ func (s *sSysOpsDevice) deviceRegisterFields(schema opsDeviceSchema) []any {
 	if schema.HasKernelVersion {
 		fields = append(fields, dao.OpsDevice.Columns().KernelVersion)
 	}
+	if schema.HasClientVersion {
+		fields = append(fields, dao.OpsDevice.Columns().ClientVersion)
+	}
+	if schema.HasHeartbeatAt {
+		fields = append(fields, dao.OpsDevice.Columns().HeartbeatAt)
+	}
 	return fields
 }
 
@@ -415,6 +494,12 @@ func (s *sSysOpsDevice) deviceHeartbeatFields(schema opsDeviceSchema) []any {
 	}
 	if schema.HasKernelVersion {
 		fields = append(fields, dao.OpsDevice.Columns().KernelVersion)
+	}
+	if schema.HasClientVersion {
+		fields = append(fields, dao.OpsDevice.Columns().ClientVersion)
+	}
+	if schema.HasHeartbeatAt {
+		fields = append(fields, dao.OpsDevice.Columns().HeartbeatAt)
 	}
 	return fields
 }
@@ -755,6 +840,8 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 				OsName:        in.OsName,
 				Architecture:  architecture,
 				KernelVersion: strings.TrimSpace(in.KernelVersion),
+				ClientVersion: strings.TrimSpace(in.ClientVersion),
+				HeartbeatAt:   gtime.Now(),
 			}
 
 			if _, err = dao.OpsDevice.Ctx(ctx).
@@ -791,7 +878,9 @@ func (s *sSysOpsDevice) ClientRegister(ctx context.Context, in *sysin.OpsDeviceC
 			OsName:        in.OsName,
 			Architecture:  architecture,
 			KernelVersion: strings.TrimSpace(in.KernelVersion),
+			ClientVersion: strings.TrimSpace(in.ClientVersion),
 			Location:      location,
+			HeartbeatAt:   gtime.Now(),
 			Sort:          maxSort.Sort,
 			Status:        consts.StatusEnabled,
 			Remark:        "AuroraOps Client 自动注册",
@@ -853,6 +942,8 @@ func (s *sSysOpsDevice) ClientHeartbeat(ctx context.Context, in *sysin.OpsDevice
 		OsName:        in.OsName,
 		Architecture:  normalizeDeviceArchitecture(in.Architecture, device.Architecture, device.Location),
 		KernelVersion: strings.TrimSpace(in.KernelVersion),
+		ClientVersion: strings.TrimSpace(in.ClientVersion),
+		HeartbeatAt:   gtime.Now(),
 		Status:        consts.StatusEnabled,
 	}
 	if _, err = dao.OpsDevice.Ctx(ctx).

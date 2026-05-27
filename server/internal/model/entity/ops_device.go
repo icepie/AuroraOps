@@ -20,7 +20,9 @@ type OpsDevice struct {
 	OsName            string      `json:"osName"     orm:"os_name"     description:"操作系统"`
 	Architecture      string      `json:"architecture" orm:"architecture" description:"系统架构"`
 	KernelVersion     string      `json:"kernelVersion" orm:"kernel_version" description:"内核版本"`
+	ClientVersion     string      `json:"clientVersion" orm:"client_version" description:"客户端版本"`
 	Location          string      `json:"location"   orm:"location"    description:"部署位置"`
+	HeartbeatAt       *gtime.Time `json:"heartbeatAt" orm:"heartbeat_at" description:"心跳时间"`
 	MonitorSnapshot   string      `json:"monitorSnapshot"   orm:"monitor_snapshot"    description:"监视快照"`
 	MonitorReportedAt *gtime.Time `json:"monitorReportedAt" orm:"monitor_reported_at" description:"监视上报时间"`
 	Sort              int         `json:"sort"       orm:"sort"        description:"排序"`

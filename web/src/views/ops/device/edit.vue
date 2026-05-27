@@ -72,6 +72,11 @@
                   <n-input v-model:value="formValue.kernelVersion" placeholder="如 6.8.0-48-generic" />
                 </n-form-item>
               </n-gi>
+              <n-gi span="1">
+                <n-form-item label="客户端版本" path="clientVersion">
+                  <n-input v-model:value="formValue.clientVersion" placeholder="如 0.11.4" />
+                </n-form-item>
+              </n-gi>
               <n-gi span="2">
                 <n-form-item label="部署位置" path="location">
                   <n-input v-model:value="formValue.location" placeholder="请输入部署位置" />

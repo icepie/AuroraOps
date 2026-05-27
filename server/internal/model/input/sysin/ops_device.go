@@ -22,6 +22,7 @@ type OpsDeviceUpdateFields struct {
 	OsName        string `json:"osName"     dc:"操作系统"`
 	Architecture  string `json:"architecture" dc:"系统架构"`
 	KernelVersion string `json:"kernelVersion" dc:"内核版本"`
+	ClientVersion string `json:"clientVersion" dc:"客户端版本"`
 	Location      string `json:"location"   dc:"部署位置"`
 	Sort          int    `json:"sort"       dc:"排序"`
 	Remark        string `json:"remark"     dc:"备注"`
@@ -38,6 +39,7 @@ type OpsDeviceInsertFields struct {
 	OsName        string `json:"osName"     dc:"操作系统"`
 	Architecture  string `json:"architecture" dc:"系统架构"`
 	KernelVersion string `json:"kernelVersion" dc:"内核版本"`
+	ClientVersion string `json:"clientVersion" dc:"客户端版本"`
 	Location      string `json:"location"   dc:"部署位置"`
 	Sort          int    `json:"sort"       dc:"排序"`
 	Remark        string `json:"remark"     dc:"备注"`
@@ -118,7 +120,9 @@ type OpsDeviceListModel struct {
 	OsName            string                `json:"osName"     dc:"操作系统"`
 	Architecture      string                `json:"architecture" dc:"系统架构"`
 	KernelVersion     string                `json:"kernelVersion" dc:"内核版本"`
+	ClientVersion     string                `json:"clientVersion" dc:"客户端版本"`
 	Location          string                `json:"location"   dc:"部署位置"`
+	HeartbeatAt       *gtime.Time           `json:"heartbeatAt" dc:"心跳时间"`
 	MonitorSnapshot   string                `json:"-" dc:"监视快照"`
 	Monitor           *OpsDeviceMonitorView `json:"monitor" dc:"监视快照"`
 	MonitorReportedAt *gtime.Time           `json:"monitorReportedAt" dc:"监视上报时间"`
@@ -209,6 +213,7 @@ type OpsDeviceClientRegisterInp struct {
 	OsName        string `json:"osName"     dc:"操作系统"`
 	Architecture  string `json:"architecture" dc:"系统架构"`
 	KernelVersion string `json:"kernelVersion" dc:"内核版本"`
+	ClientVersion string `json:"clientVersion" dc:"客户端版本"`
 	Location      string `json:"location"   dc:"部署位置"`
 }
 
@@ -245,6 +250,7 @@ type OpsDeviceClientHeartbeatInp struct {
 	OsName        string `json:"osName"   dc:"操作系统"`
 	Architecture  string `json:"architecture" dc:"系统架构"`
 	KernelVersion string `json:"kernelVersion" dc:"内核版本"`
+	ClientVersion string `json:"clientVersion" dc:"客户端版本"`
 }
 
 func (in *OpsDeviceClientHeartbeatInp) Filter(ctx context.Context) (err error) {

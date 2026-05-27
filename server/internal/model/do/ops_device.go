@@ -22,7 +22,9 @@ type OpsDevice struct {
 	OsName            any         // 操作系统
 	Architecture      any         // 系统架构
 	KernelVersion     any         // 内核版本
+	ClientVersion     any         // 客户端版本
 	Location          any         // 部署位置
+	HeartbeatAt       *gtime.Time // 心跳时间
 	MonitorSnapshot   any         // 监视快照
 	MonitorReportedAt *gtime.Time // 监视上报时间
 	Sort              any         // 排序

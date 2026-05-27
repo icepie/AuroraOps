@@ -75,9 +75,11 @@ export class State {
   public osName = '';
   public architecture = '';
   public kernelVersion = '';
+  public clientVersion = '';
   public location = '';
   public monitor: DeviceMonitor | null = null;
   public monitorReportedAt = '';
+  public heartbeatAt = '';
   public online = false;
   public sort = 0;
   public status = 1;
@@ -507,8 +509,8 @@ export const columns = [
               value: `TCP ${monitor.tcpConnectionCount ?? 0} / UDP ${monitor.udpConnectionCount ?? 0}`,
             },
             { label: '启动', value: formatTimestamp(monitor.bootTimeSeconds) },
-            { label: '活动', value: row.monitorReportedAt || '-' },
-            { label: '版本', value: monitor.agentVersion || '-' },
+            { label: '活动', value: row.monitorReportedAt || row.heartbeatAt || '-' },
+            { label: '版本', value: monitor.agentVersion || row.clientVersion || '-' },
           ],
         },
         {
@@ -681,6 +683,24 @@ export const columns = [
     width: 180,
     render(row: State) {
       return h('span', {}, row.kernelVersion || '-');
+    },
+  },
+  {
+    title: '客户端版本',
+    key: 'clientVersion',
+    align: 'left',
+    width: 130,
+    render(row: State) {
+      return h('span', {}, row.clientVersion || '-');
+    },
+  },
+  {
+    title: '心跳时间',
+    key: 'heartbeatAt',
+    align: 'left',
+    width: 170,
+    render(row: State) {
+      return h('span', {}, row.heartbeatAt || '-');
     },
   },
   {
