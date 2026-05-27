@@ -27,12 +27,14 @@ fn main() {
         .define("ENABLE_VULKAN", "OFF")
         .define("ENABLE_EGL", "OFF");
     if target_os == "windows" {
-        let shim_dir = out.join("windows-include-shim");
-        create_windows_include_shims(&shim_dir);
         config.define("CMAKE_SYSTEM_NAME", "Windows");
         config.define("FASTFETCH_SYS_WINDOWS_AGENT_BUILD", "ON");
-        let include_flags = format!("-I{}", shim_dir.display());
-        config.cflag(&include_flags).cxxflag(&include_flags);
+        if target_env != "msvc" {
+            let shim_dir = out.join("windows-include-shim");
+            create_windows_include_shims(&shim_dir);
+            let include_flags = format!("-I{}", shim_dir.display());
+            config.cflag(&include_flags).cxxflag(&include_flags);
+        }
         if target_arch == "x86_64" {
             config.define("CMAKE_SYSTEM_PROCESSOR", "x86_64");
         } else if target_arch == "aarch64" {
