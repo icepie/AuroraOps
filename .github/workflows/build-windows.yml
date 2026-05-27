@@ -78,8 +78,10 @@ jobs:
           CMAKE_GENERATOR: Ninja
           CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_LINKER: clang
           CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER: clang
-          LIBCLANG_PATH: C:\msys64\${{ matrix.msystem }}\bin
-        run: cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
+        run: |
+          export LIBCLANG_PATH="$(cygpath -w "$MSYSTEM_PREFIX/bin")"
+          echo "LIBCLANG_PATH=$LIBCLANG_PATH"
+          cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
 
       - name: Install NSIS
         run: choco install nsis -y --no-progress
