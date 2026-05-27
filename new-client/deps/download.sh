@@ -2,14 +2,44 @@
 
 set -ex
 
-test -d x264 || git clone --depth 1 -b stable https://code.videolan.org/videolan/x264.git x264
-test -d ffmpeg || git clone --depth 1 -b n8.0 https://git.ffmpeg.org/ffmpeg.git ffmpeg
+clone_repo() {
+    local dir="$1"
+    local branch="$2"
+    shift 2
+
+    [ -d "$dir" ] && return 0
+
+    local url attempt
+    for url in "$@"; do
+        for attempt in 1 2 3; do
+            rm -rf "$dir"
+            if [ -n "$branch" ]; then
+                git clone --depth 1 -b "$branch" "$url" "$dir" && return 0
+            else
+                git clone --depth 1 "$url" "$dir" && return 0
+            fi
+            sleep $((attempt * 5))
+        done
+    done
+    return 1
+}
+
+clone_repo x264 stable \
+    https://code.videolan.org/videolan/x264.git \
+    https://github.com/videolan/x264.git
+clone_repo ffmpeg n8.0 \
+    https://git.ffmpeg.org/ffmpeg.git \
+    https://github.com/FFmpeg/FFmpeg.git
 if [ "$TARGET_OS" == "linux" ]; then
-    test -d nv-codec-headers || git clone --depth 1 https://git.videolan.org/git/ffmpeg/nv-codec-headers.git
-    test -d libva || git clone --depth 1 -b 2.22.0 https://github.com/intel/libva
+    clone_repo nv-codec-headers "" \
+        https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
+        https://github.com/FFmpeg/nv-codec-headers.git
+    clone_repo libva 2.22.0 https://github.com/intel/libva
 fi
 if [ "$TARGET_OS" == "windows" ]; then
-    test -d nv-codec-headers || git clone --depth 1 https://git.videolan.org/git/ffmpeg/nv-codec-headers.git
+    clone_repo nv-codec-headers "" \
+        https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
+        https://github.com/FFmpeg/nv-codec-headers.git
 fi
 
 if [ "$TARGET_OS" == "windows" ] && [ "$HOST_OS" == "windows" ]; then
