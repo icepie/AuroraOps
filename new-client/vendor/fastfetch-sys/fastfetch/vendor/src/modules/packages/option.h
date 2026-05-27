@@ -4,6 +4,43 @@
 
 #include "common/option.h"
 
+#if defined(_MSC_VER)
+typedef uint64_t FFPackagesFlags;
+#define FF_PACKAGES_FLAG_NONE ((FFPackagesFlags) 0)
+#define FF_PACKAGES_FLAG_APK_BIT ((FFPackagesFlags) (1ULL << 0))
+#define FF_PACKAGES_FLAG_BREW_BIT ((FFPackagesFlags) (1ULL << 1))
+#define FF_PACKAGES_FLAG_CHOCO_BIT ((FFPackagesFlags) (1ULL << 2))
+#define FF_PACKAGES_FLAG_DPKG_BIT ((FFPackagesFlags) (1ULL << 3))
+#define FF_PACKAGES_FLAG_EMERGE_BIT ((FFPackagesFlags) (1ULL << 4))
+#define FF_PACKAGES_FLAG_EOPKG_BIT ((FFPackagesFlags) (1ULL << 5))
+#define FF_PACKAGES_FLAG_FLATPAK_BIT ((FFPackagesFlags) (1ULL << 6))
+#define FF_PACKAGES_FLAG_NIX_BIT ((FFPackagesFlags) (1ULL << 7))
+#define FF_PACKAGES_FLAG_OPKG_BIT ((FFPackagesFlags) (1ULL << 8))
+#define FF_PACKAGES_FLAG_PACMAN_BIT ((FFPackagesFlags) (1ULL << 9))
+#define FF_PACKAGES_FLAG_PALUDIS_BIT ((FFPackagesFlags) (1ULL << 10))
+#define FF_PACKAGES_FLAG_PKG_BIT ((FFPackagesFlags) (1ULL << 11))
+#define FF_PACKAGES_FLAG_PKGTOOL_BIT ((FFPackagesFlags) (1ULL << 12))
+#define FF_PACKAGES_FLAG_MACPORTS_BIT ((FFPackagesFlags) (1ULL << 13))
+#define FF_PACKAGES_FLAG_RPM_BIT ((FFPackagesFlags) (1ULL << 14))
+#define FF_PACKAGES_FLAG_SCOOP_BIT ((FFPackagesFlags) (1ULL << 15))
+#define FF_PACKAGES_FLAG_SNAP_BIT ((FFPackagesFlags) (1ULL << 16))
+#define FF_PACKAGES_FLAG_WINGET_BIT ((FFPackagesFlags) (1ULL << 17))
+#define FF_PACKAGES_FLAG_XBPS_BIT ((FFPackagesFlags) (1ULL << 18))
+#define FF_PACKAGES_FLAG_AM_BIT ((FFPackagesFlags) (1ULL << 19))
+#define FF_PACKAGES_FLAG_SORCERY_BIT ((FFPackagesFlags) (1ULL << 20))
+#define FF_PACKAGES_FLAG_LPKG_BIT ((FFPackagesFlags) (1ULL << 21))
+#define FF_PACKAGES_FLAG_LPKGBUILD_BIT ((FFPackagesFlags) (1ULL << 22))
+#define FF_PACKAGES_FLAG_GUIX_BIT ((FFPackagesFlags) (1ULL << 23))
+#define FF_PACKAGES_FLAG_LINGLONG_BIT ((FFPackagesFlags) (1ULL << 24))
+#define FF_PACKAGES_FLAG_PACSTALL_BIT ((FFPackagesFlags) (1ULL << 25))
+#define FF_PACKAGES_FLAG_MPORT_BIT ((FFPackagesFlags) (1ULL << 26))
+#define FF_PACKAGES_FLAG_QI_BIT ((FFPackagesFlags) (1ULL << 27))
+#define FF_PACKAGES_FLAG_PKGSRC_BIT ((FFPackagesFlags) (1ULL << 28))
+#define FF_PACKAGES_FLAG_HPKG_BIT ((FFPackagesFlags) (1ULL << 29))
+#define FF_PACKAGES_FLAG_PISI_BIT ((FFPackagesFlags) (1ULL << 30))
+#define FF_PACKAGES_FLAG_SOAR_BIT ((FFPackagesFlags) (1ULL << 31))
+#define FF_PACKAGES_FLAG_FORCE_UNSIGNED UINT64_MAX
+#else
 typedef enum __attribute__((__packed__)) FFPackagesFlags
 {
     FF_PACKAGES_FLAG_NONE = 0,
@@ -41,6 +78,7 @@ typedef enum __attribute__((__packed__)) FFPackagesFlags
     FF_PACKAGES_FLAG_SOAR_BIT = 1ULL << 31,
     FF_PACKAGES_FLAG_FORCE_UNSIGNED = UINT64_MAX,
 } FFPackagesFlags;
+#endif
 static_assert(sizeof(FFPackagesFlags) == sizeof(uint64_t), "");
 
 typedef struct FFPackagesOptions

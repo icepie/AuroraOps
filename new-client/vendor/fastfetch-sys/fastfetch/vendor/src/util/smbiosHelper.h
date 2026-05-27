@@ -12,6 +12,58 @@ static inline void ffCleanUpSmbiosValue(FFstrbuf* value)
 // https://github.com/KunYi/DumpSMBIOS
 // https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.7.0.pdf
 
+#if defined(_MSC_VER)
+typedef uint8_t FFSmbiosType;
+#define FF_SMBIOS_TYPE_BIOS ((FFSmbiosType) 0)
+#define FF_SMBIOS_TYPE_SYSTEM_INFO ((FFSmbiosType) 1)
+#define FF_SMBIOS_TYPE_BASEBOARD_INFO ((FFSmbiosType) 2)
+#define FF_SMBIOS_TYPE_SYSTEM_ENCLOSURE ((FFSmbiosType) 3)
+#define FF_SMBIOS_TYPE_PROCESSOR_INFO ((FFSmbiosType) 4)
+#define FF_SMBIOS_TYPE_MEMORY_CONTROLLER_INFO ((FFSmbiosType) 5)
+#define FF_SMBIOS_TYPE_MEMORY_MODULE_INFO ((FFSmbiosType) 6)
+#define FF_SMBIOS_TYPE_CACHE_INFO ((FFSmbiosType) 7)
+#define FF_SMBIOS_TYPE_PORT_CONNECTOR_INFO ((FFSmbiosType) 8)
+#define FF_SMBIOS_TYPE_SYSTEM_SLOTS ((FFSmbiosType) 9)
+#define FF_SMBIOS_TYPE_ON_BOARD_DEVICES_INFO ((FFSmbiosType) 10)
+#define FF_SMBIOS_TYPE_OEM_STRING ((FFSmbiosType) 11)
+#define FF_SMBIOS_TYPE_SYSTEM_CONFIGURATION_OPTIONS ((FFSmbiosType) 12)
+#define FF_SMBIOS_TYPE_BIOS_LANGUAGE_INFO ((FFSmbiosType) 13)
+#define FF_SMBIOS_TYPE_GROUP_ASSOCIATIONS ((FFSmbiosType) 14)
+#define FF_SMBIOS_TYPE_SYSTEM_EVENT_LOG ((FFSmbiosType) 15)
+#define FF_SMBIOS_TYPE_PHYSICAL_MEMORY_ARRAY ((FFSmbiosType) 16)
+#define FF_SMBIOS_TYPE_MEMORY_DEVICE ((FFSmbiosType) 17)
+#define FF_SMBIOS_TYPE_32BIT_MEMORY_ERROR_INFO ((FFSmbiosType) 18)
+#define FF_SMBIOS_TYPE_MEMORY_ARRAY_MAPPED_ADDRESS ((FFSmbiosType) 19)
+#define FF_SMBIOS_TYPE_MEMORY_DEVICE_MAPPED_ADDRESS ((FFSmbiosType) 20)
+#define FF_SMBIOS_TYPE_BUILTIN_POINTING_DEVICE ((FFSmbiosType) 21)
+#define FF_SMBIOS_TYPE_PORTABLE_BATTERY ((FFSmbiosType) 22)
+#define FF_SMBIOS_TYPE_SYSTEM_RESET ((FFSmbiosType) 23)
+#define FF_SMBIOS_TYPE_HARDWARE_SECURITY ((FFSmbiosType) 24)
+#define FF_SMBIOS_TYPE_SYSTEM_POWER_CONTROLS ((FFSmbiosType) 25)
+#define FF_SMBIOS_TYPE_VOLTAGE_PROBE ((FFSmbiosType) 26)
+#define FF_SMBIOS_TYPE_COOLING_DEVICE ((FFSmbiosType) 27)
+#define FF_SMBIOS_TYPE_TEMPERATURE_PROBE ((FFSmbiosType) 28)
+#define FF_SMBIOS_TYPE_ELECTRICAL_CURRENT_PROBE ((FFSmbiosType) 29)
+#define FF_SMBIOS_TYPE_OUT_OF_BAND_REMOTE_ACCESS ((FFSmbiosType) 30)
+#define FF_SMBIOS_TYPE_BOOT_INTEGRITY_SERVICES_ENTRY_POINT ((FFSmbiosType) 31)
+#define FF_SMBIOS_TYPE_SYSTEM_BOOT_INFO ((FFSmbiosType) 32)
+#define FF_SMBIOS_TYPE_64BIT_MEMORY_ERROR_INFO ((FFSmbiosType) 33)
+#define FF_SMBIOS_TYPE_MANAGEMENT_DEVICE ((FFSmbiosType) 34)
+#define FF_SMBIOS_TYPE_MANAGEMENT_DEVICE_COMPONENT ((FFSmbiosType) 35)
+#define FF_SMBIOS_TYPE_MANAGEMENT_DEVICE_THRESHOLD_DATA ((FFSmbiosType) 36)
+#define FF_SMBIOS_TYPE_MEMORY_CHANNEL ((FFSmbiosType) 37)
+#define FF_SMBIOS_TYPE_IPMI_DEVICE_INFO ((FFSmbiosType) 38)
+#define FF_SMBIOS_TYPE_SYSTEM_POWER_SUPPLY ((FFSmbiosType) 39)
+#define FF_SMBIOS_TYPE_ADDITIONAL_INFO ((FFSmbiosType) 40)
+#define FF_SMBIOS_TYPE_ONBOARD_DEVICE_EXTENDED_INFO ((FFSmbiosType) 41)
+#define FF_SMBIOS_TYPE_MANAGEMENT_CONTROLLER_HOST_INTERFACE ((FFSmbiosType) 42)
+#define FF_SMBIOS_TYPE_TPM_DEVICE ((FFSmbiosType) 43)
+#define FF_SMBIOS_TYPE_PROCESSOR_ADDITIONAL_INFO ((FFSmbiosType) 44)
+#define FF_SMBIOS_TYPE_FIRMWARE_INVENTORY_INFO ((FFSmbiosType) 45)
+#define FF_SMBIOS_TYPE_STRING_PROPERTY ((FFSmbiosType) 46)
+#define FF_SMBIOS_TYPE_INACTIVE ((FFSmbiosType) 126)
+#define FF_SMBIOS_TYPE_END_OF_TABLE 127
+#else
 typedef enum __attribute__((__packed__)) FFSmbiosType // : uint8_t
 {
     FF_SMBIOS_TYPE_BIOS = 0,
@@ -65,6 +117,7 @@ typedef enum __attribute__((__packed__)) FFSmbiosType // : uint8_t
     FF_SMBIOS_TYPE_END_OF_TABLE = 127,
     // system- and OEM-specific information 128~256
 } FFSmbiosType;
+#endif
 static_assert(sizeof(FFSmbiosType) == 1, "FFSmbiosType should be 1 byte");
 
 typedef struct FFSmbiosHeader

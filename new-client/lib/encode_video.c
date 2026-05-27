@@ -333,6 +333,7 @@ void init_scaler(
 		snprintf(args, sizeof(args), "scale=w=%d:h=%d:flags=fast_bilinear", width_out, height_out);
 	}
 
+#if LIBAVFILTER_VERSION_MAJOR >= 9
 	if (hw_device_ctx != NULL)
 	{
 		// Use segment API so we can set hw_device_ctx on each filter before init.
@@ -419,6 +420,7 @@ void init_scaler(
 		}
 	}
 	else
+#endif
 	{
 		if ((ret = avfilter_graph_parse_ptr(
 				 ctx->filter_graph_scale, args, &inputs, &outputs, NULL)) < 0)

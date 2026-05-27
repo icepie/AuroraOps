@@ -18,17 +18,21 @@ permissions:
 jobs:
   build:
     name: macos-${{ matrix.arch }}
-    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x64
             rust_target: x86_64-apple-darwin
+            runner: macos-13
+            deployment_target: "10.15"
             artifact: auroraops-agent-macos-x64
           - arch: arm64
             rust_target: aarch64-apple-darwin
+            runner: macos-latest
+            deployment_target: "11.0"
             artifact: auroraops-agent-macos-arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,14 +48,14 @@ jobs:
         working-directory: new-client
         env:
           CARGO_BUILD_JOBS: 4
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target }}
         run: cargo check --target ${{ matrix.rust_target }} --bin auroraops-agent
 
       - name: Build AuroraOps client
         working-directory: new-client
         env:
           CARGO_BUILD_JOBS: 4
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target }}
         run: cargo build --release --target ${{ matrix.rust_target }} --bin auroraops-agent
 
       - name: Stage artifacts

@@ -2,6 +2,17 @@
 
 #define FF_PHYSICALDISK_TEMP_UNSET (0/0.0)
 
+#if defined(_MSC_VER)
+typedef uint8_t FFPhysicalDiskType;
+#define FF_PHYSICALDISK_TYPE_NONE ((FFPhysicalDiskType) 0)
+#define FF_PHYSICALDISK_TYPE_HDD ((FFPhysicalDiskType) (1 << 0))
+#define FF_PHYSICALDISK_TYPE_SSD ((FFPhysicalDiskType) (1 << 1))
+#define FF_PHYSICALDISK_TYPE_FIXED ((FFPhysicalDiskType) (1 << 2))
+#define FF_PHYSICALDISK_TYPE_REMOVABLE ((FFPhysicalDiskType) (1 << 3))
+#define FF_PHYSICALDISK_TYPE_READWRITE ((FFPhysicalDiskType) (1 << 4))
+#define FF_PHYSICALDISK_TYPE_READONLY ((FFPhysicalDiskType) (1 << 5))
+#define FF_PHYSICALDISK_TYPE_FORCE_UNSIGNED UINT8_MAX
+#else
 typedef enum __attribute__((__packed__)) FFPhysicalDiskType
 {
     FF_PHYSICALDISK_TYPE_NONE = 0,
@@ -18,6 +29,7 @@ typedef enum __attribute__((__packed__)) FFPhysicalDiskType
 
     FF_PHYSICALDISK_TYPE_FORCE_UNSIGNED = UINT8_MAX,
 } FFPhysicalDiskType;
+#endif
 static_assert(sizeof(FFPhysicalDiskType) == sizeof(uint8_t), "");
 
 typedef struct FFPhysicalDiskResult

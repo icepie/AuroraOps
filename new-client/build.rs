@@ -181,6 +181,7 @@ fn main() {
     if target_os == "macos" {
         println!("cargo:rustc-link-lib=framework=VideoToolbox");
         println!("cargo:rustc-link-lib=framework=CoreMedia");
+        link_macos_clang_runtime();
     }
 
     if target_os == "windows" {
@@ -194,6 +195,27 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=gdi32");
         println!("cargo:rustc-link-lib=dylib=user32");
     }
+}
+
+fn link_macos_clang_runtime() {
+    let Ok(output) = Command::new("xcrun")
+        .args(["clang", "-print-libgcc-file-name"])
+        .output()
+    else {
+        return;
+    };
+
+    if !output.status.success() {
+        return;
+    }
+
+    let path = String::from_utf8_lossy(&output.stdout);
+    let path = path.trim();
+    if path.is_empty() || !Path::new(path).exists() {
+        return;
+    }
+
+    println!("cargo:rustc-link-arg={path}");
 }
 
 fn linux() {

@@ -4,6 +4,16 @@
 #include "common/parsing.h"
 #include "common/option.h"
 
+#if defined(_MSC_VER)
+typedef uint8_t FFPercentageTypeFlags;
+#define FF_PERCENTAGE_TYPE_NONE ((FFPercentageTypeFlags) 0)
+#define FF_PERCENTAGE_TYPE_NUM_BIT ((FFPercentageTypeFlags) (1 << 0))
+#define FF_PERCENTAGE_TYPE_BAR_BIT ((FFPercentageTypeFlags) (1 << 1))
+#define FF_PERCENTAGE_TYPE_HIDE_OTHERS_BIT ((FFPercentageTypeFlags) (1 << 2))
+#define FF_PERCENTAGE_TYPE_NUM_COLOR_BIT ((FFPercentageTypeFlags) (1 << 3))
+#define FF_PERCENTAGE_TYPE_BAR_MONOCHROME_BIT FF_PERCENTAGE_TYPE_NUM_COLOR_BIT
+#define FF_PERCENTAGE_TYPE_FORCE_UNSIGNED_ UINT8_MAX
+#else
 typedef enum __attribute__((__packed__)) FFPercentageTypeFlags
 {
     FF_PERCENTAGE_TYPE_NONE = 0,
@@ -14,6 +24,7 @@ typedef enum __attribute__((__packed__)) FFPercentageTypeFlags
     FF_PERCENTAGE_TYPE_BAR_MONOCHROME_BIT = FF_PERCENTAGE_TYPE_NUM_COLOR_BIT,
     FF_PERCENTAGE_TYPE_FORCE_UNSIGNED_ = UINT8_MAX,
 } FFPercentageTypeFlags;
+#endif
 static_assert(sizeof(FFPercentageTypeFlags) == 1, "");
 
 typedef struct FFPercentageModuleConfig
