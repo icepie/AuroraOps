@@ -4,7 +4,7 @@
       <n-tabs v-model:value="activeTab" type="line" animated class="hardware-tabs">
         <n-tab-pane name="overview" tab="硬件信息">
           <div class="hardware-toolbar">
-            <n-space :wrap="false" size="small" class="hardware-toolbar__filters">
+            <n-space :wrap="true" size="small" class="hardware-toolbar__filters">
               <n-select
                 v-model:value="filters.groupId"
                 :options="groupOptions"
@@ -132,7 +132,7 @@
 
 <style scoped>
   .hardware-page {
-    min-height: calc(100vh - 180px);
+    min-height: calc(100vh - 132px);
   }
 
   .hardware-card {
@@ -140,15 +140,20 @@
   }
 
   .hardware-tabs :deep(.n-tabs-nav) {
-    margin-bottom: 16px;
+    margin-bottom: 10px;
   }
 
   .hardware-toolbar {
-    margin-bottom: 16px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 8px;
+    background: #f8fafc;
   }
 
   .hardware-toolbar__filters {
     align-items: center;
+    row-gap: 8px;
   }
 
   .toolbar-select {
@@ -160,9 +165,39 @@
   }
 
   .temperature-placeholder {
-    min-height: 360px;
+    min-height: 320px;
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  @media (min-width: 769px) and (max-width: 1280px) {
+    .toolbar-input {
+      width: 260px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .hardware-page {
+      min-height: calc(100vh - 104px);
+    }
+
+    .hardware-toolbar {
+      padding: 8px;
+    }
+
+    .hardware-toolbar__filters,
+    .toolbar-select,
+    .toolbar-input {
+      width: 100%;
+    }
+
+    .hardware-toolbar :deep(.n-button) {
+      flex: 1 1 120px;
+    }
+
+    .temperature-placeholder {
+      min-height: 240px;
+    }
   }
 </style>

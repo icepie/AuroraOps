@@ -16,9 +16,9 @@ body {
     Arial,
     sans-serif;
   line-height: 1.42;
-  color: var(--app-text);
-  font-size: 13px;
-  background-color: var(--app-bg);
+  color: #515a6e;
+  font-size: 12px;
+  background-color: #f7f7f7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -60,7 +60,7 @@ a:hover {
 
 /* 滚动条凹槽的颜色，还可以设置边框属性 */
 *::-webkit-scrollbar-track-piece {
-  background-color: var(--app-bg-subtle);
+  background-color: #f8f8f8;
   -webkit-border-radius: 2em;
   -moz-border-radius: 2em;
   border-radius: 2em;
@@ -74,7 +74,7 @@ a:hover {
 
 /* 滚动条的设置 */
 *::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--app-text-muted) 35%, transparent);
+  background-color: #ddd;
   background-clip: padding-box;
   -webkit-border-radius: 2em;
   -moz-border-radius: 2em;
@@ -83,7 +83,7 @@ a:hover {
 
 /* 滚动条鼠标移上去 */
 *::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--app-text-muted) 55%, transparent);
+  background-color: #bbb;
 }
 
 /* router view transition */
@@ -107,10 +107,6 @@ a:hover {
 //antd 卡片样式定制
 body .n-card {
   transition: all 0.2s ease-in-out;
-  border-radius: 8px;
-  background-color: var(--app-bg-elevated);
-  border: 1px solid var(--app-border);
-  box-shadow: var(--app-shadow-soft);
 }
 
 body .n-icon {
@@ -118,11 +114,8 @@ body .n-icon {
 }
 
 body .proCard {
-  border-radius: 8px;
+  border-radius: 12px;
   margin-top: 6px;
-  background-color: var(--app-bg-elevated);
-  border: 1px solid var(--app-border);
-  box-shadow: var(--app-shadow-soft);
 
   .n-card__content {
     padding: 8px 10px;
@@ -147,7 +140,7 @@ body .n-modal {
 }
 
 .n-layout-page-header .n-card {
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 //body .proCardTabs{
@@ -163,48 +156,44 @@ body .n-layout,
 body .n-layout-content,
 body .n-layout-sider,
 body .n-layout-header {
-  background-color: var(--app-bg);
+  background-color: inherit;
 }
 
 body .n-layout-header {
-  border-bottom: 1px solid var(--app-border);
+  border-bottom: none;
 }
 
 body .n-form-item {
-  --n-feedback-height: 16px;
-  --n-label-height: 20px;
+  --n-feedback-height: 14px;
+  --n-label-height: 18px;
   --n-label-font-size-left-medium: 12px;
   --n-label-font-size-top-medium: 12px;
 }
 
 body .n-form-item .n-form-item-feedback-wrapper {
-  min-height: 16px;
+  min-height: 14px;
 }
 
 body .n-data-table {
   --n-font-size: 12px;
-  --n-th-padding-small: 5px 8px;
-  --n-td-padding-small: 4px 8px;
-  --n-th-padding-medium: 6px 9px;
-  --n-td-padding-medium: 5px 9px;
+  --n-th-padding-small: 4px 7px;
+  --n-td-padding-small: 3px 7px;
+  --n-th-padding-medium: 5px 8px;
+  --n-td-padding-medium: 4px 8px;
 }
 
 body .n-data-table {
-  --n-th-color: var(--app-bg-subtle);
-}
-
-body .n-data-table .n-data-table__header {
-  border-color: var(--app-border);
+  --n-th-color: #fafafa;
 }
 
 body .n-data-table .n-data-table__pagination {
-  margin-top: 6px;
+  margin-top: 5px;
   flex-wrap: wrap;
   row-gap: 6px;
 }
 
 body .n-button {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 body .n-button .n-button__content {
@@ -215,19 +204,19 @@ body .n-input,
 body .n-select,
 body .n-date-picker,
 body .n-input-number {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 body .table-toolbar {
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 body .table-toolbar-left {
   min-width: 0;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 body .table-toolbar-right {
@@ -262,6 +251,17 @@ body .table-toolbar-right-icon {
   }
 
   body .n-form-item {
-    --n-label-height: 18px;
+    --n-label-height: 16px;
+  }
+
+  body .table-toolbar,
+  body .table-toolbar-left,
+  body .table-toolbar-right {
+    width: 100%;
+  }
+
+  body .table-toolbar-right {
+    justify-content: flex-start;
+    white-space: normal;
   }
 }
