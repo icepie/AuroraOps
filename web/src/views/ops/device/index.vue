@@ -709,9 +709,9 @@
 
   .group-panel {
     height: 100%;
-    border: 1px solid var(--app-border);
-    box-shadow: var(--app-shadow-soft);
-    background: var(--app-bg-elevated);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    background: #ffffff;
     overflow: hidden;
   }
 
@@ -730,7 +730,7 @@
   }
 
   .group-title {
-    color: var(--app-text-strong);
+    color: #0f172a;
     font-size: 16px;
     font-weight: 700;
   }
@@ -764,8 +764,8 @@
   .group-current-alert {
     min-width: 168px;
     border-radius: 8px;
-    background: var(--app-bg-subtle);
-    border: 1px solid var(--app-border);
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.16);
 
     :deep(.n-alert-body) {
       padding: 8px 12px;
@@ -775,21 +775,21 @@
   .group-search {
     :deep(.n-input) {
       border-radius: 8px;
-      background: var(--app-bg-elevated);
+      background: #ffffff;
     }
   }
 
   .group-divider {
     margin: 0;
-    color: var(--app-text-muted);
+    color: #64748b;
     font-size: 12px;
   }
 
   .group-menu-shell {
     padding: 8px;
     border-radius: 8px;
-    background: var(--app-bg-subtle);
-    border: 1px solid var(--app-border);
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.16);
   }
 
   .group-empty {
@@ -822,9 +822,9 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    border: 1px solid var(--app-border);
-    box-shadow: var(--app-shadow-soft);
-    background: var(--app-bg-elevated);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    background: #ffffff;
 
     :deep(.n-card__content) {
       display: flex;
@@ -891,8 +891,8 @@
     flex: 0 0 auto;
     border-radius: 8px;
     padding: 0 12px;
-    background: var(--app-bg-subtle);
-    border: 1px solid var(--app-border);
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.16);
   }
 
   .table-header__content {
@@ -908,19 +908,19 @@
   }
 
   .table-header__title {
-    color: var(--app-text-strong);
+    color: #0f172a;
     font-size: 16px;
     font-weight: 700;
   }
 
   .table-header__tag {
-    color: var(--app-text);
-    background: var(--app-bg-soft);
+    color: #334155;
+    background: #f1f5f9;
   }
 
   .table-header__subtitle {
     margin-top: 4px;
-    color: var(--app-text-muted);
+    color: #64748b;
     font-size: 12px;
   }
 
@@ -945,10 +945,10 @@
 
   :deep(.device-monitor-empty) {
     padding: 14px 16px;
-    color: var(--app-text-muted);
+    color: #64748b;
     font-size: 13px;
-    background: var(--app-bg-subtle);
-    border: 1px solid var(--app-border);
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.16);
     border-radius: 8px;
   }
 
@@ -959,8 +959,8 @@
     width: 100%;
     min-width: 0;
     padding: 14px 18px 16px;
-    background: var(--app-bg-elevated);
-    border: 1px solid var(--app-border);
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.16);
     border-radius: 8px;
   }
 
@@ -970,18 +970,18 @@
     justify-content: space-between;
     gap: 12px;
     min-width: 0;
-    color: var(--app-text);
+    color: #334155;
   }
 
   :deep(.device-monitor-panel__title) {
-    color: var(--app-text-strong);
+    color: #0f172a;
     font-size: 13px;
     font-weight: 700;
     line-height: 20px;
   }
 
   :deep(.device-monitor-panel__time) {
-    color: var(--app-text-muted);
+    color: #64748b;
     font-size: 12px;
     line-height: 18px;
     word-break: break-word;
@@ -1012,7 +1012,7 @@
   }
 
   :deep(.device-monitor-bar__label) {
-    color: var(--app-text);
+    color: #334155;
     font-size: 12px;
     font-weight: 600;
     line-height: 18px;
@@ -1039,21 +1039,21 @@
     align-items: center;
     min-width: 0;
     gap: 8px;
-    color: var(--app-text);
+    color: #334155;
     font-size: 12px;
     line-height: 18px;
   }
 
   :deep(.device-monitor-fact span) {
     flex: 0 0 42px;
-    color: var(--app-text-muted);
+    color: #64748b;
     font-weight: 600;
     white-space: nowrap;
   }
 
   :deep(.device-monitor-fact b) {
     min-width: 0;
-    color: var(--app-text-strong);
+    color: #0f172a;
     font-weight: 600;
     word-break: break-word;
   }
@@ -1064,7 +1064,7 @@
     gap: 14px 28px;
     min-width: 0;
     padding-top: 12px;
-    border-top: 1px solid var(--app-border);
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
   }
 
   :deep(.device-monitor-detail__group) {
@@ -1074,7 +1074,7 @@
 
   :deep(.device-monitor-detail__title) {
     margin-bottom: 6px;
-    color: var(--app-text-strong);
+    color: #0f172a;
     font-size: 12px;
     font-weight: 800;
     line-height: 18px;
@@ -1086,20 +1086,20 @@
     gap: 8px;
     min-width: 0;
     align-items: start;
-    color: var(--app-text);
+    color: #334155;
     font-size: 12px;
     line-height: 20px;
   }
 
   :deep(.device-monitor-detail__label) {
-    color: var(--app-text-muted);
+    color: #64748b;
     font-weight: 700;
     white-space: nowrap;
   }
 
   :deep(.device-monitor-detail__value) {
     min-width: 0;
-    color: var(--app-text-strong);
+    color: #0f172a;
     font-weight: 600;
     overflow-wrap: break-word;
     word-break: normal;
@@ -1110,7 +1110,7 @@
   }
 
   :deep(.device-monitor-detail__temperature .device-monitor-detail__value) {
-    color: var(--app-text);
+    color: #334155;
     font-size: 12px;
     line-height: 19px;
   }

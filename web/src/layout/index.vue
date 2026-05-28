@@ -209,11 +209,14 @@
     display: flex;
     flex-direction: row;
     flex: auto;
-    background: var(--app-bg);
+
+    &-default-background {
+      background: #f5f7f9;
+    }
 
     .layout-sider {
       min-height: 100vh;
-      box-shadow: var(--app-shadow);
+      box-shadow: 2px 0 8px 0 rgb(29 35 41 / 5%);
       position: relative;
       z-index: 13;
       transition: all 0.2s ease-in-out;
@@ -239,7 +242,6 @@
     .layout-content {
       flex: auto;
       min-height: 100vh;
-      background: var(--app-bg);
     }
 
     .n-layout-header.n-layout-header--absolute-positioned {
@@ -271,15 +273,5 @@
 
   .noMultiTabs {
     padding-top: 0;
-  }
-
-  @media (max-width: 768px) {
-    .layout-content-main {
-      margin: 0 4px 4px;
-    }
-
-    .main-view-fix {
-      padding-top: 28px;
-    }
   }
 </style>
