@@ -1,5 +1,11 @@
 <template>
-  <div class="layout-header">
+  <div
+    class="layout-header"
+    :class="{
+      'layout-header-dark': getInverted,
+      'layout-header-light': !getInverted,
+    }"
+  >
     <!--顶部菜单-->
     <div
       class="layout-header-left"
@@ -670,6 +676,38 @@
       &:hover {
         background: #f8f8f9;
       }
+    }
+  }
+
+  .layout-header-dark {
+    color: rgb(255 255 255 / 82%);
+
+    .n-icon,
+    .layout-header-trigger .anticon,
+    .link-text,
+    .title {
+      color: rgb(255 255 255 / 82%);
+    }
+
+    .layout-header-left {
+      ::v-deep(.n-breadcrumb .n-breadcrumb-item__link),
+      ::v-deep(.n-breadcrumb .n-breadcrumb-item__separator) {
+        color: rgb(255 255 255 / 72%);
+      }
+
+      ::v-deep(.n-breadcrumb .n-breadcrumb-item:last-child .n-breadcrumb-item__link) {
+        color: rgb(255 255 255 / 90%);
+      }
+    }
+
+    :deep(.n-input) {
+      --n-text-color: rgb(255 255 255 / 86%);
+      --n-placeholder-color: rgb(255 255 255 / 48%);
+      --n-color: transparent;
+      --n-color-focus: transparent;
+      --n-border: 1px solid rgb(255 255 255 / 32%);
+      --n-border-hover: 1px solid rgb(255 255 255 / 54%);
+      --n-border-focus: 1px solid rgb(255 255 255 / 68%);
     }
   }
 
