@@ -2,3 +2,31 @@
 @primaryColorHover: #57a3f3;
 @header-height: 52px;
 @footer-height: 70px;
+
+:root {
+  --app-bg: #f4f7fb;
+  --app-bg-elevated: #ffffff;
+  --app-bg-soft: #eef3f8;
+  --app-bg-subtle: #f8fbff;
+  --app-text: #1f2937;
+  --app-text-strong: #0f172a;
+  --app-text-muted: #64748b;
+  --app-border: rgba(15, 23, 42, 0.08);
+  --app-border-strong: rgba(15, 23, 42, 0.14);
+  --app-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  --app-shadow-soft: 0 6px 18px rgba(15, 23, 42, 0.04);
+}
+
+html[data-theme='dark'] {
+  --app-bg: #0b1118;
+  --app-bg-elevated: #111820;
+  --app-bg-soft: #151e28;
+  --app-bg-subtle: #0f151d;
+  --app-text: #dbe3ee;
+  --app-text-strong: #f7fafc;
+  --app-text-muted: #93a4b8;
+  --app-border: rgba(148, 163, 184, 0.16);
+  --app-border-strong: rgba(148, 163, 184, 0.24);
+  --app-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  --app-shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.2);
+}

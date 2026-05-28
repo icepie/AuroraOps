@@ -183,6 +183,7 @@
   .desktop-page {
     height: calc(100vh - 96px);
     height: calc(100dvh - 96px);
+    max-height: calc(100dvh - 96px);
     min-height: 320px;
     width: 100%;
     box-sizing: border-box;
@@ -195,8 +196,8 @@
   }
 
   .desktop-toolbar {
-    flex: 0 0 34px;
-    min-height: 0;
+    flex: 0 0 auto;
+    min-height: 34px;
     box-sizing: border-box;
     padding: 3px 10px 3px 12px;
     display: flex;
@@ -288,8 +289,13 @@
   }
 
   @media (max-width: 640px) {
+    .desktop-page {
+      height: calc(100dvh - 76px);
+      max-height: calc(100dvh - 76px);
+      min-height: 260px;
+    }
+
     .desktop-toolbar {
-      flex-basis: 40px;
       padding: 4px 8px;
       gap: 8px;
       flex-wrap: wrap;

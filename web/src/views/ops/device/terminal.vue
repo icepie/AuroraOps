@@ -446,6 +446,7 @@
   .terminal-page {
     height: calc(100vh - 96px);
     height: calc(100dvh - 96px);
+    max-height: calc(100dvh - 96px);
     min-height: 320px;
     width: 100%;
     box-sizing: border-box;
@@ -457,7 +458,8 @@
   }
 
   .terminal-toolbar {
-    flex: 0 0 44px;
+    flex: 0 0 auto;
+    min-height: 40px;
     box-sizing: border-box;
     padding: 6px 12px;
     display: flex;
@@ -539,9 +541,16 @@
   }
 
   @media (max-width: 768px) {
+    .terminal-page {
+      height: calc(100dvh - 76px);
+      max-height: calc(100dvh - 76px);
+      min-height: 260px;
+    }
+
     .terminal-toolbar {
       gap: 8px;
       padding: 6px 8px;
+      flex-wrap: wrap;
     }
 
     .terminal-title {
