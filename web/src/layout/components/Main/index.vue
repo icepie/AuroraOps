@@ -1,7 +1,7 @@
 <template>
   <RouterView>
     <template #default="{ Component, route }">
-      <template v-if="mode === 'production'">
+      <template v-if="mode === 'production' && isPageAnimate">
         <transition :name="getTransitionName" appear>
           <keep-alive :max="keepAliveMax">
             <component
@@ -68,6 +68,7 @@
       return {
         getTransitionName,
         getCacheKey,
+        isPageAnimate: getIsPageAnimate,
         keepAliveMax,
         mode,
         shouldKeepAlive,

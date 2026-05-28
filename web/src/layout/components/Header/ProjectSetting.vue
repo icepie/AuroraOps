@@ -208,7 +208,7 @@
         <div class="drawer-setting-item">
           <div class="drawer-setting-item-title"> 禁用动画 </div>
           <div class="drawer-setting-item-action">
-            <n-switch v-model:value="settingStore.isPageAnimate" />
+            <n-switch :value="!settingStore.isPageAnimate" @update:value="togPageAnimate" />
           </div>
         </div>
 
@@ -267,8 +267,9 @@
       watch(
         () => designStore.darkTheme,
         (to) => {
-          settingStore.navTheme = to ? 'header-dark' : 'dark';
-        }
+          settingStore.navTheme = to ? 'header-dark' : 'light';
+        },
+        { immediate: true }
       );
 
       const directionsOptions = computed(() => {
@@ -299,12 +300,17 @@
         settingStore.menuSetting.mixMenu = false;
       }
 
+      function togPageAnimate(disabled) {
+        settingStore.isPageAnimate = !disabled;
+      }
+
       return {
         ...toRefs(state),
         settingStore,
         designStore,
         togNavTheme,
         togNavMode,
+        togPageAnimate,
         togTheme,
         darkTheme,
         openDrawer,
