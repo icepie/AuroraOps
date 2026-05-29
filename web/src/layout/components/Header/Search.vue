@@ -165,15 +165,15 @@ function handleMouseEnter(index: number) {
 </script>
 
 <template>
-  <div class="flex items-center" @click="openModal" title="点击搜索菜单">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="#000000" d="m19.485 20.154l-6.262-6.262q-.75.639-1.725.989t-1.96.35q-2.402 0-4.066-1.663T3.808 9.503T5.47 5.436t4.064-1.667t4.068 1.664T15.268 9.5q0 1.042-.369 2.017t-.97 1.668l6.262 6.261zM9.539 14.23q1.99 0 3.36-1.37t1.37-3.361t-1.37-3.36t-3.36-1.37t-3.361 1.37t-1.37 3.36t1.37 3.36t3.36 1.37"/></svg>
+  <div class="command-search-trigger" @click="openModal" title="点击搜索菜单">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="m19.485 20.154l-6.262-6.262q-.75.639-1.725.989t-1.96.35q-2.402 0-4.066-1.663T3.808 9.503T5.47 5.436t4.064-1.667t4.068 1.664T15.268 9.5q0 1.042-.369 2.017t-.97 1.668l6.262 6.261zM9.539 14.23q1.99 0 3.36-1.37t1.37-3.361t-1.37-3.36t-3.36-1.37t-3.361 1.37t-1.37 3.36t1.37 3.36t3.36 1.37"/></svg>
     <n-tag round size="small" class="font-mono cursor-pointer">
       Ctrl K
     </n-tag>
   </div>
   <n-modal
     v-model:show="showModal"
-    class="fixed top-[60px] inset-x-0"
+    class="command-search-modal"
     size="small"
     preset="card"
     :segmented="{
@@ -190,7 +190,7 @@ function handleMouseEnter(index: number) {
       <n-input v-model:value="searchValue" placeholder="搜索页面/路径" clearable size="large" @input="handleInputChange">
         <template #prefix>
           <n-icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="#6f6a6a" d="m19.485 20.154l-6.262-6.262q-.75.639-1.725.989t-1.96.35q-2.402 0-4.066-1.663T3.808 9.503T5.47 5.436t4.064-1.667t4.068 1.664T15.268 9.5q0 1.042-.369 2.017t-.97 1.668l6.262 6.261zM9.539 14.23q1.99 0 3.36-1.37t1.37-3.361t-1.37-3.36t-3.36-1.37t-3.361 1.37t-1.37 3.36t1.37 3.36t3.36 1.37"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="m19.485 20.154l-6.262-6.262q-.75.639-1.725.989t-1.96.35q-2.402 0-4.066-1.663T3.808 9.503T5.47 5.436t4.064-1.667t4.068 1.664T15.268 9.5q0 1.042-.369 2.017t-.97 1.668l6.262 6.261zM9.539 14.23q1.99 0 3.36-1.37t1.37-3.361t-1.37-3.36t-3.36-1.37t-3.361 1.37t-1.37 3.36t1.37 3.36t3.36 1.37"/></svg>
           </n-icon>
         </template>
       </n-input>
@@ -239,3 +239,43 @@ function handleMouseEnter(index: number) {
     </template>
   </n-modal>
 </template>
+
+<style lang="less" scoped>
+  .command-search-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 28px;
+    color: var(--n-text-color-2);
+    cursor: pointer;
+  }
+
+  .command-search-trigger:hover {
+    color: var(--n-text-color-1);
+  }
+
+  :global(.command-search-modal) {
+    margin: 8vh auto 0;
+  }
+
+  :global(.command-search-modal.n-card) {
+    border-radius: 6px;
+  }
+
+  :global(.command-search-modal .n-card-header) {
+    padding: 10px 12px;
+  }
+
+  :global(.command-search-modal .n-card__content) {
+    padding: 8px 12px;
+  }
+
+  :global(.command-search-modal .n-card__footer) {
+    padding: 8px 12px 10px;
+  }
+
+  :global(.command-search-modal .n-input .n-input__prefix) {
+    color: var(--n-text-color-3);
+  }
+</style>

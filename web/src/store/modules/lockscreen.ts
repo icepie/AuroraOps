@@ -12,8 +12,7 @@ export type ILockscreenState = {
   lockTime: number;
 };
 
-export const useLockscreenStore = defineStore({
-  id: 'app-lockscreen',
+export const useLockscreenStore = defineStore('app-lockscreen', {
   state: (): ILockscreenState => ({
     isLock: isLock === true, // 是否锁屏
     lockTime: isLock == 'true' ? initTime : 0,

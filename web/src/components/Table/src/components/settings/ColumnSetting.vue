@@ -264,11 +264,19 @@
     }
     &-right {
       &-icon {
-        margin-left: 12px;
-        font-size: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        min-width: 24px;
+        height: 24px;
+        margin-left: 0;
+        border-radius: 4px;
+        font-size: 14px;
         color: var(--text-color);
         cursor: pointer;
-        :hover {
+
+        &:hover {
           color: #1890ff;
         }
       }
@@ -278,27 +286,46 @@
     &-checkbox {
       display: flex;
       align-items: center;
+      min-width: 0;
       padding: 10px 14px;
+
       &:hover {
         background: #e6f7ff;
       }
+
       .drag-icon {
         display: inline-flex;
+        flex: 0 0 auto;
         margin-right: 8px;
         cursor: move;
+
         &-hidden {
           visibility: hidden;
           cursor: default;
         }
       }
+
+      .n-checkbox {
+        min-width: 0;
+      }
+
+      .n-checkbox__label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .fixed-item {
         display: flex;
         align-items: center;
         justify-content: flex-end;
+        flex: 0 0 auto;
         margin-left: auto;
       }
+
       .ant-checkbox-wrapper {
         flex: 1;
+
         &:hover {
           color: #1890ff !important;
         }

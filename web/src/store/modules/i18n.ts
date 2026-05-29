@@ -25,8 +25,7 @@ export interface II18nStore {
 
 const Storage = createStorage({ storage: localStorage });
 
-export const useI18nStore = defineStore({
-  id: 'I18nStore',
+export const useI18nStore = defineStore('I18nStore', {
   state: (): II18nStore => ({
     currentLocale: Storage.get(CurrentLocale, 'zh-CN'),
   }),

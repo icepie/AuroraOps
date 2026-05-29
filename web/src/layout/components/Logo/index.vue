@@ -1,14 +1,15 @@
 <template>
   <div class="logo">
-    <img src="~@/assets/images/logo.png" alt="" :class="{ 'mr-2': !collapsed }" />
+    <img :src="siteLogo" alt="" />
     <h2 v-show="!collapsed" class="title">{{ projectName }}</h2>
   </div>
 </template>
 
-<script>
+<script lang="ts">
+  import { computed, defineComponent } from 'vue';
   import { useUserStore } from '@/store/modules/user';
 
-  export default {
+  export default defineComponent({
     name: 'Index',
     props: {
       collapsed: {
@@ -17,32 +18,49 @@
     },
     setup() {
       const userStore = useUserStore();
-      const projectName = userStore.loginConfig?.projectName || import.meta.env.VITE_GLOB_APP_TITLE;
+      const projectName = computed(() => userStore.getSiteName);
+      const siteLogo = computed(() => userStore.getSiteLogo);
       return {
         projectName,
+        siteLogo,
       };
     },
-  };
+  });
 </script>
 
 <style lang="less" scoped>
   .logo {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    gap: 8px;
+    box-sizing: border-box;
     height: @header-height;
-    line-height: @header-height;
     overflow: hidden;
+    padding: 0 12px;
     white-space: nowrap;
 
     img {
-      width: auto;
-      height: 26px;
-      border-radius: 20px;
+      flex: 0 0 auto;
+      width: 24px;
+      height: 24px;
+      display: block;
+      object-fit: contain;
+      border-radius: 4px;
     }
 
     .title {
-      margin-bottom: 0px;
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      margin-bottom: 0;
+      overflow: hidden;
+      height: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 24px;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
     }
   }
 </style>

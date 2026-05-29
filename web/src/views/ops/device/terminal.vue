@@ -56,7 +56,7 @@
   import { ACCESS_TOKEN } from '@/store/mutation-types';
   import { useTabsViewStore } from '@/store/modules/tabsView';
   import { storage } from '@/utils/Storage';
-  import 'xterm/css/xterm.css';
+  import '@xterm/xterm/css/xterm.css';
 
   const route = useRoute();
   const message = useMessage();
@@ -444,9 +444,9 @@
 
 <style scoped lang="less">
   .terminal-page {
-    height: calc(100vh - 96px);
-    height: calc(100dvh - 96px);
-    max-height: calc(100dvh - 96px);
+    height: calc(100vh - 84px);
+    height: calc(100dvh - 84px);
+    max-height: calc(100dvh - 84px);
     min-height: 320px;
     width: 100%;
     box-sizing: border-box;
@@ -459,28 +459,29 @@
 
   .terminal-toolbar {
     flex: 0 0 auto;
-    min-height: 40px;
+    min-height: 32px;
     box-sizing: border-box;
-    padding: 6px 12px;
+    padding: 4px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
     background: #171c22;
   }
 
   .terminal-title {
     min-width: 0;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: 14px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
     line-height: 1.2;
   }
 
   .terminal-state {
-    color: rgba(245, 245, 245, 0.62);
-    font-size: 12px;
+    color: #dbeafe;
+    font-size: 11px;
   }
 
   .terminal-state.is-online {
@@ -496,7 +497,7 @@
   }
 
   .terminal-action {
-    min-width: 48px;
+    min-width: 44px;
   }
 
   :deep(.terminal-action-secondary) {
@@ -528,7 +529,7 @@
     flex: 1;
     min-height: 0;
     box-sizing: border-box;
-    padding: 8px;
+    padding: 6px;
     overflow: hidden;
   }
 
@@ -542,8 +543,8 @@
 
   @media (max-width: 768px) {
     .terminal-page {
-      height: calc(100dvh - 76px);
-      max-height: calc(100dvh - 76px);
+      height: calc(100dvh - 68px);
+      max-height: calc(100dvh - 68px);
       min-height: 260px;
     }
 

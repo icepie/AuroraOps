@@ -31,8 +31,7 @@ interface ProjectSettingState {
   isMobile: boolean; // 是否处于移动端模式
 }
 
-export const useProjectSettingStore = defineStore({
-  id: 'app-project-setting',
+export const useProjectSettingStore = defineStore('app-project-setting', {
   state: (): ProjectSettingState => ({
     navMode: navMode,
     navTheme,

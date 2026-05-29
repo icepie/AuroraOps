@@ -18,14 +18,13 @@
         </template>
       </BasicForm>
 
-      <BasicTable
+       <BasicTable full-height
         :openChecked="false"
         :columns="columns"
         :request="loadDataTable"
         :row-key="(row) => row.id"
         ref="actionRef"
         :scroll-x="1090"
-        :resizeHeightOffset="-10000"
         size="small"
       >
         <template #tableTitle>

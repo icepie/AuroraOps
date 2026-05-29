@@ -13,6 +13,7 @@
         </template>
       </BasicForm>
       <BasicTable
+        full-height
         ref="actionRef"
         openChecked
         :columns="columns"
@@ -20,8 +21,7 @@
         :request="loadDataTable"
         :row-key="(row) => row.id"
         :actionColumn="actionColumn"
-        :scroll-x="1280"
-        :resizeHeightOffset="-10000"
+        :scroll-x="scrollX"
         :cascade="false"
         :expanded-row-keys="expandedKeys"
         @update:expanded-row-keys="updateExpandedKeys"
@@ -78,7 +78,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { h, reactive, ref, onMounted } from 'vue';
+  import { computed, h, reactive, ref, onMounted } from 'vue';
   import { useDialog, useMessage } from 'naive-ui';
   import { BasicTable, TableAction } from '@/components/Table';
   import { BasicForm, useForm } from '@/components/Form/index';
@@ -86,7 +86,7 @@
   import { getDeptList, Delete } from '@/api/org/dept';
   import { PlusOutlined, DeleteOutlined, AlignLeftOutlined } from '@vicons/antd';
   import { columns, schemas, loadOptions, newState, filterIds } from './model';
-  import { convertListToTree } from '@/utils/hotgo';
+  import { adaTableScrollX, convertListToTree } from '@/utils/hotgo';
   import Edit from './edit.vue';
 
   const dialog = useDialog();
@@ -100,13 +100,14 @@
   const allTreeKeys = ref([]);
 
   const actionColumn = reactive({
-    width: 220,
+    width: 196,
     title: '操作',
     key: 'action',
     fixed: 'right',
     render(record) {
       return h(TableAction as any, {
         style: 'button',
+        class: 'dept-table-action',
         actions: [
           {
             label: '编辑',
@@ -126,6 +127,10 @@
         ],
       });
     },
+  });
+
+  const scrollX = computed(() => {
+    return adaTableScrollX(columns, actionColumn.width);
   });
 
   const [register, {}] = useForm({
@@ -229,4 +234,13 @@
   });
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+  :deep(.dept-table-action > .flex) {
+    gap: 4px;
+  }
+
+  :deep(.dept-table-action .n-button) {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+</style>

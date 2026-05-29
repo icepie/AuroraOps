@@ -39,8 +39,7 @@ export type IDictState = {
   options: DictOptions;
 };
 
-export const useDictStore = defineStore({
-  id: 'app-dict',
+export const useDictStore = defineStore('app-dict', {
   state: (): IDictState => ({
     options: Storage.get(CURRENT_DICT, new DictOptions()),
   }),

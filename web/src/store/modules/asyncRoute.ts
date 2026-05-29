@@ -48,8 +48,7 @@ function filter<T = any>(
   return listFilter(tree);
 }
 
-export const useAsyncRouteStore = defineStore({
-  id: 'app-async-route',
+export const useAsyncRouteStore = defineStore('app-async-route', {
   state: (): IAsyncRouteState => ({
     menus: [],
     routers: constantRouter,

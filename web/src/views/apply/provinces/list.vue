@@ -19,7 +19,7 @@
         </template>
       </BasicForm>
 
-      <BasicTable
+       <BasicTable full-height
         :columns="listColumns"
         :request="loadDataTable"
         :row-key="(row) => row.id"
@@ -27,7 +27,6 @@
         :actionColumn="actionColumn"
         @update:checked-row-keys="onCheckedRow"
         :scroll-x="scrollX"
-        :resizeHeightOffset="-10000"
       >
         <template #tableTitle>
           <n-button type="primary" @click="addTable">

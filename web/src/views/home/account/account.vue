@@ -2,17 +2,17 @@
   <div>
     <n-grid cols="24 300:1 600:24" :x-gap="12">
       <n-grid-item span="6">
-        <n-card :bordered="false" class="proCard">
-          <n-thing
-            class="thing-cell"
+        <n-card :bordered="false" class="proCard account-nav-card" content-style="padding: 6px 8px;">
+          <div
+            class="account-nav-item"
             v-for="item in typeTabList"
             :key="item.key"
-            :class="{ 'thing-cell-on': type === item.key }"
+            :class="{ 'account-nav-item--active': type === item.key }"
             @click="switchType(item)"
           >
-            <template #header>{{ item.name }}</template>
-            <template #description>{{ item.desc }}</template>
-          </n-thing>
+            <div class="account-nav-item__title">{{ item.name }}</div>
+            <div class="account-nav-item__desc">{{ item.desc }}</div>
+          </div>
         </n-card>
       </n-grid-item>
       <n-grid-item span="18">
@@ -35,7 +35,7 @@
   // import CashSetting from './CashSetting.vue';
   // import ThirdBind from './ThirdBind.vue';
   import { useRouter } from 'vue-router';
-  import {pushHashRouterParameter} from "@/utils/urlUtils";
+  import { pushHashRouterParameter } from '@/utils/urlUtils';
 
   const router = useRouter();
   const type = ref(1);
@@ -88,21 +88,44 @@
   }
 </script>
 <style lang="less" scoped>
-  .thing-cell {
-    margin: 0 -16px 10px;
-    padding: 5px 16px;
+  .account-nav-card {
+    min-height: 100%;
+  }
+
+  .account-nav-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
 
     &:hover {
       background: #f3f3f3;
-      cursor: pointer;
     }
   }
 
-  .thing-cell-on {
+  .account-nav-item + .account-nav-item {
+    margin-top: 2px;
+  }
+
+  .account-nav-item__title {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 600;
+  }
+
+  .account-nav-item__desc {
+    margin-top: 1px;
+    font-size: 11px;
+    line-height: 16px;
+    color: #64748b;
+  }
+
+  .account-nav-item--active {
     background: #f0faff;
     color: #2d8cf0;
 
-    ::v-deep(.n-thing-main .n-thing-header .n-thing-header__title) {
+    .account-nav-item__title,
+    .account-nav-item__desc {
       color: #2d8cf0;
     }
 

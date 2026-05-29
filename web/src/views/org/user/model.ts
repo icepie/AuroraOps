@@ -190,8 +190,15 @@ const schemas: FormSchema[] = [
 
 export const [register, {}] = useForm({
   gridProps: { cols: '1 s:1 m:2 l:3 xl:4 2xl:4' },
-  labelWidth: 80,
+  labelWidth: 64,
   schemas,
+  size: 'small',
+  submitButtonOptions: {
+    size: 'small',
+  },
+  resetButtonOptions: {
+    size: 'small',
+  },
 });
 
 export const deptTreeOptions = ref([]);

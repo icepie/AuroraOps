@@ -1,7 +1,7 @@
 <template>
   <n-card :bordered="false" class="proCard">
     <n-spin :show="show" description="加载中...">
-      <BasicTable
+       <BasicTable full-height
         size="small"
         striped
         resizable
@@ -13,7 +13,6 @@
         :columns="columns"
         :dataSource="dataSource"
         :row-key="(row) => row.id"
-        :resizeHeightOffset="-20000"
         :scroll-x="columnCollapse ? 1400 : 2400"
         :scroll-y="720"
         :scrollbar-props="{ trigger: 'none' }"

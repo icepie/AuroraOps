@@ -211,15 +211,16 @@
     flex: auto;
 
     &-default-background {
-      background: #f5f7f9;
+      background: #f5f7fa;
     }
 
     .layout-sider {
       min-height: 100vh;
-      box-shadow: 2px 0 8px 0 rgb(29 35 41 / 5%);
+      box-shadow: 1px 0 4px 0 rgb(29 35 41 / 6%);
       position: relative;
       z-index: 13;
       transition: all 0.2s ease-in-out;
+      border-right: 1px solid rgba(0, 0, 0, 0.06);
     }
 
     .layout-sider-fix {
@@ -254,7 +255,7 @@
   }
 
   .layout-content-main {
-    margin: 0 8px 8px;
+    margin: 0 6px 6px;
     position: relative;
     padding-top: @header-height;
   }
@@ -268,7 +269,7 @@
   }
 
   .main-view-fix {
-    padding-top: 36px;
+    padding-top: 31px;
   }
 
   .noMultiTabs {

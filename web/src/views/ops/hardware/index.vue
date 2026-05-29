@@ -26,13 +26,13 @@
           </div>
 
           <BasicTable
+            full-height
             ref="actionRef"
             :columns="columns"
             :request="loadDataTable"
             :row-key="(row) => row.deviceId"
             :actionColumn="actionColumn"
-            :scroll-x="1620"
-            :resizeHeightOffset="-10000"
+            :scroll-x="1840"
             :showTopRight="false"
           />
         </n-tab-pane>
@@ -132,23 +132,101 @@
 
 <style scoped>
   .hardware-page {
-    min-height: calc(100vh - 132px);
-  }
-
-  .hardware-card {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 92px);
+    min-height: 360px;
     overflow: hidden;
   }
 
+  .hardware-card {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .hardware-card :deep(.n-card-content) {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .hardware-tabs {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .hardware-tabs :deep(.n-tabs-nav) {
+    flex: 0 0 auto;
     margin-bottom: 10px;
   }
 
+  .hardware-tabs :deep(.n-tabs-pane-wrapper),
+  .hardware-tabs :deep(.n-tab-pane) {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .hardware-toolbar {
+    flex: 0 0 auto;
     margin-bottom: 10px;
     padding: 8px 10px;
     border: 1px solid rgba(148, 163, 184, 0.16);
     border-radius: 8px;
     background: #f8fafc;
+  }
+
+  .hardware-tabs :deep(.basic-table) {
+    flex: 1 1 auto;
+    min-height: 280px;
+  }
+
+  .hardware-tabs :deep(.n-data-table-th),
+  .hardware-tabs :deep(.n-data-table-td) {
+    vertical-align: middle;
+  }
+
+  .hardware-tabs :deep(.n-data-table-td) {
+    height: 56px;
+  }
+
+  .hardware-tabs :deep(.hardware-cell) {
+    display: -webkit-box;
+    max-height: 40px;
+    overflow: hidden;
+    line-height: 20px;
+    white-space: normal;
+    word-break: break-word;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .hardware-tabs :deep(.hardware-cell--list) {
+    display: flex;
+    max-height: 46px;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 4px;
+    line-height: 1;
+  }
+
+  .hardware-tabs :deep(.hardware-cell__item),
+  .hardware-tabs :deep(.hardware-cell__more) {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    height: 20px;
+    overflow: hidden;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .hardware-toolbar__filters {
@@ -179,7 +257,8 @@
 
   @media (max-width: 768px) {
     .hardware-page {
-      min-height: calc(100vh - 104px);
+      height: calc(100vh - 82px);
+      min-height: 360px;
     }
 
     .hardware-toolbar {

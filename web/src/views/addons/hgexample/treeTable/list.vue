@@ -21,7 +21,7 @@
           </template>
         </BasicForm>
 
-        <BasicTable
+         <BasicTable full-height
           :openChecked="true"
           :columns="columns"
           :request="loadDataTable"
@@ -31,7 +31,6 @@
           :checked-row-keys="checkedIds"
           @update:checked-row-keys="onCheckedRow"
           :scroll-x="scrollX"
-          :resizeHeightOffset="-10000"
           size="small"
           @update:sorter="handleUpdateSorter"
         >

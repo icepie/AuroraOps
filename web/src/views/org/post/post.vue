@@ -14,6 +14,7 @@
       </BasicForm>
 
       <BasicTable
+        full-height
         :openChecked="true"
         :columns="columns"
         :request="loadDataTable"
@@ -21,8 +22,7 @@
         ref="actionRef"
         :actionColumn="actionColumn"
         @update:checked-row-keys="onCheckedRow"
-        :resizeHeightOffset="-10000"
-        :scroll-x="1090"
+        :scroll-x="scrollX"
       >
         <template #tableTitle>
           <n-button type="primary" @click="addTable">
@@ -98,7 +98,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { h, reactive, ref } from 'vue';
+  import { computed, h, reactive, ref } from 'vue';
   import { useDialog, useMessage } from 'naive-ui';
   import { BasicTable, TableAction } from '@/components/Table';
   import { BasicForm, FormSchema, useForm } from '@/components/Form/index';
@@ -107,6 +107,7 @@
   import { DeleteOutlined, PlusOutlined } from '@vicons/antd';
   import { statusOptions } from '@/enums/optionsiEnum';
   import { defRangeShortcuts } from '@/utils/dateUtil';
+  import { adaTableScrollX } from '@/utils/hotgo';
   import { cloneDeep } from 'lodash-es';
 
   const params = ref<any>({
@@ -196,6 +197,7 @@
     render(record) {
       return h(TableAction as any, {
         style: 'button',
+        class: 'post-table-action',
         actions: [
           {
             label: '编辑',
@@ -208,6 +210,10 @@
         ],
       });
     },
+  });
+
+  const scrollX = computed(() => {
+    return adaTableScrollX(columns, actionColumn.width);
   });
 
   const [register, {}] = useForm({
@@ -302,4 +308,13 @@
   }
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+  :deep(.post-table-action > .flex) {
+    gap: 4px;
+  }
+
+  :deep(.post-table-action .n-button) {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+</style>

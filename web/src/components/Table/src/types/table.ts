@@ -36,6 +36,7 @@ export interface BasicTableProps {
   showPagination: boolean;
   actionColumn: any[];
   canResize: boolean;
+  fullHeight: boolean;
   resizeHeightOffset: number;
   loading: boolean;
 }

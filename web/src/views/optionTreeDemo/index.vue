@@ -102,7 +102,7 @@
               <n-input v-model:value="model[field]" />
             </template>
           </BasicForm>
-          <BasicTable v-if="selectedState.id > 0" ref="actionRef" openChecked :columns="columns" :request="loadDataTable" :row-key="(row) => row.id" :actionColumn="actionColumn" :scroll-x="scrollX" :resizeHeightOffset="-10000"  :checked-row-keys="checkedIds" @update:checked-row-keys="handleOnCheckedRow">
+           <BasicTable full-height v-if="selectedState.id > 0" ref="actionRef" openChecked :columns="columns" :request="loadDataTable" :row-key="(row) => row.id" :actionColumn="actionColumn" :scroll-x="scrollX"  :checked-row-keys="checkedIds" @update:checked-row-keys="handleOnCheckedRow">
             <template #tableTitle>
               <n-button type="primary" @click="handleAdd(selectedState)"  class="min-left-space" v-if="hasPermission(['/optionTreeDemo/edit'])">
                 <template #icon>

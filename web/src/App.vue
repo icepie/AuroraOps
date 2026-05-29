@@ -50,6 +50,18 @@
         primaryColor: appTheme,
         primaryColorHover: lightenStr,
         primaryColorPressed: lightenStr,
+        bodyColor: designStore.darkTheme ? '#0f1115' : '#f5f7fa',
+        cardColor: designStore.darkTheme ? '#171a21' : '#ffffff',
+        modalColor: designStore.darkTheme ? '#171a21' : '#ffffff',
+        popoverColor: designStore.darkTheme ? '#1b1f27' : '#ffffff',
+        tableColor: designStore.darkTheme ? '#171a21' : '#ffffff',
+        tableHeaderColor: designStore.darkTheme ? '#20242d' : '#f7f8fa',
+        borderColor: designStore.darkTheme ? 'rgba(255,255,255,0.10)' : '#e8eaec',
+        dividerColor: designStore.darkTheme ? 'rgba(255,255,255,0.09)' : '#edf0f5',
+        textColorBase: designStore.darkTheme ? '#eef2f8' : '#111827',
+        textColor1: designStore.darkTheme ? '#f8fafc' : '#111827',
+        textColor2: designStore.darkTheme ? '#e2e8f0' : '#1f2937',
+        textColor3: designStore.darkTheme ? '#cbd5e1' : '#374151',
         fontSize: '13px',
         fontSizeMini: '11px',
         fontSizeTiny: '12px',
@@ -60,7 +72,7 @@
         heightSmall: '24px',
         heightMedium: '28px',
         heightLarge: '32px',
-        borderRadius: '5px',
+        borderRadius: '4px',
         // 纵向滚动条宽
         scrollbarWidth: '6px',
         // 横向滚动条高
@@ -76,16 +88,16 @@
       Card: {
         titleFontSizeSmall: '14px',
         titleFontSizeMedium: '14px',
-        paddingSmall: '8px 10px',
-        paddingMedium: '9px 12px',
+        paddingSmall: '7px 10px',
+        paddingMedium: '8px 12px',
       },
       DataTable: {
         fontSizeSmall: '12px',
         fontSizeMedium: '13px',
-        thPaddingSmall: '5px 8px',
-        tdPaddingSmall: '4px 8px',
-        thPaddingMedium: '6px 9px',
-        tdPaddingMedium: '5px 9px',
+        thPaddingSmall: '4px 8px',
+        tdPaddingSmall: '3px 8px',
+        thPaddingMedium: '5px 9px',
+        tdPaddingMedium: '4px 9px',
       },
       Form: {
         labelFontSizeLeftMedium: '12px',
@@ -103,6 +115,7 @@
   watch(
     () => designStore.darkTheme,
     (value) => {
+      document.documentElement.dataset.theme = value ? 'dark' : 'light';
       projectSettingStore.navTheme = value ? 'header-dark' : 'light';
     },
     { immediate: true }

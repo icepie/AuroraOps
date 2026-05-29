@@ -1,12 +1,22 @@
-module.exports = {
+export default {
   root: true,
   plugins: ['stylelint-order'],
-  extends: ['stylelint-config-standard', 'stylelint-config-prettier'],
+  extends: ['stylelint-config-standard'],
+  overrides: [
+    {
+      files: ['**/*.vue'],
+      customSyntax: 'postcss-html',
+    },
+    {
+      files: ['**/*.less'],
+      customSyntax: 'postcss-less',
+    },
+  ],
   rules: {
     'selector-pseudo-class-no-unknown': [
       true,
       {
-        ignorePseudoClasses: ['global'],
+        ignorePseudoClasses: ['global', 'deep'],
       },
     ],
     'selector-pseudo-element-no-unknown': [
@@ -34,18 +44,30 @@ module.exports = {
     ],
     'no-empty-source': null,
     'named-grid-areas-no-invalid': null,
-    'unicode-bom': 'never',
     'no-descending-specificity': null,
+    'no-duplicate-selectors': null,
     'font-family-no-missing-generic-family-keyword': null,
-    'declaration-colon-space-after': 'always-single-line',
-    'declaration-colon-space-before': 'never',
+    'font-family-name-quotes': null,
+    'selector-class-pattern': null,
+    'keyframes-name-pattern': null,
+    'number-max-precision': null,
+    'declaration-property-value-no-unknown': null,
+    'declaration-property-value-keyword-no-deprecated': null,
+    'declaration-block-no-redundant-longhand-properties': null,
+    'shorthand-property-no-redundant-values': null,
+    'import-notation': null,
+    'color-function-notation': null,
+    'color-function-alias-notation': null,
+    'color-hex-length': null,
+    'alpha-value-notation': null,
+    'hue-degree-notation': null,
+    'media-feature-range-notation': null,
+    'property-no-vendor-prefix': null,
+    'property-no-deprecated': null,
+    'length-zero-no-unit': null,
+    'value-keyword-case': null,
     // 'declaration-block-trailing-semicolon': 'always',
-    'rule-empty-line-before': [
-      'always',
-      {
-        ignore: ['after-comment', 'first-nested'],
-      },
-    ],
+    'rule-empty-line-before': null,
     'unit-no-unknown': [true, { ignoreUnits: ['rpx'] }],
     'order/order': [
       [

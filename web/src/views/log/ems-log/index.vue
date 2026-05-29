@@ -6,7 +6,7 @@
       </template>
     </BasicForm>
 
-    <BasicTable
+     <BasicTable full-height
       :openChecked="true"
       :columns="columns"
       :request="loadDataTable"

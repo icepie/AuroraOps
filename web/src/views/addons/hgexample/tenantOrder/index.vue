@@ -17,14 +17,13 @@
           <n-input v-model:value="model[field]" />
         </template>
       </BasicForm>
-      <BasicTable
+       <BasicTable full-height
         ref="actionRef"
         :columns="columns"
         :request="loadDataTable"
         :row-key="(row) => row.id"
         :actionColumn="actionColumn"
         :scroll-x="scrollX"
-        :resizeHeightOffset="-10000"
       >
         <template #tableTitle>
           <n-button

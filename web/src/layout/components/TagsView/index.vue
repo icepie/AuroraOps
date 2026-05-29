@@ -16,7 +16,7 @@
           :class="{ 'tabs-card-prev-hide': !scrollable }"
           @click="scrollPrev"
         >
-          <n-icon size="16" color="#515a6e">
+          <n-icon size="16">
             <LeftOutlined />
           </n-icon>
         </span>
@@ -25,7 +25,7 @@
           :class="{ 'tabs-card-next-hide': !scrollable }"
           @click="scrollNext"
         >
-          <n-icon size="16" color="#515a6e">
+          <n-icon size="16">
             <RightOutlined />
           </n-icon>
         </span>
@@ -56,7 +56,7 @@
           :options="TabsMenuOptions"
         >
           <div class="tabs-close-btn">
-            <n-icon size="16" color="#515a6e">
+            <n-icon size="16">
               <DownOutlined />
             </n-icon>
           </div>
@@ -603,41 +603,52 @@
             background: v-bind(getCardColor);
             color: v-bind(getBaseColor);
             height: 28px;
-            padding: 4px 12px 3px;
+            max-width: 220px;
+            padding: 0 8px 0 10px;
             border-radius: 3px;
             margin-right: 5px;
             cursor: pointer;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             position: relative;
             flex: 0 0 auto;
             font-size: 12px;
+            line-height: 28px;
+            vertical-align: top;
 
             span {
-              float: left;
-              vertical-align: middle;
+              display: block;
+              min-width: 0;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              line-height: 20px;
             }
 
             &:hover {
-              color: #515a6e;
+              color: var(--n-text-color-1);
             }
 
             .n-icon {
-              height: 22px;
-              width: 18px;
-              margin-right: -5px;
-              position: relative;
-              vertical-align: middle;
-              text-align: center;
-              color: #808695;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              flex: 0 0 auto;
+              height: 16px;
+              width: 16px;
+              margin-right: -2px;
+              position: static;
+              color: var(--n-text-color-3);
 
               &:hover {
-                color: #515a6e !important;
+                color: var(--n-text-color-1) !important;
               }
 
               svg {
-                height: 21px;
-                width: 14px;
-                display: inline-block;
+                height: 12px;
+                width: 12px;
+                display: block;
               }
             }
           }

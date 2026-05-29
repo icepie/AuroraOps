@@ -13,8 +13,7 @@ interface DesignSettingState {
   appThemeList: string[];
 }
 
-export const useDesignSettingStore = defineStore({
-  id: 'app-design-setting',
+export const useDesignSettingStore = defineStore('app-design-setting', {
   state: (): DesignSettingState => ({
     darkTheme,
     appTheme,

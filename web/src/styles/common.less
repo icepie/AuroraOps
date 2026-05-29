@@ -15,10 +15,10 @@ body {
     '\5FAE\8F6F\96C5\9ED1',
     Arial,
     sans-serif;
-  line-height: 1.42;
-  color: #515a6e;
+  line-height: 1.38;
+  color: #1f2937;
   font-size: 12px;
-  background-color: #f7f7f7;
+  background-color: #f5f7fa;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -114,19 +114,20 @@ body .n-icon {
 }
 
 body .proCard {
-  border-radius: 12px;
-  margin-top: 6px;
+  border-radius: 4px;
+  margin-top: 5px;
 
-  .n-card__content {
-    padding: 8px 10px;
+  .n-card__content,
+  .n-card-content {
+    padding: 7px 10px;
 
     &:first-child {
-      padding-top: 8px;
+      padding-top: 7px;
     }
   }
 
   .n-card-header {
-    padding: 8px 10px;
+    padding: 7px 10px;
   }
 
   .n-card-header__main {
@@ -136,11 +137,11 @@ body .proCard {
 }
 
 body .n-modal {
-  border-radius: 6px;
+  border-radius: 4px;
 }
 
 .n-layout-page-header .n-card {
-  border-radius: 12px;
+  border-radius: 4px;
 }
 
 //body .proCardTabs{
@@ -149,7 +150,7 @@ body .n-modal {
 //}
 
 .n-layout-page-header {
-  margin: 4px 0;
+  margin: 3px 0;
 }
 
 body .n-layout-header {
@@ -157,22 +158,23 @@ body .n-layout-header {
 }
 
 body .n-form-item {
-  --n-feedback-height: 14px;
-  --n-label-height: 18px;
+  --n-feedback-height: 12px;
+  --n-label-height: 17px;
   --n-label-font-size-left-medium: 12px;
   --n-label-font-size-top-medium: 12px;
+  --n-blank-height-medium: 26px;
 }
 
 body .n-form-item .n-form-item-feedback-wrapper {
-  min-height: 14px;
+  min-height: 12px;
 }
 
 body .n-data-table {
   --n-font-size: 12px;
-  --n-th-padding-small: 4px 7px;
-  --n-td-padding-small: 3px 7px;
-  --n-th-padding-medium: 5px 8px;
-  --n-td-padding-medium: 4px 8px;
+  --n-th-padding-small: 3px 8px;
+  --n-td-padding-small: 2px 8px;
+  --n-th-padding-medium: 4px 9px;
+  --n-td-padding-medium: 3px 9px;
 }
 
 body .n-data-table {
@@ -180,7 +182,7 @@ body .n-data-table {
 }
 
 body .n-data-table .n-data-table__pagination {
-  margin-top: 5px;
+  margin-top: 4px;
   flex-wrap: wrap;
   row-gap: 6px;
 }
@@ -190,26 +192,62 @@ body .n-button {
 }
 
 body .n-button .n-button__content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
 }
 
 body .n-input,
+body .n-input .n-input__input-el,
+body .n-input .n-input__textarea-el,
 body .n-select,
+body .n-base-selection,
 body .n-date-picker,
 body .n-input-number {
   font-size: 12px;
 }
 
+body .n-input:not(.n-input--textarea),
+body .n-base-selection {
+  --n-height: 28px;
+}
+
+body .n-form-item-label {
+  align-items: center;
+}
+
+body .n-tag {
+  --n-font-size: 12px;
+  --n-height: 22px;
+
+  line-height: 20px;
+}
+
+body .n-tabs .n-tabs-tab {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+body .n-tabs.n-tabs--card-type .n-tabs-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 6px 14px;
+}
+
 body .table-toolbar {
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  min-height: 28px;
 }
 
 body .table-toolbar-left {
   min-width: 0;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
 
 body .table-toolbar-right {
@@ -223,6 +261,148 @@ body .table-toolbar-right-icon {
   justify-content: center;
   min-width: 24px;
   min-height: 24px;
+  border-radius: 4px;
+}
+
+body .table-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 92px);
+  min-height: 360px;
+  overflow: hidden;
+}
+
+body .table-page__search,
+body .table-page > .n-layout-page-header {
+  flex: 0 0 auto;
+}
+
+body .table-page__body,
+body .table-page__card {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body .table-page__card > .n-card-content,
+body .table-page__card .n-card-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body .table-page__tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body .table-page__tabs .n-tabs-nav {
+  flex: 0 0 auto;
+}
+
+body .table-page__tabs .n-tabs-pane-wrapper,
+body .table-page__tabs .n-tab-pane {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body .proCard:has(.basic-table--full-height) {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+body .table-page .proCard:has(.basic-table--full-height),
+body .device-page .proCard:has(.basic-table--full-height) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 112px);
+  overflow: visible;
+}
+
+body .table-page .n-layout-page-header + .proCard:has(.basic-table--full-height),
+body .device-page .n-layout-page-header + .proCard:has(.basic-table--full-height) {
+  max-height: calc(100vh - 158px);
+}
+
+body .proCard:has(.basic-table--full-height) > .n-card-content,
+body .proCard:has(.basic-table--full-height) .n-card-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body .proCard:has(.basic-table--full-height) .basic-form {
+  flex: 0 0 auto;
+}
+
+body .n-modal .proCard:has(.basic-table--full-height) {
+  height: 60vh;
+  max-height: 60vh;
+  min-height: 320px;
+}
+
+body .n-modal .proCard:has(.basic-table--full-height) .basic-table--full-height {
+  min-height: 0;
+}
+
+html[data-theme='dark'],
+html[data-theme='dark'] body {
+  background-color: #0f1115;
+}
+
+body .n-card,
+body .n-data-table,
+body .n-input,
+body .n-base-selection,
+body .n-button {
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+body .n-card {
+  border-radius: 4px;
+}
+
+body .n-card > .n-card-header {
+  min-height: 34px;
+}
+
+body .n-card-header__main,
+body .n-data-table .n-data-table-th,
+body .n-form-item-label,
+body .n-descriptions-table-header,
+body .table-toolbar-left-title {
+  color: var(--n-text-color-1);
+}
+
+body .n-data-table .n-data-table-td,
+body .n-form-item,
+body .n-input,
+body .n-base-selection {
+  color: var(--n-text-color-2);
+}
+
+body .n-data-table .n-data-table-th {
+  font-weight: 600;
+}
+
+body .n-button.n-button--small-type {
+  --n-height: 24px;
+}
+
+body .n-button.n-button--medium-type {
+  --n-height: 28px;
 }
 
 @media (max-width: 768px) {
@@ -256,5 +436,14 @@ body .table-toolbar-right-icon {
   body .table-toolbar-right {
     justify-content: flex-start;
     white-space: normal;
+  }
+
+  body .table-page,
+  body .table-page .proCard:has(.basic-table--full-height),
+  body .device-page .proCard:has(.basic-table--full-height),
+  body .table-page .n-layout-page-header + .proCard:has(.basic-table--full-height),
+  body .device-page .n-layout-page-header + .proCard:has(.basic-table--full-height) {
+    max-height: calc(100vh - 82px);
+    min-height: 360px;
   }
 }

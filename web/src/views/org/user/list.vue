@@ -1,59 +1,62 @@
 <template>
-  <div>
-    <BasicForm
-      @register="register"
-      @submit="handleSubmit"
-      @reset="handleReset"
-      @keyup.enter="handleSubmit"
-      ref="searchFormRef"
-    >
-      <template #statusSlot="{ model, field }">
-        <n-input v-model:value="model[field]" />
-      </template>
-    </BasicForm>
+  <div class="user-list-page">
+    <div class="user-list-search">
+      <BasicForm
+        @register="register"
+        @submit="handleSubmit"
+        @reset="handleReset"
+        @keyup.enter="handleSubmit"
+        ref="searchFormRef"
+      >
+        <template #statusSlot="{ model, field }">
+          <n-input v-model:value="model[field]" />
+        </template>
+      </BasicForm>
+    </div>
 
-    <BasicTable
-      :openChecked="true"
-      :columns="columns"
-      :request="loadDataTable"
-      :row-key="(row) => row.id"
-      ref="actionRef"
-      :actionColumn="actionColumn"
-      @update:checked-row-keys="onCheckedRow"
-      :scroll-x="scrollX"
-      :resizeHeightOffset="-10000"
-    >
-      <template #tableTitle>
-        <n-button
-          type="primary"
-          @click="addTable"
-          class="min-left-space"
-          v-if="hasPermission(['/member/edit'])"
-        >
-          <template #icon>
-            <n-icon>
-              <PlusOutlined />
-            </n-icon>
-          </template>
-          添加用户
-        </n-button>
-        <n-button
-          type="error"
-          @click="batchDelete"
-          :disabled="batchDeleteDisabled"
-          class="min-left-space"
-          v-if="hasPermission(['/member/delete'])"
-        >
-          <template #icon>
-            <n-icon>
-              <DeleteOutlined />
-            </n-icon>
-          </template>
-          批量删除
-        </n-button>
+    <div class="user-list-table">
+      <BasicTable
+        full-height
+        :openChecked="true"
+        :columns="columns"
+        :request="loadDataTable"
+        :row-key="(row) => row.id"
+        ref="actionRef"
+        :actionColumn="actionColumn"
+        @update:checked-row-keys="onCheckedRow"
+        :scroll-x="scrollX"
+      >
+        <template #tableTitle>
+          <n-button
+            type="primary"
+            @click="addTable"
+            class="min-left-space"
+            v-if="hasPermission(['/member/edit'])"
+          >
+            <template #icon>
+              <n-icon>
+                <PlusOutlined />
+              </n-icon>
+            </template>
+            添加用户
+          </n-button>
+          <n-button
+            type="error"
+            @click="batchDelete"
+            :disabled="batchDeleteDisabled"
+            class="min-left-space"
+            v-if="hasPermission(['/member/delete'])"
+          >
+            <template #icon>
+              <n-icon>
+                <DeleteOutlined />
+              </n-icon>
+            </template>
+            批量删除
+          </n-button>
 
-        <!-- 运维版隐藏邀请注册入口 -->
-        <!--
+          <!-- 运维版隐藏邀请注册入口 -->
+          <!--
         <n-button
           type="success"
           @click="handleInviteQR(userStore.info?.inviteCode)"
@@ -68,8 +71,9 @@
           邀请注册
         </n-button>
         -->
-      </template>
-    </BasicTable>
+        </template>
+      </BasicTable>
+    </div>
 
     <n-modal
       v-model:show="showModal"
@@ -313,7 +317,7 @@
   });
 
   const actionColumn = reactive({
-    width: 200,
+    width: 172,
     title: '操作',
     key: 'action',
     fixed: 'right',
@@ -321,6 +325,7 @@
       const downActions = getDropDownActions(record);
       return h(TableAction as any, {
         style: 'button',
+        class: 'user-table-action',
         actions: [
           {
             label: '编辑',
@@ -529,4 +534,70 @@
   // }
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+  .user-list-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 92px);
+    min-height: 360px;
+    overflow: hidden;
+  }
+
+  .user-list-search {
+    flex: 0 0 auto;
+    margin-bottom: 2px;
+
+    :deep(.n-form-item) {
+      --n-label-height: 16px;
+      --n-blank-height-medium: 26px;
+
+      margin-bottom: 2px;
+    }
+
+    :deep(.n-form-item-label) {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 6px;
+      font-size: 12px;
+      line-height: 28px;
+    }
+
+    :deep(.n-form-item-blank) {
+      display: flex;
+      align-items: center;
+      min-height: 28px;
+    }
+
+    :deep(.n-grid) {
+      row-gap: 4px !important;
+    }
+  }
+
+  .user-list-table {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .user-list-table :deep(.basic-table) {
+    min-height: 280px;
+  }
+
+  :deep(.user-table-action > .flex) {
+    gap: 4px;
+  }
+
+  :deep(.user-table-action .n-button) {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  @media (max-width: 768px) {
+    .user-list-page {
+      height: calc(100vh - 82px);
+      min-height: 360px;
+    }
+  }
+</style>

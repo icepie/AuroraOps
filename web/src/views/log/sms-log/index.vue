@@ -17,7 +17,7 @@
         </template>
       </BasicForm>
 
-      <BasicTable
+       <BasicTable full-height
         :openChecked="true"
         :columns="columns"
         :request="loadDataTable"
@@ -26,7 +26,6 @@
         :actionColumn="actionColumn"
         @update:checked-row-keys="onCheckedRow"
         :scroll-x="scrollX"
-        :resizeHeightOffset="-20000"
       >
         <template #tableTitle>
           <n-button type="error" @click="batchDelete" :disabled="batchDeleteDisabled">

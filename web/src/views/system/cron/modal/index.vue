@@ -1,7 +1,7 @@
 <template>
   <div>
     <n-card :bordered="false" class="proCard">
-      <BasicTable
+       <BasicTable full-height
         :columns="columns"
         :request="loadDataTable"
         :row-key="(row) => row.id"
@@ -11,7 +11,6 @@
         :scroll-x="1090"
         :flex-height="false"
         :pagination="{ pageSize: 10 }"
-        :resizeHeightOffset="-50000"
       >
         <template #tableTitle>
           <n-button type="primary" @click="addTable">

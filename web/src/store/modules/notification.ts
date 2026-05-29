@@ -11,8 +11,7 @@ export interface INotificationStore {
   newMessage: MessageRow | null;
 }
 
-export const notificationStore = defineStore({
-  id: 'notificationStore',
+export const notificationStore = defineStore('notificationStore', {
   state: (): INotificationStore => ({
     messages: [
       {

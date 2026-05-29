@@ -13,18 +13,18 @@
 </template>
 <script lang="ts" setup>
   import { reactive } from 'vue';
-  import Fingerprint2 from 'fingerprintjs2';
+  import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
   const compData = reactive({
     values: {},
     murmur: '',
   });
 
-  const createFingerprint = () => {
-    Fingerprint2.get((components) => {
-      compData.values = components.map((component) => component.value); // 配置的值的数组
-      compData.murmur = Fingerprint2.x64hash128(compData.values.join(''), 31).toUpperCase(); // 生成浏览器指纹
-    });
+  const createFingerprint = async () => {
+    const agent = await FingerprintJS.load();
+    const result = await agent.get();
+    compData.values = result.components;
+    compData.murmur = result.visitorId.toUpperCase();
   };
   if (window.requestIdleCallback) {
     requestIdleCallback(() => {

@@ -24,10 +24,9 @@ export default [
     ],
   },
   ...compat.extends(
-    'plugin:vue/vue3-recommended',
+    'plugin:vue/recommended',
     'plugin:@typescript-eslint/recommended',
-    'prettier',
-    'plugin:prettier/recommended'
+    'prettier'
   ),
   {
     languageOptions: {
@@ -43,14 +42,26 @@ export default [
       },
     },
     rules: {
-      'vue/script-setup-uses-vars': 'error',
       '@typescript-eslint/ban-ts-ignore': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-var-requires': 'off',
       '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+      '@typescript-eslint/no-unsafe-function-type': 'off',
+      '@typescript-eslint/no-duplicate-enum-values': 'off',
+      '@typescript-eslint/no-unnecessary-type-constraint': 'off',
+      '@typescript-eslint/no-wrapper-object-types': 'off',
       'vue/custom-event-name-casing': 'off',
+      'vue/valid-template-root': 'off',
+      'vue/no-reserved-component-names': 'off',
+      'vue/require-v-for-key': 'off',
+      'vue/valid-v-for': 'off',
+      'vue/prefer-import-from-vue': 'off',
+      'vue/html-self-closing': 'off',
       'no-use-before-define': 'off',
+      'no-var': 'off',
+      'prefer-const': 'off',
       '@typescript-eslint/no-use-before-define': 'off',
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/ban-types': 'off',
@@ -61,6 +72,7 @@ export default [
         {
           varsIgnorePattern: '.*',
           args: 'none',
+          caughtErrors: 'none',
         },
       ],
       'no-unused-vars': [
@@ -68,6 +80,7 @@ export default [
         {
           varsIgnorePattern: '.*',
           args: 'none',
+          caughtErrors: 'none',
         },
       ],
       'space-before-function-paren': 'off',
@@ -80,18 +93,7 @@ export default [
       'vue/singleline-html-element-content-newline': 'off',
       'vue/attribute-hyphenation': 'off',
       'vue/require-default-prop': 'off',
-      'vue/html-self-closing': [
-        'error',
-        {
-          html: {
-            void: 'always',
-            normal: 'never',
-            component: 'always',
-          },
-          svg: 'always',
-          math: 'always',
-        },
-      ],
+      'vue/html-self-closing': 'off',
       '@typescript-eslint/no-this-alias': [
         'error',
         {

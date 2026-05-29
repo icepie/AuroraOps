@@ -24,8 +24,7 @@ function retainAffixRoute(list: any[]) {
   return list.filter((item) => item?.meta?.affix ?? false);
 }
 
-export const useTabsViewStore = defineStore({
-  id: 'app-tabs-view',
+export const useTabsViewStore = defineStore('app-tabs-view', {
   state: (): ITabsViewState => ({
     tabsList: [],
     signal: '',

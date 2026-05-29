@@ -1,88 +1,90 @@
 <template>
-  <div class="table-toolbar">
-    <!--顶部左侧区域-->
-    <div class="flex items-center table-toolbar-left">
-      <template v-if="title">
-        <div class="table-toolbar-left-title">
-          {{ title }}
-          <n-tooltip trigger="hover" v-if="titleTooltip">
-            <template #trigger>
-              <n-icon size="18" class="ml-1 text-gray-400 cursor-pointer">
-                <QuestionCircleOutlined />
-              </n-icon>
-            </template>
-            {{ titleTooltip }}
-          </n-tooltip>
-        </div>
-      </template>
-      <slot name="tableTitle"></slot>
-    </div>
-
-    <div class="flex items-center table-toolbar-right" v-show="showTopRight">
-      <!--顶部右侧区域-->
-      <slot name="toolbar"></slot>
-
-      <!--斑马纹-->
-      <n-tooltip trigger="hover">
-        <template #trigger>
-          <div class="mr-2 table-toolbar-right-icon">
-            <n-switch v-model:value="isStriped" @update:value="setStriped" />
+  <div ref="wrapRef" class="basic-table" :class="{ 'basic-table--full-height': fullHeight }">
+    <div class="table-toolbar">
+      <!--顶部左侧区域-->
+      <div class="flex items-center table-toolbar-left">
+        <template v-if="title">
+          <div class="table-toolbar-left-title">
+            {{ title }}
+            <n-tooltip trigger="hover" v-if="titleTooltip">
+              <template #trigger>
+                <n-icon size="18" class="ml-1 text-gray-400 cursor-pointer">
+                  <QuestionCircleOutlined />
+                </n-icon>
+              </template>
+              {{ titleTooltip }}
+            </n-tooltip>
           </div>
         </template>
-        <span>表格斑马纹</span>
-      </n-tooltip>
-      <n-divider vertical />
+        <slot name="tableTitle"></slot>
+      </div>
 
-      <!--刷新-->
-      <n-tooltip trigger="hover">
-        <template #trigger>
-          <div class="table-toolbar-right-icon" @click="reload">
-            <n-icon size="18">
-              <ReloadOutlined />
-            </n-icon>
-          </div>
-        </template>
-        <span>刷新</span>
-      </n-tooltip>
+      <div class="flex items-center table-toolbar-right" v-show="showTopRight">
+        <!--顶部右侧区域-->
+        <slot name="toolbar"></slot>
 
-      <!--密度-->
-      <n-tooltip trigger="hover">
-        <template #trigger>
-          <div class="table-toolbar-right-icon">
-            <n-dropdown
-              @select="densitySelect"
-              trigger="click"
-              :options="densityOptions"
-              v-model:value="tableSize"
-            >
+        <!--斑马纹-->
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <div class="table-toolbar-right-icon table-toolbar-right-icon--switch">
+              <n-switch v-model:value="isStriped" @update:value="setStriped" />
+            </div>
+          </template>
+          <span>表格斑马纹</span>
+        </n-tooltip>
+        <n-divider vertical />
+
+        <!--刷新-->
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <div class="table-toolbar-right-icon" @click="reload">
               <n-icon size="18">
-                <ColumnHeightOutlined />
+                <ReloadOutlined />
               </n-icon>
-            </n-dropdown>
-          </div>
-        </template>
-        <span>密度</span>
-      </n-tooltip>
+            </div>
+          </template>
+          <span>刷新</span>
+        </n-tooltip>
 
-      <!--表格设置单独抽离成组件-->
-      <ColumnSetting :openChecked="openChecked" />
+        <!--密度-->
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <div class="table-toolbar-right-icon">
+              <n-dropdown
+                @select="densitySelect"
+                trigger="click"
+                :options="densityOptions"
+                v-model:value="tableSize"
+              >
+                <n-icon size="18">
+                  <ColumnHeightOutlined />
+                </n-icon>
+              </n-dropdown>
+            </div>
+          </template>
+          <span>密度</span>
+        </n-tooltip>
+
+        <!--表格设置单独抽离成组件-->
+        <ColumnSetting :openChecked="openChecked" />
+      </div>
     </div>
-  </div>
-  <div class="s-table">
-    <n-data-table
-      ref="tableElRef"
-      v-bind="getBindValues"
-      :striped="isStriped"
-      :pagination="pagination"
-      @update:page="updatePage"
-      @update:page-size="updatePageSize"
-      @update:checked-row-keys="updateCheckedRowKeys"
-      @update:expanded-row-keys="updateExpandedRowKeys"
-    >
-      <template #[item]="data" v-for="item in Object.keys($slots)" :key="item">
-        <slot :name="item" v-bind="data"></slot>
-      </template>
-    </n-data-table>
+    <div ref="tableWrapRef" class="s-table">
+      <n-data-table
+        ref="tableElRef"
+        v-bind="getBindValues"
+        :striped="isStriped"
+        :pagination="pagination"
+        @update:page="updatePage"
+        @update:page-size="updatePageSize"
+        @update:checked-row-keys="updateCheckedRowKeys"
+        @update:expanded-row-keys="updateExpandedRowKeys"
+      >
+        <template #[item]="data" v-for="item in Object.keys($slots)" :key="item">
+          <slot :name="item" v-bind="data"></slot>
+        </template>
+      </n-data-table>
+    </div>
   </div>
 </template>
 
@@ -96,7 +98,9 @@
     computed,
     toRefs,
     onMounted,
+    watch,
     nextTick,
+    onBeforeUnmount,
   } from 'vue';
   import { ReloadOutlined, ColumnHeightOutlined, QuestionCircleOutlined } from '@vicons/antd';
   import { createTableContext } from './hooks/useTableContext';
@@ -112,9 +116,7 @@
 
   import { BasicTableProps } from './types/table';
 
-  import { getViewportOffset } from '@/utils/domUtils';
   import { useWindowSizeFn } from '@/hooks/event/useWindowSizeFn';
-  import { isBoolean } from '@/utils/is';
 
   const densityOptions = [
     {
@@ -158,7 +160,10 @@
       const deviceHeight = ref(150);
       const tableElRef = ref<ComponentRef>(null);
       const wrapRef = ref<Nullable<HTMLDivElement>>(null);
-      let paginationEl: HTMLElement | null;
+      const tableWrapRef = ref<Nullable<HTMLDivElement>>(null);
+      const tableWrapWidth = ref(0);
+      let resizeObserver: ResizeObserver | null = null;
+      let resizeRaf = 0;
       const isStriped = ref(false);
       const tableData = ref<Recordable[]>([]);
       const innerPropsRef = ref<Partial<BasicTableProps>>();
@@ -221,17 +226,24 @@
 
       //组装表格信息
       const getBindValues = computed(() => {
+        const bindProps = unref(getProps);
         const tableData = unref(getDataSourceRef);
-        const maxHeight = tableData.length ? `${unref(deviceHeight)}px` : 'auto';
+        const scrollX = resolveScrollX((bindProps as any).scrollX);
+        const maxHeight =
+          unref(getCanResize) && unref(getFullHeight) && unref(deviceHeight) > 0
+            ? unref(deviceHeight)
+            : undefined;
         return {
-          ...unref(getProps),
+          ...bindProps,
           loading: unref(getLoading),
           columns: toRaw(unref(getPageColumns)),
           rowKey: unref(getRowKey),
           data: tableData,
           size: unref(getTableSize),
           remote: true,
-          'max-height': maxHeight,
+          ...(scrollX !== undefined ? { scrollX } : {}),
+          ...(maxHeight ? { maxHeight } : {}),
+          style: (bindProps as any).style,
         };
       });
 
@@ -263,44 +275,104 @@
         return canResize;
       });
 
-      async function computeTableHeight() {
-        const table = unref(tableElRef);
-        if (!table) return;
-        if (!unref(getCanResize)) return;
-        const tableEl: any = table?.$el;
-        const headEl = tableEl.querySelector('.n-data-table-thead ');
-        const { bottomIncludeBody } = getViewportOffset(headEl);
-        const headerH = 52;
-        let paginationH = 2;
-        let marginH = 14;
-        if (!isBoolean(unref(pagination))) {
-          paginationEl = tableEl.querySelector('.n-data-table__pagination') as HTMLElement;
-          if (paginationEl) {
-            const offsetHeight = paginationEl.offsetHeight;
-            paginationH += offsetHeight || 0;
-          } else {
-            paginationH += 24;
+      const getFullHeight = computed(() => {
+        const { fullHeight } = unref(getProps);
+        return fullHeight;
+      });
+
+      function resolveScrollX(scrollX: unknown) {
+        const wrapWidth = unref(tableWrapWidth);
+        if (typeof scrollX === 'number') {
+          return Math.max(scrollX, wrapWidth);
+        }
+        if (typeof scrollX === 'string' && scrollX.trim() !== '') {
+          const parsed = Number(scrollX);
+          if (Number.isFinite(parsed)) {
+            return Math.max(parsed, wrapWidth);
           }
         }
-        let height =
-          bottomIncludeBody - (headerH + paginationH + marginH + (props.resizeHeightOffset || 0));
-        const maxHeight = props.maxHeight;
-        height = maxHeight && maxHeight < height ? maxHeight : height;
-        deviceHeight.value = height;
+        return scrollX;
       }
 
-      useWindowSizeFn(computeTableHeight, 280);
+      function scheduleTableHeightCompute() {
+        if (resizeRaf) {
+          window.cancelAnimationFrame(resizeRaf);
+        }
+        resizeRaf = window.requestAnimationFrame(() => {
+          resizeRaf = 0;
+          computeTableHeight();
+        });
+      }
+
+      function computeTableHeight() {
+        if (!unref(getCanResize)) return;
+        const tableWrapEl = unref(tableWrapRef);
+        const table = unref(tableElRef);
+        const tableEl: any = table?.$el;
+        const measureEl = tableWrapEl || tableEl;
+        if (!measureEl?.getBoundingClientRect) return;
+
+        const viewportHeight = window.document.documentElement.clientHeight || window.innerHeight;
+        const measuredHeight = tableWrapEl?.clientHeight || 0;
+        tableWrapWidth.value = tableWrapEl ? Math.ceil(tableWrapEl.clientWidth) : 0;
+        const { top } = measureEl.getBoundingClientRect();
+        const viewportHeightFallback = viewportHeight - top - 12;
+        const resizeHeightOffset = props.resizeHeightOffset || 0;
+        const legacyAutoHeight = resizeHeightOffset <= -1000;
+        if (!unref(getFullHeight) && legacyAutoHeight) {
+          deviceHeight.value = 0;
+          return;
+        }
+        const availableHeight = measuredHeight > 0 ? measuredHeight : viewportHeightFallback;
+        if (availableHeight <= 0) return;
+        let height = availableHeight - (legacyAutoHeight ? 0 : resizeHeightOffset);
+        const maxHeight = props.maxHeight;
+        height = maxHeight && maxHeight < height ? maxHeight : height;
+        deviceHeight.value = Math.max(180, Math.floor(height));
+      }
+
+      useWindowSizeFn(scheduleTableHeightCompute, 120);
 
       onMounted(() => {
         nextTick(() => {
-          computeTableHeight();
+          resizeObserver = new ResizeObserver(scheduleTableHeightCompute);
+          const wrapEl = unref(wrapRef);
+          const tableWrapEl = unref(tableWrapRef);
+          wrapEl && resizeObserver.observe(wrapEl);
+          tableWrapEl && resizeObserver.observe(tableWrapEl);
+          scheduleTableHeightCompute();
         });
+      });
+
+      onBeforeUnmount(() => {
+        resizeObserver?.disconnect();
+        resizeObserver = null;
+        if (resizeRaf) {
+          window.cancelAnimationFrame(resizeRaf);
+          resizeRaf = 0;
+        }
+      });
+
+      watch(
+        [() => props.columns, () => props.pagination, () => state.tableSize],
+        async () => {
+          await nextTick();
+          scheduleTableHeightCompute();
+        },
+        { deep: true }
+      );
+
+      watch(getDataSourceRef, async () => {
+        await nextTick();
+        scheduleTableHeightCompute();
       });
 
       createTableContext({ ...tableAction, wrapRef, getBindValues });
 
       return {
         ...toRefs(state),
+        wrapRef,
+        tableWrapRef,
         tableElRef,
         getBindValues,
         getDataSource,
@@ -321,21 +393,44 @@
   });
 </script>
 <style lang="less" scoped>
+  .basic-table {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .basic-table--full-height {
+    flex: 1 1 auto;
+    height: 100%;
+  }
+
   .table-toolbar {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    padding: 0 0 8px 0;
+    gap: 8px;
+    min-width: 0;
+    min-height: 28px;
+    padding: 0 0 6px 0;
+    flex-wrap: wrap;
 
     &-left {
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      flex: 1;
+      flex: 1 1 360px;
+      min-width: 0;
+      gap: 6px;
+      flex-wrap: wrap;
 
       &-title {
         display: flex;
         align-items: center;
         justify-content: flex-start;
+        min-width: 0;
         font-size: 14px;
         font-weight: 600;
       }
@@ -343,19 +438,102 @@
 
     &-right {
       display: flex;
+      align-items: center;
       justify-content: flex-end;
-      flex: 1;
+      flex: 0 0 auto;
+      min-width: 0;
+      gap: 6px;
+      flex-wrap: nowrap;
+      white-space: nowrap;
 
       &-icon {
-        margin-left: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        min-width: 24px;
+        height: 24px;
+        margin-left: 0;
+        border-radius: 4px;
         font-size: 14px;
         cursor: pointer;
         color: var(--text-color);
 
-        :hover {
+        &:hover {
           color: #1890ff;
         }
       }
+
+      &-icon--switch {
+        width: auto;
+        min-width: 36px;
+      }
+    }
+  }
+
+  .s-table {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .s-table :deep(.n-data-table) {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    max-height: 100%;
+  }
+
+  .s-table :deep(.n-data-table-wrapper) {
+    flex: 0 1 auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .s-table :deep(.n-data-table-base-table) {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .s-table :deep(.n-data-table-base-table-body) {
+    min-height: 0;
+  }
+
+  .s-table :deep(.n-data-table__pagination) {
+    flex: 0 0 auto;
+    margin: 8px 0 0;
+    justify-content: flex-end;
+    row-gap: 6px;
+    background: var(--n-color);
+  }
+
+  @media (max-width: 768px) {
+    .table-toolbar {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .table-toolbar-left,
+    .table-toolbar-right {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    .table-toolbar-right {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      white-space: normal;
+    }
+
+    .s-table :deep(.n-data-table__pagination) {
+      justify-content: flex-start;
     }
   }
 

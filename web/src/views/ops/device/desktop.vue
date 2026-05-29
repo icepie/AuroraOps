@@ -181,9 +181,9 @@
 
 <style scoped lang="less">
   .desktop-page {
-    height: calc(100vh - 96px);
-    height: calc(100dvh - 96px);
-    max-height: calc(100dvh - 96px);
+    height: calc(100vh - 84px);
+    height: calc(100dvh - 84px);
+    max-height: calc(100dvh - 84px);
     min-height: 320px;
     width: 100%;
     box-sizing: border-box;
@@ -197,14 +197,14 @@
 
   .desktop-toolbar {
     flex: 0 0 auto;
-    min-height: 34px;
+    min-height: 30px;
     box-sizing: border-box;
-    padding: 3px 10px 3px 12px;
+    padding: 3px 8px 3px 10px;
     display: flex;
     gap: 12px;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
     background: #111820;
   }
 
@@ -222,7 +222,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    color: rgba(246, 248, 250, 0.68);
+    color: #dbeafe;
     font-size: 10px;
   }
 
@@ -243,7 +243,7 @@
   }
 
   .desktop-action {
-    min-width: 48px;
+    min-width: 44px;
   }
 
   :deep(.desktop-action-secondary) {
@@ -290,8 +290,8 @@
 
   @media (max-width: 640px) {
     .desktop-page {
-      height: calc(100dvh - 76px);
-      max-height: calc(100dvh - 76px);
+      height: calc(100dvh - 68px);
+      max-height: calc(100dvh - 68px);
       min-height: 260px;
     }
 

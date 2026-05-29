@@ -18,7 +18,7 @@
         </template>
       </BasicForm>
 
-      <BasicTable
+       <BasicTable full-height
         :columns="columns"
         :request="loadDataTable"
         :row-key="(row) => row.id"

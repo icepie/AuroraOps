@@ -11,12 +11,12 @@ export const columns = [
   {
     title: '用户名',
     key: 'username',
-    width: 100,
+    width: 130,
   },
   {
     title: '姓名',
     key: 'realName',
-    width: 100,
+    width: 120,
     render(row) {
       if (row.realName == '') {
         return h(NText, { depth: 3 }, { default: () => '未设置' });
@@ -53,7 +53,7 @@ export const columns = [
   {
     title: '绑定角色',
     key: 'roleName',
-    width: 100,
+    width: 130,
     render(row) {
       return h(
         NTag,
@@ -73,7 +73,7 @@ export const columns = [
   {
     title: '所属部门',
     key: 'deptName',
-    width: 100,
+    width: 130,
     render(row) {
       return h(
         NTag,
@@ -131,7 +131,7 @@ export const columns = [
   {
     title: '最近活跃',
     key: 'lastActiveAt',
-    width: 100,
+    width: 130,
     render(row) {
       if (row.lastActiveAt === null) {
         return '从未登录';

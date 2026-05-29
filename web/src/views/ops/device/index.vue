@@ -1,5 +1,5 @@
 <template>
-  <div class="device-page">
+  <div ref="devicePageRef" class="device-page" :style="{ '--device-page-height': devicePageHeight }">
     <div class="device-layout" :class="{ 'device-layout--collapsed': groupCollapsed }">
       <div v-if="!groupCollapsed" class="device-layout__aside">
         <n-card :bordered="false" class="proCard group-panel" size="small">
@@ -141,13 +141,13 @@
             @reset="reloadTable"
             @keyup.enter="reloadTable"
           />
-          <BasicTable
+           <BasicTable full-height
             ref="actionRef"
             openChecked
             :columns="columns"
             :request="loadDataTable"
             :row-key="(row) => row.id"
-            :actionColumn="actionColumn"
+            :actionColumn="tableActionColumn"
             :scroll-x="scrollX"
             :checked-row-keys="checkedIds"
             :expanded-row-keys="expandedRowKeys"
@@ -155,30 +155,34 @@
             @update:expanded-row-keys="handleExpandedRowKeys"
           >
             <template #tableTitle>
-              <n-button
-                v-if="hasPermission(['/opsDevice/edit'])"
-                type="primary"
-                secondary
-                class="min-left-space"
-                @click="addTable"
-              >
-                <template #icon>
-                  <n-icon><PlusOutlined /></n-icon>
-                </template>
-                新增设备
-              </n-button>
-              <n-button
-                v-if="hasPermission(['/opsDevice/delete'])"
-                type="error"
-                secondary
-                class="min-left-space"
-                @click="handleBatchDelete"
-              >
-                <template #icon>
-                  <n-icon><DeleteOutlined /></n-icon>
-                </template>
-                批量删除
-              </n-button>
+              <div class="device-table-actions">
+                <n-button
+                  v-if="hasPermission(['/opsDevice/edit'])"
+                  type="primary"
+                  secondary
+                  @click="addTable"
+                >
+                  <template #icon>
+                    <n-icon><PlusOutlined /></n-icon>
+                  </template>
+                  新增设备
+                </n-button>
+                <n-button
+                  v-if="hasPermission(['/opsDevice/delete'])"
+                  type="error"
+                  secondary
+                  @click="handleBatchDelete"
+                >
+                  <template #icon>
+                    <n-icon><DeleteOutlined /></n-icon>
+                  </template>
+                  批量删除
+                </n-button>
+              </div>
+            </template>
+            <template #toolbar>
+              <n-button secondary size="small" @click="handleExpandAll">展开全部</n-button>
+              <n-button secondary size="small" @click="handleCollapseAll">折叠全部</n-button>
             </template>
           </BasicTable>
         </n-card>
@@ -190,7 +194,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { h, reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue';
+  import { h, reactive, ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
   import type { Component } from 'vue';
   import { useRouter } from 'vue-router';
   import { useDialog, useMessage, NButton, NIcon, NDropdown, NTooltip } from 'naive-ui';
@@ -236,12 +240,26 @@
   const searchFormRef = ref<any>({});
   const editRef = ref();
   const groupModalRef = ref();
+  const devicePageRef = ref<HTMLElement | null>(null);
+  const devicePageHeight = ref('calc(100vh - 92px)');
   const checkedIds = ref([]);
   const groupList = ref<any[]>([]);
   const activeGroupKey = ref<string>('all');
   const groupKeyword = ref('');
   const groupCollapsed = ref(false);
   const expandedRowKeys = ref<Array<number | string>>([]);
+  const isCompactDeviceTable = ref(false);
+  let deviceResizeObserver: ResizeObserver | null = null;
+
+  function updateDevicePageHeight() {
+    const el = devicePageRef.value;
+    if (!el?.getBoundingClientRect) return;
+    const top = el.getBoundingClientRect().top;
+    const viewportHeight = window.document.documentElement.clientHeight || window.innerHeight;
+    const bottomGap = 18;
+    devicePageHeight.value = `${Math.max(360, Math.floor(viewportHeight - top - bottomGap))}px`;
+    isCompactDeviceTable.value = el.clientWidth > 0 && el.clientWidth <= 900;
+  }
 
   function renderActionButton(
     label: string,
@@ -290,7 +308,7 @@
   }
 
   const actionColumn = reactive({
-    width: 148,
+    width: 156,
     title: '操作',
     key: 'action',
     fixed: 'right',
@@ -307,9 +325,9 @@
         renderActionButton(
           '远程桌面',
           DesktopOutlined,
-            handleDesktop.bind(null, record),
-            record.online === true ? 'primary' : 'default'
-          ),
+          handleDesktop.bind(null, record),
+          record.online === true ? 'primary' : 'default'
+        ),
         hasPermission(['/opsDevice/wake']) ? renderWakeButton(record) : null,
         options.length
           ? h(
@@ -348,6 +366,10 @@
   });
 
   const scrollX = computed(() => adaTableScrollX(columns, actionColumn.width));
+  const tableActionColumn = computed(() => ({
+    ...actionColumn,
+    fixed: isCompactDeviceTable.value ? undefined : 'right',
+  }));
 
   const [register] = useForm({
     gridProps: { cols: '1 s:1 m:2 l:3 xl:4 2xl:4' },
@@ -424,6 +446,16 @@
     expandedRowKeys.value = rowKeys;
   }
 
+  function handleExpandAll() {
+    const rows = actionRef.value?.getDataSource?.();
+    if (!Array.isArray(rows)) return;
+    expandedRowKeys.value = rows.map((item) => item.id).filter((id) => id !== undefined && id !== null);
+  }
+
+  function handleCollapseAll() {
+    expandedRowKeys.value = [];
+  }
+
   function reloadTable() {
     actionRef.value?.reload();
   }
@@ -471,6 +503,7 @@
 
   function toggleGroupPanel() {
     groupCollapsed.value = !groupCollapsed.value;
+    nextTick(updateDevicePageHeight);
   }
 
   function openGroupModal(record: Recordable | null = null) {
@@ -659,6 +692,14 @@
   }
 
   onMounted(async () => {
+    nextTick(() => {
+      updateDevicePageHeight();
+      if (devicePageRef.value) {
+        deviceResizeObserver = new ResizeObserver(updateDevicePageHeight);
+        deviceResizeObserver.observe(devicePageRef.value);
+      }
+    });
+    window.addEventListener('resize', updateDevicePageHeight);
     loadOptions();
     addOnMessage(SocketEnum.EventConnected, joinMonitorChannel);
     addOnMessage(DEVICE_MONITOR_EVENT, (message: WebSocketMessage) => {
@@ -673,6 +714,9 @@
   });
 
   onBeforeUnmount(() => {
+    window.removeEventListener('resize', updateDevicePageHeight);
+    deviceResizeObserver?.disconnect();
+    deviceResizeObserver = null;
     sendMsg('quit', { id: DEVICE_MONITOR_TAG }, false);
     removeOnMessage(SocketEnum.EventConnected);
     removeOnMessage(DEVICE_MONITOR_EVENT);
@@ -681,19 +725,25 @@
 
 <style lang="less" scoped>
   .device-page {
-    min-height: calc(100vh - 132px);
+    width: 100%;
+    height: var(--device-page-height, calc(100vh - 92px));
+    min-height: 360px;
+    overflow: hidden;
+    container-type: inline-size;
 
     :deep(.n-card) {
-      border-radius: 8px;
+      border-radius: 4px;
     }
   }
 
   .device-layout {
     display: grid;
-    grid-template-columns: 300px minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: 272px minmax(0, 1fr);
+    width: 100%;
+    gap: 8px;
     align-items: stretch;
-    min-height: calc(100vh - 132px);
+    height: 100%;
+    min-height: 0;
     transition: grid-template-columns 0.2s ease;
   }
 
@@ -707,11 +757,18 @@
     min-height: 0;
   }
 
+  .device-layout__main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+  }
+
   .group-panel {
     height: 100%;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
-    background: #ffffff;
+    border: 1px solid var(--n-border-color);
+    box-shadow: none;
+    background: var(--n-color);
     overflow: hidden;
   }
 
@@ -719,7 +776,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
   }
 
   .group-header__heading {
@@ -730,15 +787,15 @@
   }
 
   .group-title {
-    color: #0f172a;
-    font-size: 16px;
-    font-weight: 700;
+    color: var(--n-title-text-color);
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .group-panel__body {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 9px;
   }
 
   .group-header :deep(.n-button-group) {
@@ -746,7 +803,7 @@
   }
 
   .soft-action-group :deep(.n-button) {
-    border-radius: 10px;
+    border-radius: 4px;
   }
 
   .soft-action-group :deep(.n-button__content) {
@@ -757,39 +814,38 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     flex-wrap: wrap;
   }
 
   .group-current-alert {
-    min-width: 168px;
-    border-radius: 8px;
-    background: #f8fafc;
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    min-width: 148px;
+    border-radius: 4px;
+    background: var(--n-merged-color);
+    border: 1px solid var(--n-border-color);
 
     :deep(.n-alert-body) {
-      padding: 8px 12px;
+      padding: 5px 8px;
     }
   }
 
   .group-search {
     :deep(.n-input) {
-      border-radius: 8px;
-      background: #ffffff;
+      border-radius: 4px;
     }
   }
 
   .group-divider {
     margin: 0;
-    color: #64748b;
+    color: var(--n-text-color-3);
     font-size: 12px;
   }
 
   .group-menu-shell {
-    padding: 8px;
-    border-radius: 8px;
-    background: #f8fafc;
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    padding: 5px;
+    border-radius: 4px;
+    background: var(--n-merged-color);
+    border: 1px solid var(--n-border-color);
   }
 
   .group-empty {
@@ -803,50 +859,77 @@
   .group-menu-shell :deep(.n-menu-item),
   .group-menu-shell :deep(.n-menu-item-content),
   .group-menu-shell :deep(.n-menu-item-content-header) {
-    border-radius: 8px;
+    border-radius: 4px;
   }
 
   .group-menu-shell :deep(.n-menu-item-content) {
-    margin: 4px 0;
-    min-height: 44px;
-    transition:
-      background-color 0.18s ease,
-      transform 0.18s ease;
-  }
-
-  .group-menu-shell :deep(.n-menu-item-content:hover) {
-    transform: translateX(2px);
+    margin: 2px 0;
+    min-height: 34px;
+    transition: background-color 0.12s ease;
   }
 
   .device-table-panel {
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
+    width: 100%;
     height: 100%;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
-    background: #ffffff;
+    min-height: 0;
+    border: 1px solid var(--n-border-color);
+    box-shadow: none;
+    background: var(--n-color);
 
-    :deep(.n-card__content) {
+    :deep(.n-card-header) {
+      flex: 0 0 auto;
+      padding: 10px 12px 8px;
+    }
+
+    :deep(.n-card-content) {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      padding: 0 12px 12px;
+    }
+
+    :deep(.n-form) {
+      flex: 0 0 auto;
+      margin-bottom: 6px;
+    }
+
+    :deep(.basic-table) {
+      flex: 1 1 auto;
+      height: auto;
+      min-height: 260px;
+    }
+
+    :deep(.s-table) {
       display: flex;
       flex: 1;
       flex-direction: column;
       min-height: 0;
     }
 
-    :deep(.s-table) {
-      display: flex;
-      flex: 1;
+    :deep(.n-data-table) {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: 100%;
+    }
+
+    :deep(.n-data-table-wrapper) {
+      flex: 0 1 auto;
       min-height: 0;
     }
 
-    :deep(.n-data-table) {
-      flex: 1;
+    :deep(.n-data-table-base-table),
+    :deep(.n-data-table-base-table-body) {
       min-height: 0;
     }
 
     :deep(.table-toolbar) {
       align-items: center;
-      gap: 12px;
+      gap: 6px;
       min-width: 0;
     }
 
@@ -854,7 +937,7 @@
       min-width: 0;
       flex: 1 1 auto;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 4px;
     }
 
     :deep(.table-toolbar-right) {
@@ -864,15 +947,26 @@
 
     :deep(.n-data-table__pagination) {
       flex-wrap: wrap;
+      margin: 8px 0 0;
       row-gap: 6px;
+      background: var(--n-color);
+      min-height: 28px;
     }
+  }
+
+  .device-table-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: wrap;
   }
 
   .table-header {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 6px;
   }
 
   .table-header__toggle-row {
@@ -882,17 +976,17 @@
   .table-header__main {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     min-width: 0;
     width: 100%;
   }
 
   .table-header__toggle {
     flex: 0 0 auto;
-    border-radius: 8px;
-    padding: 0 12px;
-    background: #f8fafc;
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 4px;
+    padding: 0 9px;
+    background: var(--n-merged-color);
+    border: 1px solid var(--n-border-color);
   }
 
   .table-header__content {
@@ -908,19 +1002,14 @@
   }
 
   .table-header__title {
-    color: #0f172a;
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  .table-header__tag {
-    color: #334155;
-    background: #f1f5f9;
+    color: var(--n-title-text-color);
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .table-header__subtitle {
-    margin-top: 4px;
-    color: #64748b;
+    margin-top: 2px;
+    color: var(--n-text-color-3);
     font-size: 12px;
   }
 
@@ -928,60 +1017,65 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 4px;
+    gap: 6px;
+    padding: 0 2px;
     white-space: nowrap;
   }
 
   .device-action-cell :deep(.n-button) {
     flex: 0 0 auto;
+    margin: 0;
   }
 
   .device-action-cell__button {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    border-radius: 4px;
   }
 
   :deep(.device-monitor-empty) {
-    padding: 14px 16px;
-    color: #64748b;
+    padding: 10px 12px;
+    color: var(--n-text-color-3);
     font-size: 13px;
-    background: #f8fafc;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    border-radius: 8px;
+    background: var(--n-merged-color);
+    border: 1px solid var(--n-border-color);
+    border-radius: 4px;
   }
 
   :deep(.device-monitor-panel) {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 9px;
     width: 100%;
     min-width: 0;
-    padding: 14px 18px 16px;
-    background: #ffffff;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    border-radius: 8px;
+    padding: 10px 12px 12px;
+    background: var(--n-color);
+    border: 1px solid var(--n-border-color);
+    border-radius: 4px;
   }
 
   :deep(.device-monitor-panel__head) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     min-width: 0;
-    color: #334155;
+    color: var(--n-text-color-2);
   }
 
   :deep(.device-monitor-panel__title) {
-    color: #0f172a;
+    color: var(--n-title-text-color);
     font-size: 13px;
     font-weight: 700;
     line-height: 20px;
   }
 
   :deep(.device-monitor-panel__time) {
-    color: #64748b;
+    color: var(--n-text-color-3);
     font-size: 12px;
     line-height: 18px;
     word-break: break-word;
@@ -989,8 +1083,8 @@
 
   :deep(.device-monitor-summary) {
     display: grid;
-    grid-template-columns: minmax(420px, 520px) minmax(300px, 420px);
-    gap: 22px;
+    grid-template-columns: minmax(360px, 480px) minmax(280px, 380px);
+    gap: 16px;
     align-items: start;
     justify-content: start;
     min-width: 0;
@@ -999,20 +1093,20 @@
   :deep(.device-monitor-bars) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 14px;
+    gap: 7px 12px;
     min-width: 0;
   }
 
   :deep(.device-monitor-bar) {
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 7px;
     align-items: center;
     min-width: 0;
   }
 
   :deep(.device-monitor-bar__label) {
-    color: #334155;
+    color: var(--n-text-color-2);
     font-size: 12px;
     font-weight: 600;
     line-height: 18px;
@@ -1030,7 +1124,7 @@
   :deep(.device-monitor-facts) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px 16px;
+    gap: 6px 14px;
     min-width: 0;
   }
 
@@ -1038,22 +1132,22 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 8px;
-    color: #334155;
+    gap: 7px;
+    color: var(--n-text-color-2);
     font-size: 12px;
     line-height: 18px;
   }
 
   :deep(.device-monitor-fact span) {
     flex: 0 0 42px;
-    color: #64748b;
+    color: var(--n-text-color-3);
     font-weight: 600;
     white-space: nowrap;
   }
 
   :deep(.device-monitor-fact b) {
     min-width: 0;
-    color: #0f172a;
+    color: var(--n-title-text-color);
     font-weight: 600;
     word-break: break-word;
   }
@@ -1061,10 +1155,10 @@
   :deep(.device-monitor-detail) {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px 28px;
+    gap: 10px 20px;
     min-width: 0;
-    padding-top: 12px;
-    border-top: 1px solid rgba(148, 163, 184, 0.16);
+    padding-top: 9px;
+    border-top: 1px solid var(--n-border-color);
   }
 
   :deep(.device-monitor-detail__group) {
@@ -1074,7 +1168,7 @@
 
   :deep(.device-monitor-detail__title) {
     margin-bottom: 6px;
-    color: #0f172a;
+    color: var(--n-title-text-color);
     font-size: 12px;
     font-weight: 800;
     line-height: 18px;
@@ -1083,23 +1177,23 @@
   :deep(.device-monitor-detail__row) {
     display: grid;
     grid-template-columns: 48px minmax(0, 1fr);
-    gap: 8px;
+    gap: 7px;
     min-width: 0;
     align-items: start;
-    color: #334155;
+    color: var(--n-text-color-2);
     font-size: 12px;
-    line-height: 20px;
+    line-height: 19px;
   }
 
   :deep(.device-monitor-detail__label) {
-    color: #64748b;
+    color: var(--n-text-color-3);
     font-weight: 700;
     white-space: nowrap;
   }
 
   :deep(.device-monitor-detail__value) {
     min-width: 0;
-    color: #0f172a;
+    color: var(--n-title-text-color);
     font-weight: 600;
     overflow-wrap: break-word;
     word-break: normal;
@@ -1110,21 +1204,25 @@
   }
 
   :deep(.device-monitor-detail__temperature .device-monitor-detail__value) {
-    color: #334155;
+    color: var(--n-text-color-2);
     font-size: 12px;
     line-height: 19px;
   }
 
   @media (max-width: 768px) {
     .device-page {
-      min-height: calc(100vh - 104px);
+      height: var(--device-page-height, calc(100vh - 82px));
+      min-height: 360px;
+      overflow: hidden;
     }
 
     .device-layout,
     .device-layout--collapsed {
-      grid-template-columns: 1fr;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
-      min-height: calc(100vh - 104px);
+      height: 100%;
+      min-height: 0;
     }
 
     .device-layout__aside {
@@ -1156,8 +1254,10 @@
 
     .device-action-cell {
       justify-content: flex-start;
-      flex-wrap: wrap;
-      white-space: normal;
+      flex-wrap: nowrap;
+      gap: 4px;
+      padding: 0;
+      white-space: nowrap;
     }
 
     :deep(.device-monitor-summary) {
@@ -1180,9 +1280,89 @@
     }
   }
 
+  @container (max-width: 900px) {
+    .device-page {
+      overflow: hidden;
+    }
+
+    .device-layout,
+    .device-layout--collapsed {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .device-layout__aside {
+      display: flex;
+      flex: 0 0 auto;
+      width: 100%;
+      max-height: 34vh;
+      min-height: 180px;
+      overflow: hidden;
+    }
+
+    .device-layout--collapsed .device-layout__aside {
+      display: none;
+    }
+
+    .group-panel {
+      width: 100%;
+      min-height: 0;
+    }
+
+    .device-table-panel {
+      width: 100%;
+      min-width: 0;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .device-table-panel :deep(.basic-table) {
+      min-height: 300px;
+    }
+
+    .table-header__subtitle {
+      display: none;
+    }
+
+    :deep(.n-form) {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    :deep(.n-form .n-form-item) {
+      margin-bottom: 0;
+    }
+
+    :deep(.table-toolbar) {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    :deep(.table-toolbar-left),
+    :deep(.table-toolbar-right) {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    :deep(.table-toolbar-right) {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      white-space: normal;
+    }
+  }
+
   @media (min-width: 769px) and (max-width: 1280px) {
     .device-layout {
-      grid-template-columns: 260px minmax(0, 1fr);
+      grid-template-columns: 248px minmax(0, 1fr);
+    }
+
+    .device-layout--collapsed {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     :deep(.device-monitor-summary) {
@@ -1192,7 +1372,7 @@
 
     :deep(.device-monitor-detail) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px 20px;
+      gap: 12px 18px;
     }
   }
 </style>

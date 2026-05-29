@@ -259,7 +259,7 @@
 
   .upload {
     width: 100%;
-    overflow: hidden;
+    overflow: visible;
 
     &-card {
       width: auto;
@@ -293,6 +293,7 @@
 
         &-info {
           position: relative;
+          width: 100%;
           height: 100%;
           padding: 0;
           overflow: hidden;
@@ -316,9 +317,23 @@
 
           .img-box {
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
             //padding: 8px;
             //border: 1px solid #d9d9d9;
             border-radius: 2px;
+            overflow: hidden;
+            background: #fff;
+          }
+
+          .img-box img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
           }
 
           .img-box-actions {

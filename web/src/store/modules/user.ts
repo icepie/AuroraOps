@@ -6,6 +6,7 @@ import {
   CURRENT_CONFIG,
   CURRENT_DICT,
   CURRENT_LOGIN_CONFIG,
+  CURRENT_SITE_CONFIG,
   CURRENT_USER,
   IS_LOCKSCREEN,
 } from '@/store/mutation-types';
@@ -22,6 +23,7 @@ import { isWechatBrowser } from '@/utils/is';
 import { DeptTypeEnum } from '@/enums/deptEnum';
 const Storage = createStorage({ storage: localStorage });
 const APP_BRAND_NAME = (import.meta.env.VITE_GLOB_APP_TITLE || '').trim();
+const DEFAULT_LOGO = new URL('@/assets/images/logo.png', import.meta.url).href;
 
 function normalizeLoginConfig(config: LoginConfigState | null): LoginConfigState | null {
   if (!config) {
@@ -83,6 +85,11 @@ export interface LoginConfigState {
   projectName: string;
 }
 
+export interface SiteConfigState {
+  basicName?: string;
+  basicLogo?: string;
+}
+
 export interface IUserState {
   token: string;
   username: string;
@@ -91,11 +98,11 @@ export interface IUserState {
   permissions: any[];
   info: UserInfoState | null;
   config: ConfigState | null;
+  siteConfig: SiteConfigState | null;
   loginConfig: LoginConfigState | null;
 }
 
-export const useUserStore = defineStore({
-  id: 'app-member',
+export const useUserStore = defineStore('app-member', {
   state: (): IUserState => ({
     token: Storage.get(ACCESS_TOKEN, ''),
     username: '',
@@ -104,6 +111,7 @@ export const useUserStore = defineStore({
     permissions: [],
     info: Storage.get(CURRENT_USER, null),
     config: Storage.get(CURRENT_CONFIG, null),
+    siteConfig: Storage.get(CURRENT_SITE_CONFIG, null),
     loginConfig: normalizeLoginConfig(Storage.get(CURRENT_LOGIN_CONFIG, null)),
   }),
   getters: {
@@ -127,6 +135,12 @@ export const useUserStore = defineStore({
     },
     getConfig(): ConfigState | null {
       return this.config;
+    },
+    getSiteName(): string {
+      return this.siteConfig?.basicName || this.loginConfig?.projectName || APP_BRAND_NAME;
+    },
+    getSiteLogo(): string {
+      return this.siteConfig?.basicLogo || DEFAULT_LOGO;
     },
     getLoginConfig(): LoginConfigState | null {
       return this.loginConfig;
@@ -165,6 +179,10 @@ export const useUserStore = defineStore({
     },
     setConfig(config: ConfigState | null) {
       this.config = config;
+    },
+    setSiteConfig(config: SiteConfigState | null) {
+      this.siteConfig = config;
+      storage.set(CURRENT_SITE_CONFIG, config);
     },
     setLoginConfig(config: LoginConfigState | null) {
       this.loginConfig = normalizeLoginConfig(config);

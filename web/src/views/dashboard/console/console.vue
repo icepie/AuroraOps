@@ -16,42 +16,9 @@
         </n-card>
       </n-grid-item>
     </n-grid>
-
-    <n-grid class="mt-4" cols="1 l:2" responsive="screen" :x-gap="16" :y-gap="16">
-      <n-grid-item>
-        <n-card title="当前运维账号" :bordered="false">
-          <n-descriptions label-placement="left" :column="1">
-            <n-descriptions-item label="账号">{{ userStore.info?.username || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="姓名">{{ userStore.info?.realName || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="角色">{{ userStore.info?.roleName || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="部门">{{ userStore.info?.deptName || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="最近登录">{{ userStore.info?.lastLoginAt || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="最近 IP">{{ userStore.info?.lastLoginIp || '-' }}</n-descriptions-item>
-          </n-descriptions>
-        </n-card>
-      </n-grid-item>
-      <n-grid-item>
-        <n-card title="交付说明" :bordered="false">
-          <n-space vertical :size="12">
-            <n-alert type="success" :show-icon="false">
-              当前前端已屏蔽默认演示、插件、多租户、多商户、资金和文档类菜单。
-            </n-alert>
-            <n-alert type="info" :show-icon="false">
-              登录页仅保留账号密码登录，演示账号、手机号登录、注册入口已注释隐藏。
-            </n-alert>
-            <n-alert type="warning" :show-icon="false">
-              如需继续收敛后台接口或数据库菜单，我可以下一步再做后端侧清理。
-            </n-alert>
-          </n-space>
-        </n-card>
-      </n-grid-item>
-    </n-grid>
   </div>
 </template>
 <script lang="ts" setup>
-  import { useUserStore } from '@/store/modules/user';
-
-  const userStore = useUserStore();
   const router = useRouter();
   const quickEntries = [
     {

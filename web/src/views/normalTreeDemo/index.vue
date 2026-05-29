@@ -11,7 +11,7 @@
           <n-input v-model:value="model[field]" />
         </template>
       </BasicForm>
-      <BasicTable  ref="actionRef" openChecked :columns="columns" :request="loadDataTable" :row-key="(row) => row.id" :actionColumn="actionColumn" :scroll-x="scrollX" :resizeHeightOffset="-10000" :cascade="false" :expanded-row-keys="expandedKeys" @update:expanded-row-keys="updateExpandedKeys" :checked-row-keys="checkedIds" @update:checked-row-keys="handleOnCheckedRow">
+       <BasicTable full-height  ref="actionRef" openChecked :columns="columns" :request="loadDataTable" :row-key="(row) => row.id" :actionColumn="actionColumn" :scroll-x="scrollX" :cascade="false" :expanded-row-keys="expandedKeys" @update:expanded-row-keys="updateExpandedKeys" :checked-row-keys="checkedIds" @update:checked-row-keys="handleOnCheckedRow">
         <template #tableTitle>
           <n-button type="primary"  @click="addTable" class="min-left-space" v-if="hasPermission(['/normalTreeDemo/edit'])">
             <template #icon>

@@ -1,21 +1,21 @@
 <template>
   <div>
     <n-grid cols="24 300:1 600:24" :x-gap="12">
-      <n-grid-item span="6">
-        <n-card :bordered="false" size="small" class="proCard">
-          <n-thing
-            class="thing-cell"
+      <n-grid-item span="5">
+        <n-card :bordered="false" size="small" class="proCard config-nav-card" content-style="padding: 6px 8px;">
+          <div
+            class="config-nav-item"
             v-for="item in typeTabList"
             :key="item.key"
-            :class="{ 'thing-cell-on': type === item.key }"
+            :class="{ 'config-nav-item--active': type === item.key }"
             @click="switchType(item)"
           >
-            <template #header>{{ item.name }}</template>
-            <template #description>{{ item.desc }}</template>
-          </n-thing>
+            <div class="config-nav-item__title">{{ item.name }}</div>
+            <div class="config-nav-item__desc">{{ item.desc }}</div>
+          </div>
         </n-card>
       </n-grid-item>
-      <n-grid-item span="18">
+      <n-grid-item span="19">
         <n-card :bordered="false" size="small" :title="typeTitle" class="proCard">
           <BasicSetting v-if="type === 1" />
           <ThemeSetting v-if="type === 2" />
@@ -181,21 +181,44 @@
   });
 </script>
 <style lang="less" scoped>
-  .thing-cell {
-    margin: 0 -16px 10px;
-    padding: 5px 16px;
+  .config-nav-card {
+    min-height: 100%;
+  }
+
+  .config-nav-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
 
     &:hover {
       background: #f3f3f3;
-      cursor: pointer;
     }
   }
 
-  .thing-cell-on {
+  .config-nav-item + .config-nav-item {
+    margin-top: 2px;
+  }
+
+  .config-nav-item__title {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 600;
+  }
+
+  .config-nav-item__desc {
+    margin-top: 1px;
+    font-size: 11px;
+    line-height: 16px;
+    color: #64748b;
+  }
+
+  .config-nav-item--active {
     background: #f0faff;
     color: #2d8cf0;
 
-    ::v-deep(.n-thing-main .n-thing-header .n-thing-header__title) {
+    .config-nav-item__title,
+    .config-nav-item__desc {
       color: #2d8cf0;
     }
 

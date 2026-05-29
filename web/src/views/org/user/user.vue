@@ -44,3 +44,23 @@
     return true;
   }
 </script>
+
+<style lang="less" scoped>
+  :deep(.card-tabs > .n-tabs-nav) {
+    margin-bottom: 8px;
+  }
+
+  :deep(.card-tabs.n-tabs--card-type .n-tabs-tab__label) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+
+  :deep(.card-tabs.n-tabs--card-type .n-tabs-tab) {
+    height: 34px;
+    min-width: 72px;
+    padding: 6px 14px;
+    font-size: 12px;
+  }
+</style>

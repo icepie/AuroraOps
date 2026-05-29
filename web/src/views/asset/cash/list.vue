@@ -13,14 +13,13 @@
         </template>
       </BasicForm>
 
-      <BasicTable
+       <BasicTable full-height
         :columns="columns"
         :request="loadDataTable"
         :row-key="(row) => row.id"
         ref="actionRef"
         :actionColumn="actionColumn"
         :scroll-x="scrollX"
-        :resizeHeightOffset="-10000"
       >
         <template #tableTitle>
           <n-button type="primary" @click="addTable" class="min-left-space">

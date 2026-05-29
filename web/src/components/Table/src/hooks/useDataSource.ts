@@ -19,7 +19,9 @@ export function useDataSource(
     () => unref(propsRef).dataSource,
     () => {
       const { dataSource }: any = unref(propsRef);
-      dataSource && (dataSourceRef.value = dataSource);
+      if (Array.isArray(dataSource)) {
+        dataSourceRef.value = dataSource;
+      }
     },
     {
       immediate: true,

@@ -12,7 +12,7 @@
       v-if="navMode === 'horizontal' || (navMode === 'horizontal-mix' && mixMenu)"
     >
       <div class="logo" v-if="navMode === 'horizontal'">
-        <img src="~@/assets/images/logo.png" alt="" />
+        <img :src="siteLogo" alt="" />
         <h2 v-show="!collapsed" class="title">{{ projectName }}</h2>
       </div>
       <AsideMenu
@@ -246,7 +246,8 @@
 
       // const { username, avatar } = userStore?.info || {};
       const drawerSetting = ref();
-      const projectName = userStore.loginConfig?.projectName || import.meta.env.VITE_GLOB_APP_TITLE;
+      const projectName = computed(() => userStore.getSiteName);
+      const siteLogo = computed(() => userStore.getSiteLogo);
 
       const state = reactive({
         // username: username || '',
@@ -553,6 +554,7 @@
         userStore,
         updateMenu,
         projectName,
+        siteLogo,
       };
     },
   });
@@ -565,7 +567,7 @@
     align-items: center;
     padding: 0;
     height: @header-height;
-    box-shadow: 0 1px 4px rgb(0 21 41 / 8%);
+    box-shadow: 0 1px 3px rgb(0 21 41 / 7%);
     transition: all 0.2s ease-in-out;
     width: 100%;
     z-index: 11;
@@ -577,29 +579,40 @@
       .logo {
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
+        gap: 8px;
+        box-sizing: border-box;
         height: @header-height;
-        line-height: @header-height;
         overflow: hidden;
         white-space: nowrap;
-        padding-left: 10px;
+        padding: 0 12px;
         min-width: 200px;
 
         img {
-          width: auto;
-          height: 26px;
-          margin-right: 8px;
+          flex: 0 0 auto;
+          width: 24px;
+          height: 24px;
+          display: block;
+          object-fit: contain;
+          border-radius: 4px;
         }
 
         .title {
+          display: inline-flex;
+          align-items: center;
+          min-width: 0;
           margin-bottom: 0;
-          min-width: 132px;
-          font-size: 16px;
+          overflow: hidden;
+          height: 24px;
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 24px;
+          text-overflow: ellipsis;
         }
       }
 
       ::v-deep(.ant-breadcrumb span:last-child .link-text) {
-        color: #515a6e;
+        color: #1f2937;
       }
 
       .n-breadcrumb {
@@ -615,6 +628,7 @@
       display: flex;
       align-items: center;
       margin-right: 20px;
+      gap: 2px;
 
       .avatar {
         display: flex;
@@ -629,7 +643,7 @@
 
     &-trigger {
       display: inline-block;
-      width: 64px;
+      width: 52px;
       height: @header-height;
       text-align: center;
       cursor: pointer;
@@ -647,28 +661,29 @@
       }
 
       .anticon {
-        font-size: 16px;
-        color: #515a6e;
+        font-size: 15px;
+        color: #1f2937;
       }
     }
 
     &-trigger-min {
       width: auto;
-      padding: 0 9px;
+      padding: 0 8px;
     }
   }
 
   .layout-header-light {
     background: #fff;
-    color: #515a6e;
+    color: #1f2937;
+    border-bottom: 1px solid #edf0f5;
 
     .n-icon {
-      color: #515a6e;
+      color: #1f2937;
     }
 
     .layout-header-left {
       ::v-deep(.n-breadcrumb .n-breadcrumb-item:last-child .n-breadcrumb-item__link) {
-        color: #515a6e;
+        color: #1f2937;
       }
     }
 
@@ -680,29 +695,31 @@
   }
 
   .layout-header-dark {
-    color: rgb(255 255 255 / 82%);
+    background: #171a21;
+    color: #f8fafc;
+    border-bottom: 1px solid rgb(255 255 255 / 8%);
 
     .n-icon,
     .layout-header-trigger .anticon,
     .link-text,
     .title {
-      color: rgb(255 255 255 / 82%);
+      color: #f8fafc;
     }
 
     .layout-header-left {
       ::v-deep(.n-breadcrumb .n-breadcrumb-item__link),
       ::v-deep(.n-breadcrumb .n-breadcrumb-item__separator) {
-        color: rgb(255 255 255 / 72%);
+        color: #e2e8f0;
       }
 
       ::v-deep(.n-breadcrumb .n-breadcrumb-item:last-child .n-breadcrumb-item__link) {
-        color: rgb(255 255 255 / 90%);
+        color: #ffffff;
       }
     }
 
     :deep(.n-input) {
-      --n-text-color: rgb(255 255 255 / 86%);
-      --n-placeholder-color: rgb(255 255 255 / 48%);
+      --n-text-color: #f8fafc;
+      --n-placeholder-color: #cbd5e1;
       --n-color: transparent;
       --n-color-focus: transparent;
       --n-border: 1px solid rgb(255 255 255 / 32%);
@@ -720,7 +737,7 @@
   }
 
   ::v-deep(.menu-server-link) {
-    color: #515a6e;
+    color: #1f2937;
 
     &:hover {
       color: #1890ff;
