@@ -1,9 +1,12 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::error::Error;
+#[cfg(feature = "pipewire-drm-prime")]
 use std::ffi::c_int;
 use std::io::Write;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd as StdOwnedFd};
+use std::os::fd::AsRawFd;
+#[cfg(feature = "pipewire-drm-prime")]
+use std::os::fd::{FromRawFd, OwnedFd as StdOwnedFd};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tracing::{debug, trace, warn};
@@ -20,15 +23,16 @@ use gstreamer::prelude::*;
 use gstreamer_app::AppSink;
 
 use crate::capturable::{Capturable, Geometry, Recorder, RecorderPreferences};
-use crate::video::{
-    CapturedFrame, DmaBufFrame, DmaBufLayer, DmaBufObject, DmaBufPlane, PixelProvider,
-};
+use crate::video::{CapturedFrame, PixelProvider};
+#[cfg(feature = "pipewire-drm-prime")]
+use crate::video::{DmaBufFrame, DmaBufLayer, DmaBufObject, DmaBufPlane};
 
 use crate::capturable::remote_desktop_dbus::{
     OrgFreedesktopPortalRemoteDesktop, OrgFreedesktopPortalRequestResponse,
     OrgFreedesktopPortalScreenCast,
 };
 
+#[cfg(feature = "pipewire-drm-prime")]
 #[link(name = "gstallocators-1.0")]
 unsafe extern "C" {
     fn gst_is_dmabuf_memory(memory: *mut gst::ffi::GstMemory) -> c_int;
@@ -236,6 +240,7 @@ impl Capturable for PipeWireCapturable {
 
 pub struct PipeWireRecorder {
     buffer: Option<gst::MappedBuffer<gst::buffer::Readable>>,
+    #[cfg(feature = "pipewire-drm-prime")]
     drm_prime_buffer: Option<gst::Buffer>,
     buffer_cropped: Vec<u8>,
     pix_fmt: String,
@@ -245,6 +250,7 @@ pub struct PipeWireRecorder {
     width: usize,
     height: usize,
     prefer_drm_prime: bool,
+    #[cfg(feature = "pipewire-drm-prime")]
     warned_drm_prime_unavailable: bool,
 }
 
@@ -265,7 +271,8 @@ impl PipeWireRecorder {
 
         // For some reason pipewire blocks on destruction of AppSink if this is not set to true,
         // see: https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/982
-        src.set_property("always-copy", &!preferences.prefer_drm_prime);
+        let prefer_drm_prime = pipewire_drm_prime_enabled(preferences.prefer_drm_prime);
+        src.set_property("always-copy", &!prefer_drm_prime);
 
         let sink = gst::ElementFactory::make("appsink").build()?;
         sink.set_property("drop", &true);
@@ -297,7 +304,7 @@ impl PipeWireRecorder {
             .dynamic_cast::<AppSink>()
             .map_err(|_| GStreamerError("Sink element is expected to be an appsink!".into()))?;
         let mut caps = gst::Caps::new_empty();
-        if preferences.prefer_drm_prime && capturable.rotation == 0 {
+        if prefer_drm_prime && capturable.rotation == 0 {
             caps.get_mut().unwrap().append_structure_full(
                 gst::structure::Structure::from_iter(
                     "video/x-raw",
@@ -327,13 +334,15 @@ impl PipeWireRecorder {
             pipeline,
             appsink,
             buffer: None,
+            #[cfg(feature = "pipewire-drm-prime")]
             drm_prime_buffer: None,
             pix_fmt: "".into(),
             width: 0,
             height: 0,
             buffer_cropped: vec![],
             is_cropped: false,
-            prefer_drm_prime: preferences.prefer_drm_prime,
+            prefer_drm_prime,
+            #[cfg(feature = "pipewire-drm-prime")]
             warned_drm_prime_unavailable: false,
         })
     }
@@ -345,7 +354,7 @@ impl Recorder for PipeWireRecorder {
     }
 
     fn set_preferences(&mut self, preferences: RecorderPreferences) {
-        self.prefer_drm_prime = preferences.prefer_drm_prime;
+        self.prefer_drm_prime = pipewire_drm_prime_enabled(preferences.prefer_drm_prime);
     }
 
     fn capture_frame(&mut self) -> Result<CapturedFrame<'_>, Box<dyn Error>> {
@@ -361,21 +370,24 @@ impl Recorder for PipeWireRecorder {
                 .ok_or_else(|| GStreamerError("PipeWire sample caps are empty.".into()))?;
             let format: String = structure.value("format")?.get()?;
             if self.prefer_drm_prime && format == "DMA_DRM" {
-                let drm_prime = sample
-                    .buffer_owned()
-                    .ok_or_else(|| {
-                        Box::new(GStreamerError("Failed to get owned DMA_DRM buffer.".into()))
-                            as Box<dyn Error>
-                    })
-                    .and_then(|buffer| self.buffer_to_drm_prime(buffer, caps));
-                match drm_prime {
-                    Ok(frame) => return Ok(CapturedFrame::DrmPrime(frame)),
-                    Err(err) => {
-                        if !self.warned_drm_prime_unavailable {
-                            debug!(
-                                "Wayland/PipeWire DRM PRIME zero-copy unavailable, using CPU fallback: {err}"
-                            );
-                            self.warned_drm_prime_unavailable = true;
+                #[cfg(feature = "pipewire-drm-prime")]
+                {
+                    let drm_prime = sample
+                        .buffer_owned()
+                        .ok_or_else(|| {
+                            Box::new(GStreamerError("Failed to get owned DMA_DRM buffer.".into()))
+                                as Box<dyn Error>
+                        })
+                        .and_then(|buffer| self.buffer_to_drm_prime(buffer, caps));
+                    match drm_prime {
+                        Ok(frame) => return Ok(CapturedFrame::DrmPrime(frame)),
+                        Err(err) => {
+                            if !self.warned_drm_prime_unavailable {
+                                debug!(
+                                    "Wayland/PipeWire DRM PRIME zero-copy unavailable, using CPU fallback: {err}"
+                                );
+                                self.warned_drm_prime_unavailable = true;
+                            }
                         }
                     }
                 }
@@ -485,6 +497,7 @@ impl PipeWireRecorder {
         }
     }
 
+    #[cfg(feature = "pipewire-drm-prime")]
     fn buffer_to_drm_prime(
         &mut self,
         buffer: gst::Buffer,
@@ -553,6 +566,16 @@ impl PipeWireRecorder {
             planes,
         })
     }
+}
+
+#[cfg(feature = "pipewire-drm-prime")]
+fn pipewire_drm_prime_enabled(requested: bool) -> bool {
+    requested
+}
+
+#[cfg(not(feature = "pipewire-drm-prime"))]
+fn pipewire_drm_prime_enabled(_requested: bool) -> bool {
+    false
 }
 
 impl Drop for PipeWireRecorder {
