@@ -91,7 +91,7 @@
                 description="没有匹配的分组"
                 class="group-empty"
               />
-              <n-scrollbar v-else style="max-height: 560px">
+              <n-scrollbar v-else class="group-menu-scroll">
                 <n-menu
                   :value="activeGroupKey"
                   :options="groupOptions"
@@ -129,7 +129,6 @@
                       {{ selectedGroupLabel }}
                     </n-tag>
                   </div>
-                  <div class="table-header__subtitle">设备分组收起后，这里直接切换显示与隐藏。</div>
                 </div>
               </div>
             </div>
@@ -141,7 +140,8 @@
             @reset="reloadTable"
             @keyup.enter="reloadTable"
           />
-           <BasicTable full-height
+          <BasicTable
+            full-height
             ref="actionRef"
             openChecked
             :columns="columns"
@@ -768,11 +768,26 @@
   }
 
   .group-panel {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+    min-height: 0;
     border: 1px solid var(--n-border-color);
     box-shadow: none;
     background: var(--n-color);
     overflow: hidden;
+
+    :deep(.n-card-header) {
+      flex: 0 0 auto;
+    }
+
+    :deep(.n-card-content) {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
   }
 
   .group-header {
@@ -797,8 +812,10 @@
 
   .group-panel__body {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 9px;
+    min-height: 0;
   }
 
   .group-header :deep(.n-button-group) {
@@ -845,10 +862,20 @@
   }
 
   .group-menu-shell {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
     padding: 5px;
     border-radius: 4px;
     background: var(--n-merged-color);
     border: 1px solid var(--n-border-color);
+  }
+
+  .group-menu-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 560px;
   }
 
   .group-empty {
@@ -1010,12 +1037,6 @@
     color: var(--n-title-text-color);
     font-size: 14px;
     font-weight: 600;
-  }
-
-  .table-header__subtitle {
-    margin-top: 2px;
-    color: var(--n-text-color-3);
-    font-size: 12px;
   }
 
   .device-action-cell {
@@ -1231,7 +1252,9 @@
     }
 
     .device-layout__aside {
+      flex: 0 0 auto;
       max-height: 46vh;
+      min-height: 180px;
       overflow: hidden;
     }
 
@@ -1245,16 +1268,11 @@
     }
 
     .soft-action-group {
-      width: 100%;
       justify-content: flex-end;
     }
 
     .table-header__toggle {
       padding: 0 10px;
-    }
-
-    .table-header__subtitle {
-      display: none;
     }
 
     .device-action-cell {
@@ -1286,36 +1304,6 @@
   }
 
   @media (max-width: 1180px) {
-    .device-layout,
-    .device-layout--collapsed {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      max-width: 100%;
-      height: 100%;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .device-layout__aside {
-      display: flex;
-      flex: 0 0 auto;
-      width: 100%;
-      max-width: 100%;
-      max-height: 34vh;
-      min-height: 180px;
-      overflow: hidden;
-    }
-
-    .device-layout--collapsed .device-layout__aside {
-      display: none;
-    }
-
-    .group-panel {
-      width: 100%;
-      min-height: 0;
-    }
-
     .device-table-panel {
       width: 100%;
       max-width: 100%;
@@ -1326,10 +1314,6 @@
 
     .device-table-panel :deep(.basic-table) {
       min-height: 300px;
-    }
-
-    .table-header__subtitle {
-      display: none;
     }
 
     :deep(.n-form) {
@@ -1377,6 +1361,29 @@
       width: 100%;
       max-width: 100%;
       min-width: 0;
+    }
+
+    .device-layout__aside {
+      display: flex;
+      flex: 0 0 auto;
+      width: 100%;
+      max-width: 100%;
+      max-height: 34vh;
+      min-height: 180px;
+      overflow: hidden;
+    }
+
+    .device-layout--collapsed .device-layout__aside {
+      display: none;
+    }
+
+    .group-panel {
+      width: 100%;
+      min-height: 0;
+    }
+
+    .group-menu-scroll {
+      max-height: none;
     }
   }
 

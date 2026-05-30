@@ -2,10 +2,10 @@
   <div class="desktop-page">
     <div class="desktop-toolbar">
       <div class="desktop-title">
-        <span>{{ title }}</span>
+        <span class="desktop-title__text">{{ title }}</span>
         <span class="desktop-state" :class="stateClass">{{ statusText }}</span>
       </div>
-      <n-space align="center" :size="8">
+      <div class="desktop-actions">
         <n-button
           class="desktop-action desktop-action-secondary"
           size="tiny"
@@ -24,7 +24,7 @@
         >
           新窗口
         </n-button>
-      </n-space>
+      </div>
     </div>
     <div class="desktop-frame-wrap" @pointerdown="focusFrame" @click="focusFrame">
       <iframe
@@ -44,7 +44,7 @@
 <script setup lang="ts">
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
   import { useRoute } from 'vue-router';
-  import { NButton, NSpace } from 'naive-ui';
+  import { NButton } from 'naive-ui';
   import { ACCESS_TOKEN } from '@/store/mutation-types';
   import { useTabsViewStore } from '@/store/modules/tabsView';
   import { storage } from '@/utils/Storage';
@@ -196,14 +196,19 @@
   }
 
   .desktop-toolbar {
+    --desktop-toolbar-height: 36px;
+    --desktop-toolbar-text-offset: 2px;
+    --desktop-toolbar-button-offset: 2px;
     flex: 0 0 auto;
-    min-height: 30px;
+    height: var(--desktop-toolbar-height);
+    min-height: var(--desktop-toolbar-height);
     box-sizing: border-box;
-    padding: 3px 8px 3px 10px;
-    display: flex;
+    padding: 0 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
     align-items: center;
-    justify-content: space-between;
+    line-height: var(--desktop-toolbar-height);
     border-bottom: 1px solid rgba(255, 255, 255, 0.16);
     background: #111820;
   }
@@ -213,9 +218,20 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    height: 100%;
     font-size: 12px;
-    line-height: 1.2;
+    line-height: var(--desktop-toolbar-height);
+    transform: translateY(var(--desktop-toolbar-text-offset));
     white-space: nowrap;
+  }
+
+  .desktop-title__text {
+    min-width: 0;
+    overflow: hidden;
+    color: #f6f8fa;
+    font-weight: 600;
+    line-height: var(--desktop-toolbar-height);
+    text-overflow: ellipsis;
   }
 
   .desktop-state {
@@ -224,6 +240,7 @@
     gap: 6px;
     color: #dbeafe;
     font-size: 10px;
+    line-height: var(--desktop-toolbar-height);
   }
 
   .desktop-state::before {
@@ -242,8 +259,17 @@
     color: #ff6b6b;
   }
 
+  .desktop-actions {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
   .desktop-action {
     min-width: 44px;
+    transform: translateY(var(--desktop-toolbar-button-offset));
   }
 
   :deep(.desktop-action-secondary) {
@@ -296,9 +322,10 @@
     }
 
     .desktop-toolbar {
+      height: auto;
+      min-height: 36px;
       padding: 4px 8px;
       gap: 8px;
-      flex-wrap: wrap;
     }
 
     .desktop-title {

@@ -2,10 +2,10 @@
   <div class="terminal-page">
     <div class="terminal-toolbar">
       <div class="terminal-title">
-        <span>{{ title }}</span>
+        <span class="terminal-title__text">{{ title }}</span>
         <span class="terminal-state" :class="stateClass">{{ statusText }}</span>
       </div>
-      <n-space align="center" :size="8" class="terminal-actions">
+      <div class="terminal-actions">
         <n-button
           class="terminal-action terminal-action-secondary"
           size="tiny"
@@ -24,7 +24,7 @@
         >
           重连
         </n-button>
-      </n-space>
+      </div>
     </div>
     <div
       ref="terminalRef"
@@ -49,7 +49,7 @@
     watchEffect,
   } from 'vue';
   import { useRoute } from 'vue-router';
-  import { NButton, NSpace, useMessage } from 'naive-ui';
+  import { NButton, useMessage } from 'naive-ui';
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
   import { CreateTerminal } from '@/api/opsDevice';
@@ -458,13 +458,19 @@
   }
 
   .terminal-toolbar {
+    --terminal-toolbar-height: 36px;
+    --terminal-toolbar-text-offset: 2px;
+    --terminal-toolbar-button-offset: 2px;
     flex: 0 0 auto;
-    min-height: 32px;
+    height: var(--terminal-toolbar-height);
+    min-height: var(--terminal-toolbar-height);
     box-sizing: border-box;
-    padding: 4px 10px;
-    display: flex;
+    padding: 0 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
+    line-height: var(--terminal-toolbar-height);
+    gap: 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.18);
     background: #171c22;
   }
@@ -475,13 +481,38 @@
     flex-direction: row;
     align-items: center;
     gap: 8px;
+    height: 100%;
     font-size: 12px;
-    line-height: 1.2;
+    line-height: var(--terminal-toolbar-height);
+    transform: translateY(var(--terminal-toolbar-text-offset));
+    white-space: nowrap;
+  }
+
+  .terminal-title__text {
+    min-width: 0;
+    overflow: hidden;
+    color: #f6f8fa;
+    font-weight: 600;
+    line-height: var(--terminal-toolbar-height);
+    text-overflow: ellipsis;
   }
 
   .terminal-state {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
     color: #dbeafe;
     font-size: 11px;
+    line-height: var(--terminal-toolbar-height);
+  }
+
+  .terminal-state::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    content: '';
   }
 
   .terminal-state.is-online {
@@ -493,11 +524,16 @@
   }
 
   .terminal-actions {
-    flex: 0 0 auto;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
   }
 
   .terminal-action {
     min-width: 44px;
+    transform: translateY(var(--terminal-toolbar-button-offset));
   }
 
   :deep(.terminal-action-secondary) {
@@ -529,11 +565,12 @@
     flex: 1;
     min-height: 0;
     box-sizing: border-box;
-    padding: 6px;
+    padding: 2px 10px 10px;
     overflow: hidden;
   }
 
   :deep(.xterm) {
+    box-sizing: border-box;
     height: 100%;
   }
 
@@ -549,6 +586,8 @@
     }
 
     .terminal-toolbar {
+      height: auto;
+      min-height: 36px;
       gap: 8px;
       padding: 6px 8px;
       flex-wrap: wrap;
