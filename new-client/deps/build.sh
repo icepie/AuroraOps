@@ -21,6 +21,7 @@ fi
 [ -z "$TARGET_ARCH" ] && export TARGET_ARCH="$CARGO_CFG_TARGET_ARCH"
 [ -z "$TARGET_ENV" ] && export TARGET_ENV="$CARGO_CFG_TARGET_ENV"
 [ -z "$ENABLE_VAAPI" ] && export ENABLE_VAAPI="y"
+[ -z "$ENABLE_VULKAN_VIDEO" ] && export ENABLE_VULKAN_VIDEO="n"
 
 export NPROCS="$(nproc || echo 4)"
 
@@ -78,6 +79,10 @@ else
     if [ "$TARGET_OS" == "linux" ]; then
         export FFMPEG_EXTRA_ARGS="--enable-nvenc \
             --enable-ffnvcodec"
+        if [ "$ENABLE_VULKAN_VIDEO" == "y" ]; then
+            export FFMPEG_EXTRA_ARGS="$FFMPEG_EXTRA_ARGS \
+                --enable-vulkan"
+        fi
         if [ "$ENABLE_VAAPI" == "y" ]; then
             export FFMPEG_EXTRA_ARGS="$FFMPEG_EXTRA_ARGS \
                 --enable-vaapi \

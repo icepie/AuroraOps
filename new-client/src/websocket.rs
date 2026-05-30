@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc::channel;
 use tracing::{debug, error, info, trace, warn};
 
-use crate::capturable::{get_capturables, Capturable, Recorder};
+use crate::capturable::{get_capturables, Capturable, Recorder, RecorderPreferences};
 use crate::input::device::{InputDevice, InputDeviceType};
 use crate::protocol::{
     ClientConfiguration, EncoderCapabilities, EncoderOption, KeyboardEvent, MessageInbound,
@@ -43,6 +43,9 @@ fn normalize_encoder(value: Option<&str>) -> Option<String> {
         "libx264" | "x264" | "software" => Some("libx264".to_string()),
         "nvenc" | "h264_nvenc" => Some("nvenc".to_string()),
         "vaapi" | "h264_vaapi" => Some("vaapi".to_string()),
+        "vulkan" | "vulkan-video" | "vulkan_video" | "h264_vulkan" => {
+            Some("vulkan-video".to_string())
+        }
         "mediafoundation" | "mf" | "h264_mf" => Some("mediafoundation".to_string()),
         "videotoolbox" | "h264_videotoolbox" => Some("videotoolbox".to_string()),
         _ => None,
@@ -54,30 +57,42 @@ fn encoder_options_for_selection(base: EncoderOptions, selected: Option<&str>) -
         Some("libx264") => EncoderOptions {
             try_vaapi: false,
             try_nvenc: false,
+            try_vulkan_video: false,
             try_videotoolbox: false,
             try_mediafoundation: false,
         },
         Some("nvenc") => EncoderOptions {
             try_vaapi: false,
             try_nvenc: base.try_nvenc,
+            try_vulkan_video: false,
             try_videotoolbox: false,
             try_mediafoundation: false,
         },
         Some("vaapi") => EncoderOptions {
             try_vaapi: base.try_vaapi,
             try_nvenc: false,
+            try_vulkan_video: false,
+            try_videotoolbox: false,
+            try_mediafoundation: false,
+        },
+        Some("vulkan-video") => EncoderOptions {
+            try_vaapi: false,
+            try_nvenc: false,
+            try_vulkan_video: base.try_vulkan_video,
             try_videotoolbox: false,
             try_mediafoundation: false,
         },
         Some("mediafoundation") => EncoderOptions {
             try_vaapi: false,
             try_nvenc: false,
+            try_vulkan_video: false,
             try_videotoolbox: false,
             try_mediafoundation: base.try_mediafoundation,
         },
         Some("videotoolbox") => EncoderOptions {
             try_vaapi: false,
             try_nvenc: false,
+            try_vulkan_video: false,
             try_videotoolbox: base.try_videotoolbox,
             try_mediafoundation: false,
         },
@@ -106,6 +121,12 @@ fn encoder_capabilities(options: EncoderOptions) -> EncoderCapabilities {
         encoders.push(EncoderOption {
             value: "vaapi".to_string(),
             label: "VAAPI".to_string(),
+        });
+    }
+    if options.try_vulkan_video {
+        encoders.push(EncoderOption {
+            value: "vulkan-video".to_string(),
+            label: "Vulkan Video".to_string(),
         });
     }
     if options.try_mediafoundation {
@@ -740,6 +761,7 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
     let mut active_encoder_options = encoder_options;
     let mut capture_backend = "未启动".to_string();
     let mut encoder_backend = "未启动".to_string();
+    let mut drm_prime_enabled = false;
 
     let mut max_width = 1920;
     let mut max_height = 1080;
@@ -775,8 +797,16 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                 }
                 const MAX_RETRIES: u32 = 5;
                 const RETRY_DELAY: Duration = Duration::from_millis(500);
-                let mut result =
-                    recorder_for_capturable(config.capturable.as_ref(), config.capture_cursor);
+                active_encoder_options =
+                    encoder_options_for_selection(encoder_options, config.encoder.as_deref());
+                drm_prime_enabled = active_encoder_options.try_vaapi;
+                let mut result = recorder_for_capturable(
+                    config.capturable.as_ref(),
+                    config.capture_cursor,
+                    RecorderPreferences {
+                        prefer_drm_prime: drm_prime_enabled,
+                    },
+                );
                 for attempt in 1..MAX_RETRIES {
                     if result.is_ok() {
                         break;
@@ -786,19 +816,23 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                         attempt, MAX_RETRIES
                     );
                     std::thread::sleep(RETRY_DELAY);
-                    result =
-                        recorder_for_capturable(config.capturable.as_ref(), config.capture_cursor);
+                    result = recorder_for_capturable(
+                        config.capturable.as_ref(),
+                        config.capture_cursor,
+                        RecorderPreferences {
+                            prefer_drm_prime: drm_prime_enabled,
+                        },
+                    );
                 }
                 match result {
-                    Ok(r) => {
+                    Ok(mut r) => {
                         capture_backend = r.backend_name().to_string();
                         encoder_backend = "等待视频流".to_string();
+                        r.set_preferences(RecorderPreferences {
+                            prefer_drm_prime: drm_prime_enabled,
+                        });
                         recorder = Some(r);
                         video_encoder = None;
-                        active_encoder_options = encoder_options_for_selection(
-                            encoder_options,
-                            config.encoder.as_deref(),
-                        );
                         max_width = config.max_width;
                         max_height = config.max_height;
                         send_message(&mut sender, MessageOutbound::ConfigOk);
@@ -838,6 +872,12 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                 video_encoder = None;
                 encoder_backend = "重启中".to_string();
                 active_encoder_options = encoder_options;
+                drm_prime_enabled = active_encoder_options.try_vaapi;
+                if let Some(recorder) = recorder.as_mut() {
+                    recorder.set_preferences(RecorderPreferences {
+                        prefer_drm_prime: drm_prime_enabled,
+                    });
+                }
                 send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
             }
             Err(RecvTimeoutError::Timeout) => {
@@ -845,13 +885,14 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                     warn!("Screen capture not initalized, can not send video frame!");
                     continue;
                 }
-                let pixel_data = recorder.as_mut().unwrap().capture();
-                if let Err(err) = pixel_data {
+                let frame = recorder.as_mut().unwrap().capture_frame();
+                if let Err(err) = frame {
                     warn!("Error capturing screen: {}", err);
                     continue;
                 }
-                let pixel_data = pixel_data.unwrap();
-                let (width_in, height_in) = pixel_data.size();
+                let frame = frame.unwrap();
+                let is_drm_prime_frame = frame.is_drm_prime();
+                let (width_in, height_in) = frame.size();
                 let scale =
                     (max_width as f64 / width_in as f64).min(max_height as f64 / height_in as f64);
                 // limit video to 4K
@@ -863,6 +904,7 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                     width_out = (width_out as f64 * scale) as usize;
                     height_out = (height_out as f64 * scale) as usize;
                 }
+                let mut disable_drm_prime_after_frame = false;
                 // video encoder is not setup or setup for encoding the wrong size: restart it
                 if video_encoder.is_none()
                     || !video_encoder
@@ -887,6 +929,13 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                     match res {
                         Ok(r) => {
                             encoder_backend = r.codec_name();
+                            if drm_prime_enabled && !r.supports_drm_prime() {
+                                debug!(
+                                    "DRM PRIME zero-copy is not supported by the active encoder, disabling it for this session."
+                                );
+                                drm_prime_enabled = false;
+                                disable_drm_prime_after_frame = true;
+                            }
                             video_encoder = Some(r);
                             send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
                         }
@@ -898,8 +947,47 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                         }
                     };
                 }
-                let video_encoder = video_encoder.as_mut().unwrap();
-                video_encoder.encode(pixel_data);
+                if disable_drm_prime_after_frame && is_drm_prime_frame {
+                    drop(frame);
+                    if let Some(recorder) = recorder.as_mut() {
+                        recorder.set_preferences(RecorderPreferences {
+                            prefer_drm_prime: false,
+                        });
+                    }
+                    continue;
+                }
+                let encode_result = video_encoder.as_mut().unwrap().encode(frame);
+                if encode_result.is_ok() {
+                    let current_backend = video_encoder.as_ref().unwrap().codec_name();
+                    if current_backend != encoder_backend {
+                        encoder_backend = current_backend;
+                        send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
+                    }
+                }
+                if disable_drm_prime_after_frame {
+                    if let Some(recorder) = recorder.as_mut() {
+                        recorder.set_preferences(RecorderPreferences {
+                            prefer_drm_prime: false,
+                        });
+                    }
+                }
+                if let Err(err) = encode_result {
+                    if is_drm_prime_frame && drm_prime_enabled {
+                        warn!(
+                            "DRM PRIME zero-copy encoding failed, disabling it for this session: {}",
+                            err
+                        );
+                        drm_prime_enabled = false;
+                        if let Some(recorder) = recorder.as_mut() {
+                            recorder.set_preferences(RecorderPreferences {
+                                prefer_drm_prime: false,
+                            });
+                        }
+                        video_encoder = None;
+                        encoder_backend = "zero-copy降级".to_string();
+                        send_runtime_status(&mut sender, &capture_backend, &encoder_backend);
+                    }
+                }
             }
             // stop thread once the channel is closed
             Err(RecvTimeoutError::Disconnected) => return,
@@ -910,10 +998,13 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
 fn recorder_for_capturable(
     capturable: &dyn Capturable,
     capture_cursor: bool,
+    preferences: RecorderPreferences,
 ) -> Result<Box<dyn Recorder>, Box<dyn std::error::Error>> {
-    catch_unwind(AssertUnwindSafe(|| capturable.recorder(capture_cursor)))
-        .map_err(|_| "screen recorder initialization panicked".into())
-        .and_then(|result| result)
+    catch_unwind(AssertUnwindSafe(|| {
+        capturable.recorder_with_preferences(capture_cursor, preferences)
+    }))
+    .map_err(|_| "screen recorder initialization panicked".into())
+    .and_then(|result| result)
 }
 
 pub struct WsWeylusReceiver {

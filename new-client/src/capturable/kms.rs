@@ -1,6 +1,8 @@
-use crate::capturable::{Capturable, Geometry, Recorder};
+use crate::capturable::{Capturable, Geometry, Recorder, RecorderPreferences};
 use crate::cerror::CError;
-use crate::video::PixelProvider;
+use crate::video::{
+    CapturedFrame, DmaBufFrame, DmaBufLayer, DmaBufObject, DmaBufPlane, PixelProvider,
+};
 use std::any::Any;
 
 use drm::control::{connector, crtc, framebuffer, plane, Device as ControlDevice, PlaneType};
@@ -188,6 +190,19 @@ impl Capturable for KmsCapturable {
             warn!("KMS capture does not support cursor compositing yet, ignoring request.");
         }
         Ok(Box::new(KmsRecorder::new(self.clone())?))
+    }
+
+    fn recorder_with_preferences(
+        &self,
+        capture_cursor: bool,
+        preferences: RecorderPreferences,
+    ) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
+        if capture_cursor {
+            warn!("KMS capture does not support cursor compositing yet, ignoring request.");
+        }
+        let mut recorder = KmsRecorder::new(self.clone())?;
+        recorder.set_preferences(preferences);
+        Ok(Box::new(recorder))
     }
 }
 
@@ -514,6 +529,76 @@ impl KmsFrameSource {
             frame.metadata.dst_w as usize,
             frame.metadata.dst_h as usize,
         ))
+    }
+
+    fn drm_prime_frame(&mut self) -> Result<DmaBufFrame, Box<dyn Error>> {
+        let (fb_handle, region) = self.current_framebuffer()?;
+        let frame = self.frame_info(fb_handle, region)?;
+        let metadata = frame.metadata;
+        let plane_count = metadata.length as usize;
+        if plane_count == 0 || plane_count > 4 || plane_count != frame.prime_fds.len() {
+            return Err(Box::new(io_error(format!(
+                "KMS DRM PRIME frame has unsupported plane count: metadata={} fds={}",
+                plane_count,
+                frame.prime_fds.len()
+            ))));
+        }
+        if metadata.src_x != 0
+            || metadata.src_y != 0
+            || metadata.src_w != metadata.dst_w
+            || metadata.src_h != metadata.dst_h
+            || metadata.fb_width != metadata.dst_w
+            || metadata.fb_height != metadata.dst_h
+        {
+            return Err(Box::new(io_error(format!(
+                "KMS DRM PRIME zero-copy currently requires full-frame scanout, got src={}x{}+{}+{} dst={}x{} fb={}x{}",
+                metadata.src_w,
+                metadata.src_h,
+                metadata.src_x,
+                metadata.src_y,
+                metadata.dst_w,
+                metadata.dst_h,
+                metadata.fb_width,
+                metadata.fb_height
+            ))));
+        }
+        if metadata.fourcc != DrmFourcc::Nv12 as u32 {
+            return Err(Box::new(io_error(format!(
+                "KMS DRM PRIME zero-copy currently only supports NV12 scanout, got {}",
+                DrmFourcc::try_from(metadata.fourcc)
+                    .map(|format| format.to_string())
+                    .unwrap_or_else(|_| format!("0x{:08x}", metadata.fourcc))
+            ))));
+        }
+
+        let mut objects = Vec::with_capacity(plane_count);
+        let mut planes = Vec::with_capacity(plane_count);
+        for (idx, fd) in frame.prime_fds.into_iter().enumerate() {
+            let offset = metadata.offsets[idx] as usize;
+            let pitch = metadata.pitches[idx] as usize;
+            let size = offset.saturating_add(pitch.saturating_mul(metadata.fb_height as usize));
+            objects.push(DmaBufObject {
+                fd,
+                size,
+                format_modifier: metadata.modifier,
+            });
+            planes.push(DmaBufPlane {
+                object_index: idx,
+                offset: metadata.offsets[idx] as isize,
+                pitch: metadata.pitches[idx] as isize,
+            });
+        }
+
+        Ok(DmaBufFrame {
+            width: metadata.dst_w as usize,
+            height: metadata.dst_h as usize,
+            objects,
+            layers: vec![DmaBufLayer {
+                format: metadata.fourcc,
+                plane_count,
+            }],
+            planes,
+        })
     }
 
     fn ensure_egl(&mut self) -> Result<*mut c_void, Box<dyn Error>> {
@@ -1175,6 +1260,8 @@ pub struct KmsRecorder {
     logged_sample: bool,
     retried_with_prime: bool,
     helper_disabled: bool,
+    prefer_drm_prime: bool,
+    drm_prime_disabled: bool,
 }
 
 impl KmsRecorder {
@@ -1185,6 +1272,8 @@ impl KmsRecorder {
             logged_sample: false,
             retried_with_prime: false,
             helper_disabled: false,
+            prefer_drm_prime: false,
+            drm_prime_disabled: false,
         })
     }
 
@@ -1201,6 +1290,25 @@ impl KmsRecorder {
 impl Recorder for KmsRecorder {
     fn backend_name(&self) -> &'static str {
         "KMS/DRM"
+    }
+
+    fn set_preferences(&mut self, preferences: RecorderPreferences) {
+        self.prefer_drm_prime = preferences.prefer_drm_prime;
+    }
+
+    fn capture_frame(&mut self) -> Result<CapturedFrame<'_>, Box<dyn Error>> {
+        if self.prefer_drm_prime && !self.drm_prime_disabled {
+            match self.frame_source.drm_prime_frame() {
+                Ok(frame) => return Ok(CapturedFrame::DrmPrime(frame)),
+                Err(err) => {
+                    debug!(
+                        "KMS DRM PRIME zero-copy unavailable for this frame, using CPU path: {err}"
+                    );
+                    self.drm_prime_disabled = true;
+                }
+            }
+        }
+        Ok(CapturedFrame::Cpu(self.capture()?))
     }
 
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {

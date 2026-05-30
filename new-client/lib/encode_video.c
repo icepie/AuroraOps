@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavfilter/buffersink.h>
@@ -8,10 +10,12 @@
 #include <libavformat/avformat.h>
 #include <libavformat/avio.h>
 #include <libavutil/buffer.h>
+#include <libavutil/common.h>
 #include <libavutil/dict.h>
 #include <libavutil/error.h>
 #include <libavutil/frame.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/hwcontext_drm.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/mem.h>
 #include <libavutil/opt.h>
@@ -43,8 +47,12 @@ typedef struct Scalers
 	ScaleContext bgr0;
 	ScaleContext rgb0;
 	ScaleContext rgb;
+	ScaleContext drm_prime;
 	AVBufferRef* hw_frames_ctx;
 	AVFrame* frame_out;
+	enum AVPixelFormat pix_fmt_out;
+	enum AVPixelFormat pix_fmt_sw_out;
+	enum AVPixelFormat drm_prime_sw_format;
 } Scalers;
 
 typedef struct VideoContext
@@ -72,8 +80,11 @@ typedef struct VideoContext
 	int frame_allocated;
 	int try_vaapi;
 	int try_nvenc;
+	int try_vulkan_video;
 	int try_videotoolbox;
 	int try_mediafoundation;
+	int using_drm_prime;
+	char codec_name[64];
 } VideoContext;
 
 // this is a rust function and lives in src/video.rs
@@ -163,6 +174,7 @@ void init_scaler(
 	enum AVPixelFormat pix_fmt_in,
 	enum AVPixelFormat pix_fmt_out,
 	AVBufferRef* hw_device_ctx,
+	AVBufferRef* input_hw_frames_ctx,
 	enum AVPixelFormat pix_fmt_sw_out,
 	AVFrame* frame_out,
 	Error* err)
@@ -178,15 +190,18 @@ void init_scaler(
 	ctx->frame_in->format = pix_fmt_in;
 	ctx->frame_in->width = width_in;
 	ctx->frame_in->height = height_in;
-	ret = av_frame_get_buffer(ctx->frame_in, 0);
-	if (ret)
+	if (pix_fmt_in != AV_PIX_FMT_DRM_PRIME)
 	{
-		destroy_scale_ctx(ctx);
-		ERROR(
-			err,
-			1,
-			"Failed to allocate buffer for frame_in for scale filter: %s!",
-			av_err2str(ret));
+		ret = av_frame_get_buffer(ctx->frame_in, 0);
+		if (ret)
+		{
+			destroy_scale_ctx(ctx);
+			ERROR(
+				err,
+				1,
+				"Failed to allocate buffer for frame_in for scale filter: %s!",
+				av_err2str(ret));
+		}
 	}
 
 	char args[512];
@@ -218,17 +233,60 @@ void init_scaler(
 		1,
 		1);
 
-	ret = avfilter_graph_create_filter(
-		&ctx->buffersrc_scale_ctx, buffersrc, "in", args, NULL, ctx->filter_graph_scale);
-	if (ret < 0)
+	if (input_hw_frames_ctx != NULL)
 	{
-		log_warn("Cannot create buffer source");
-		goto end;
+		ctx->buffersrc_scale_ctx =
+			avfilter_graph_alloc_filter(ctx->filter_graph_scale, buffersrc, "in");
+		if (!ctx->buffersrc_scale_ctx)
+		{
+			ret = AVERROR(ENOMEM);
+			log_warn("Cannot allocate buffer source");
+			goto end;
+		}
+		if (hw_device_ctx != NULL)
+		{
+			ctx->buffersrc_scale_ctx->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+		}
+		AVBufferSrcParameters* params = av_buffersrc_parameters_alloc();
+		if (!params)
+		{
+			ret = AVERROR(ENOMEM);
+			goto end;
+		}
+		params->format = pix_fmt_in;
+		params->time_base = TIME_BASE;
+		params->width = width_in;
+		params->height = height_in;
+		params->sample_aspect_ratio = (AVRational){1, 1};
+		params->hw_frames_ctx = input_hw_frames_ctx;
+		ret = av_buffersrc_parameters_set(ctx->buffersrc_scale_ctx, params);
+		av_free(params);
+		if (ret < 0)
+		{
+			log_warn("Cannot set buffer source parameters: %s", av_err2str(ret));
+			goto end;
+		}
+		ret = avfilter_init_str(ctx->buffersrc_scale_ctx, NULL);
+		if (ret < 0)
+		{
+			log_warn("Cannot init buffer source: %s", av_err2str(ret));
+			goto end;
+		}
 	}
-
-	if (hw_device_ctx != NULL)
+	else
 	{
-		ctx->buffersrc_scale_ctx->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+		ret = avfilter_graph_create_filter(
+			&ctx->buffersrc_scale_ctx, buffersrc, "in", args, NULL, ctx->filter_graph_scale);
+		if (ret < 0)
+		{
+			log_warn("Cannot create buffer source");
+			goto end;
+		}
+
+		if (hw_device_ctx != NULL)
+		{
+			ctx->buffersrc_scale_ctx->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+		}
 	}
 
 	/* buffer video sink: to terminate the filter chain. */
@@ -307,7 +365,15 @@ void init_scaler(
 		break;
 #ifdef HAS_VAAPI
 	case AV_PIX_FMT_VAAPI:
-		if (pix_fmt_in == AV_PIX_FMT_RGB24)
+		if (pix_fmt_in == AV_PIX_FMT_DRM_PRIME)
+			snprintf(
+				args,
+				sizeof(args),
+				"hwmap=derive_device=vaapi,scale_vaapi=w=%d:h=%d:format=%s:mode=fast",
+				width_out,
+				height_out,
+				av_get_pix_fmt_name(pix_fmt_sw_out));
+		else if (pix_fmt_in == AV_PIX_FMT_RGB24)
 			snprintf(
 				args,
 				sizeof(args),
@@ -323,6 +389,17 @@ void init_scaler(
 				width_out,
 				height_out,
 				av_get_pix_fmt_name(pix_fmt_sw_out));
+		break;
+#endif
+#ifdef HAS_VULKAN_VIDEO
+	case AV_PIX_FMT_VULKAN:
+		snprintf(
+			args,
+			sizeof(args),
+			"scale=w=%d:h=%d:flags=fast_bilinear,format=%s,hwupload",
+			width_out,
+			height_out,
+			av_get_pix_fmt_name(pix_fmt_sw_out));
 		break;
 #endif
 	default:
@@ -462,8 +539,117 @@ void destroy_scalers(Scalers* s)
 	destroy_scale_ctx(&s->bgr0);
 	destroy_scale_ctx(&s->rgb0);
 	destroy_scale_ctx(&s->rgb);
+	destroy_scale_ctx(&s->drm_prime);
 	if (s->frame_out)
 		av_frame_free(&s->frame_out);
+}
+
+static int create_drm_device_ctx(AVBufferRef** drm_device_ctx)
+{
+	const char* env_drm_device = getenv("WEYLUS_DRM_DEVICE");
+	const char* env_vaapi_device = getenv("WEYLUS_VAAPI_DEVICE");
+	const char* candidates[] = {
+		env_drm_device ? env_drm_device : "",
+		env_vaapi_device ? env_vaapi_device : "",
+		"/dev/dri/renderD128",
+		"/dev/dri/renderD129",
+		"/dev/dri/card0",
+		"/dev/dri/card1",
+		NULL,
+	};
+	int last_ret = AVERROR(EINVAL);
+
+	for (int i = 0; candidates[i]; i++)
+	{
+		if (!candidates[i] || !candidates[i][0])
+			continue;
+		int ret = av_hwdevice_ctx_create(drm_device_ctx, AV_HWDEVICE_TYPE_DRM, candidates[i], NULL, 0);
+		if (ret == 0)
+		{
+			log_info("DRM PRIME input using DRM device: %s", candidates[i]);
+			return 0;
+		}
+		last_ret = ret;
+		log_warn("DRM PRIME input could not open DRM device %s: %s", candidates[i], av_err2str(ret));
+	}
+
+	return last_ret;
+}
+
+static enum AVPixelFormat drm_prime_sw_format_from_fourcc(uint32_t fourcc)
+{
+	switch (fourcc)
+	{
+	case MKTAG('N', 'V', '1', '2'):
+		return AV_PIX_FMT_NV12;
+	default:
+		return AV_PIX_FMT_NONE;
+	}
+}
+
+static void init_drm_prime_scaler(
+	Scalers* ctx,
+	int width_in,
+	int height_in,
+	int width_out,
+	int height_out,
+	AVBufferRef* hw_device_ctx,
+	enum AVPixelFormat drm_prime_sw_format,
+	Error* err)
+{
+	int ret;
+	AVBufferRef* drm_device_ctx = NULL;
+	AVBufferRef* drm_frames_ctx = NULL;
+
+	if (ctx->drm_prime.filter_graph_scale && ctx->drm_prime_sw_format == drm_prime_sw_format)
+		return;
+
+	destroy_scale_ctx(&ctx->drm_prime);
+	memset(&ctx->drm_prime, 0, sizeof(ctx->drm_prime));
+	ctx->drm_prime_sw_format = AV_PIX_FMT_NONE;
+
+	ret = create_drm_device_ctx(&drm_device_ctx);
+	if (ret < 0)
+	{
+		ERROR(err, ret, "failed to create DRM device: %s", av_err2str(ret));
+	}
+
+	drm_frames_ctx = av_hwframe_ctx_alloc(drm_device_ctx);
+	if (!drm_frames_ctx)
+	{
+		av_buffer_unref(&drm_device_ctx);
+		ERROR(err, 1, "failed to allocate DRM frames context");
+	}
+	AVHWFramesContext* drm_frames = (AVHWFramesContext*)drm_frames_ctx->data;
+	drm_frames->format = AV_PIX_FMT_DRM_PRIME;
+	drm_frames->sw_format = drm_prime_sw_format;
+	drm_frames->width = width_in;
+	drm_frames->height = height_in;
+	ret = av_hwframe_ctx_init(drm_frames_ctx);
+	if (ret < 0)
+	{
+		av_buffer_unref(&drm_frames_ctx);
+		av_buffer_unref(&drm_device_ctx);
+		ERROR(err, ret, "failed to initialize DRM frames context: %s", av_err2str(ret));
+	}
+
+	init_scaler(
+		&ctx->drm_prime,
+		width_in,
+		height_in,
+		width_out,
+		height_out,
+		AV_PIX_FMT_DRM_PRIME,
+		ctx->pix_fmt_out,
+		hw_device_ctx,
+		drm_frames_ctx,
+		ctx->pix_fmt_sw_out,
+		ctx->frame_out,
+		err);
+	av_buffer_unref(&drm_frames_ctx);
+	av_buffer_unref(&drm_device_ctx);
+	OK_OR_ABORT(err);
+	ctx->drm_prime_sw_format = drm_prime_sw_format;
 }
 
 void init_scalers(
@@ -479,6 +665,9 @@ void init_scalers(
 {
 	int ret;
 	ctx->frame_out = av_frame_alloc();
+	ctx->pix_fmt_out = pix_fmt_out;
+	ctx->pix_fmt_sw_out = pix_fmt_sw_out;
+	ctx->drm_prime_sw_format = AV_PIX_FMT_NONE;
 	if (!ctx->frame_out)
 	{
 		destroy_scalers(ctx);
@@ -541,6 +730,7 @@ void init_scalers(
 			pix_fmts[i],
 			pix_fmt_out,
 			hw_device_ctx,
+			NULL,
 			pix_fmt_sw_out,
 			ctx->frame_out,
 			err);
@@ -784,6 +974,86 @@ void open_video(VideoContext* ctx, Error* err)
 	}
 #endif
 
+#ifdef HAS_VULKAN_VIDEO
+	char* vulkan_device = getenv("WEYLUS_VULKAN_DEVICE");
+
+	if (ctx->try_vulkan_video && !using_hw &&
+		av_hwdevice_ctx_create(
+			&ctx->hw_device_ctx, AV_HWDEVICE_TYPE_VULKAN, vulkan_device, NULL, 0) == 0)
+	{
+		log_info(
+			"Attempting Vulkan Video hardware encoding with device: %s",
+			vulkan_device ? vulkan_device : "(default)");
+
+		codec = avcodec_find_encoder_by_name("h264_vulkan");
+		if (codec)
+		{
+			ctx->c = avcodec_alloc_context3(codec);
+			if (ctx->c)
+			{
+				Error err = {0};
+				init_scalers(
+					&ctx->scalers,
+					ctx->width_in,
+					ctx->height_in,
+					ctx->width_out,
+					ctx->height_out,
+					AV_PIX_FMT_VULKAN,
+					AV_PIX_FMT_NV12,
+					ctx->hw_device_ctx,
+					&err);
+				if (err.code)
+				{
+					log_warn("Failed to initialize Vulkan Video scaler: %s", err.error_str);
+					avcodec_free_context(&ctx->c);
+					av_buffer_unref(&ctx->hw_device_ctx);
+					destroy_scalers(&ctx->scalers);
+				}
+				else
+				{
+					ctx->c->pix_fmt = AV_PIX_FMT_VULKAN;
+					ctx->c->hw_frames_ctx = ctx->scalers.hw_frames_ctx;
+					ctx->c->profile = AV_PROFILE_H264_CONSTRAINED_BASELINE;
+					av_opt_set(ctx->c->priv_data, "tune", "ull", 0);
+					av_opt_set(ctx->c->priv_data, "usage", "stream", 0);
+					av_opt_set(ctx->c->priv_data, "content", "desktop", 0);
+					av_opt_set(ctx->c->priv_data, "rc_mode", "cqp", 0);
+					av_opt_set(ctx->c->priv_data, "qp", "23", 0);
+					set_codec_params(ctx);
+
+					ret = avcodec_open2(ctx->c, codec, NULL);
+					if (ret == 0)
+						using_hw = 1;
+					else
+					{
+						log_warn("Could not open Vulkan Video codec: %s!", av_err2str(ret));
+						avcodec_free_context(&ctx->c);
+						av_buffer_unref(&ctx->hw_device_ctx);
+						destroy_scalers(&ctx->scalers);
+					}
+				}
+			}
+			else
+			{
+				log_debug("Could not allocate video codec context for 'h264_vulkan'!");
+				av_buffer_unref(&ctx->hw_device_ctx);
+			}
+		}
+		else
+		{
+			log_warn("Codec 'h264_vulkan' not found!");
+			av_buffer_unref(&ctx->hw_device_ctx);
+		}
+	}
+	else if (ctx->try_vulkan_video && !using_hw)
+	{
+		log_warn(
+			"Failed to initialise Vulkan connection for device %s: %s",
+			vulkan_device ? vulkan_device : "(default)",
+			av_err2str(AVERROR_UNKNOWN));
+	}
+#endif
+
 #ifdef HAS_VIDEOTOOLBOX
 	if (ctx->try_videotoolbox && !using_hw)
 	{
@@ -943,7 +1213,17 @@ const char* video_encoder_codec_name(VideoContext* ctx)
 {
 	if (!ctx || !ctx->c || !ctx->c->codec || !ctx->c->codec->name)
 		return "";
+	if (ctx->using_drm_prime)
+	{
+		snprintf(ctx->codec_name, sizeof(ctx->codec_name), "%s/drm-prime", ctx->c->codec->name);
+		return ctx->codec_name;
+	}
 	return ctx->c->codec->name;
+}
+
+int video_encoder_supports_drm_prime(VideoContext* ctx)
+{
+	return ctx && ctx->c && ctx->c->pix_fmt == AV_PIX_FMT_VAAPI && ctx->hw_device_ctx != NULL;
 }
 
 void encode_video_frame(VideoContext* ctx, int millis, Error* err)
@@ -978,6 +1258,20 @@ void encode_video_frame(VideoContext* ctx, int millis, Error* err)
 	}
 }
 
+static void free_drm_prime_desc(void* opaque, uint8_t* data)
+{
+	(void)opaque;
+	AVDRMFrameDescriptor* desc = (AVDRMFrameDescriptor*)data;
+	if (!desc)
+		return;
+	for (int i = 0; i < desc->nb_objects && i < AV_DRM_MAX_PLANES; i++)
+	{
+		if (desc->objects[i].fd >= 0)
+			close(desc->objects[i].fd);
+	}
+	av_free(desc);
+}
+
 VideoContext* init_video_encoder(
 	void* rust_ctx,
 	int width_in,
@@ -986,15 +1280,17 @@ VideoContext* init_video_encoder(
 	int height_out,
 	int try_vaapi,
 	int try_nvenc,
+	int try_vulkan_video,
 	int try_videotoolbox,
 	int try_mediafoundation)
 {
 	VideoContext* ctx = malloc(sizeof(VideoContext));
 	ctx->rust_ctx = rust_ctx;
 	log_info(
-		"Video encoder init: try_vaapi=%d try_nvenc=%d try_videotoolbox=%d try_mediafoundation=%d",
+		"Video encoder init: try_vaapi=%d try_nvenc=%d try_vulkan_video=%d try_videotoolbox=%d try_mediafoundation=%d",
 		try_vaapi,
 		try_nvenc,
+		try_vulkan_video,
 		try_videotoolbox,
 		try_mediafoundation);
 	ctx->width_out = width_out - width_out % 2;
@@ -1006,8 +1302,11 @@ VideoContext* init_video_encoder(
 	ctx->frame_allocated = 0;
 	ctx->try_vaapi = try_vaapi;
 	ctx->try_nvenc = try_nvenc;
+	ctx->try_vulkan_video = try_vulkan_video;
 	ctx->try_videotoolbox = try_videotoolbox;
 	ctx->try_mediafoundation = try_mediafoundation;
+	ctx->using_drm_prime = 0;
+	ctx->codec_name[0] = '\0';
 	ctx->hw_device_ctx = NULL;
 
 	// make sure all scalers are zero initialized so that destroy can always be called
@@ -1050,4 +1349,123 @@ void fill_rgb0(VideoContext* ctx, const void* data, Error* err)
 	scale_frame(scaler, err);
 	OK_OR_ABORT(err)
 	ctx->frame = scaler->frame_out;
+}
+
+void fill_drm_prime(
+	VideoContext* ctx,
+	int width,
+	int height,
+	int object_count,
+	const int* object_fds,
+	const size_t* object_sizes,
+	const uint64_t* object_modifiers,
+	int layer_count,
+	const uint32_t* layer_formats,
+	const int* layer_plane_counts,
+	const int* plane_object_indices,
+	const ptrdiff_t* plane_offsets,
+	const ptrdiff_t* plane_pitches,
+	Error* err)
+{
+	ctx->frame = NULL;
+	if (!video_encoder_supports_drm_prime(ctx))
+		ERROR(err, 1, "DRM PRIME input is only available with VAAPI encoding.");
+	if (width != ctx->width_in || height != ctx->height_in)
+		ERROR(
+			err,
+			1,
+			"DRM PRIME frame size changed unexpectedly: %dx%d != %dx%d",
+			width,
+			height,
+			ctx->width_in,
+			ctx->height_in);
+	if (object_count <= 0 || object_count > AV_DRM_MAX_PLANES)
+		ERROR(err, 1, "Invalid DRM PRIME object count: %d", object_count);
+	if (layer_count <= 0 || layer_count > AV_DRM_MAX_PLANES)
+		ERROR(err, 1, "Invalid DRM PRIME layer count: %d", layer_count);
+	enum AVPixelFormat drm_prime_sw_format = drm_prime_sw_format_from_fourcc(layer_formats[0]);
+	if (drm_prime_sw_format == AV_PIX_FMT_NONE)
+		ERROR(err, 1, "Unsupported DRM PRIME layer format: 0x%08x", layer_formats[0]);
+	init_drm_prime_scaler(
+		&ctx->scalers,
+		ctx->width_in,
+		ctx->height_in,
+		ctx->width_out,
+		ctx->height_out,
+		ctx->hw_device_ctx,
+		drm_prime_sw_format,
+		err);
+	OK_OR_ABORT(err);
+
+	int total_planes = 0;
+	for (int i = 0; i < layer_count; i++)
+	{
+		if (layer_plane_counts[i] <= 0 || layer_plane_counts[i] > AV_DRM_MAX_PLANES)
+			ERROR(err, 1, "Invalid DRM PRIME plane count for layer %d: %d", i, layer_plane_counts[i]);
+		total_planes += layer_plane_counts[i];
+	}
+	if (total_planes <= 0 || total_planes > AV_DRM_MAX_PLANES)
+		ERROR(err, 1, "Invalid DRM PRIME total plane count: %d", total_planes);
+
+	AVDRMFrameDescriptor* desc = av_mallocz(sizeof(*desc));
+	if (!desc)
+		ERROR(err, 1, "Failed to allocate DRM PRIME descriptor.");
+	for (int i = 0; i < AV_DRM_MAX_PLANES; i++)
+		desc->objects[i].fd = -1;
+
+	desc->nb_objects = object_count;
+	for (int i = 0; i < object_count; i++)
+	{
+		int dup_fd = dup(object_fds[i]);
+		if (dup_fd < 0)
+		{
+			free_drm_prime_desc(NULL, (uint8_t*)desc);
+			ERROR(err, 1, "Failed to duplicate DRM PRIME fd: %s", strerror(errno));
+		}
+		desc->objects[i].fd = dup_fd;
+		desc->objects[i].size = object_sizes[i];
+		desc->objects[i].format_modifier = object_modifiers[i];
+	}
+
+	desc->nb_layers = layer_count;
+	int plane_idx = 0;
+	for (int layer_idx = 0; layer_idx < layer_count; layer_idx++)
+	{
+		desc->layers[layer_idx].format = layer_formats[layer_idx];
+		desc->layers[layer_idx].nb_planes = layer_plane_counts[layer_idx];
+		for (int plane_in_layer = 0; plane_in_layer < layer_plane_counts[layer_idx];
+			 plane_in_layer++)
+		{
+			int object_index = plane_object_indices[plane_idx];
+			if (object_index < 0 || object_index >= object_count)
+			{
+				free_drm_prime_desc(NULL, (uint8_t*)desc);
+				ERROR(err, 1, "Invalid DRM PRIME object index: %d", object_index);
+			}
+			desc->layers[layer_idx].planes[plane_in_layer].object_index = object_index;
+			desc->layers[layer_idx].planes[plane_in_layer].offset = plane_offsets[plane_idx];
+			desc->layers[layer_idx].planes[plane_in_layer].pitch = plane_pitches[plane_idx];
+			plane_idx++;
+		}
+	}
+
+	AVFrame* frame = ctx->scalers.drm_prime.frame_in;
+	av_frame_unref(frame);
+	frame->format = AV_PIX_FMT_DRM_PRIME;
+	frame->width = width;
+	frame->height = height;
+	frame->data[0] = (uint8_t*)desc;
+	frame->buf[0] = av_buffer_create(
+		(uint8_t*)desc, sizeof(*desc), free_drm_prime_desc, NULL, AV_BUFFER_FLAG_READONLY);
+	if (!frame->buf[0])
+	{
+		free_drm_prime_desc(NULL, (uint8_t*)desc);
+		ERROR(err, 1, "Failed to create DRM PRIME descriptor buffer.");
+	}
+
+	scale_frame(&ctx->scalers.drm_prime, err);
+	av_frame_unref(frame);
+	OK_OR_ABORT(err)
+	ctx->using_drm_prime = 1;
+	ctx->frame = ctx->scalers.drm_prime.frame_out;
 }

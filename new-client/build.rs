@@ -21,7 +21,7 @@ fn bash_command() -> Command {
     Command::new("bash")
 }
 
-fn build_ffmpeg(dist_dir: &Path, enable_libnpp: bool) {
+fn build_ffmpeg(dist_dir: &Path, enable_libnpp: bool, enable_vulkan_video: bool) {
     if dist_dir.exists() {
         return;
     }
@@ -39,6 +39,10 @@ fn build_ffmpeg(dist_dir: &Path, enable_libnpp: bool) {
         .current_dir("deps")
         .env("DIST", dist_env)
         .env("ENABLE_LIBNPP", if enable_libnpp { "y" } else { "n" })
+        .env(
+            "ENABLE_VULKAN_VIDEO",
+            if enable_vulkan_video { "y" } else { "n" },
+        )
         .env(
             "ENABLE_VAAPI",
             if env::var("CARGO_FEATURE_VAAPI").is_ok() {
@@ -91,23 +95,35 @@ fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let vaapi_enabled = env::var("CARGO_FEATURE_VAAPI").is_ok();
+    let vulkan_video_enabled = env::var("CARGO_FEATURE_VULKAN_VIDEO").is_ok();
 
-    let dist_dir = Path::new("deps").canonicalize().unwrap().join(
-        if target_os == "windows" && target_arch == "aarch64" {
-            "dist_windows_arm64".to_string()
-        } else if vaapi_enabled {
-            format!("dist_{}_vaapi", target_os)
-        } else {
-            format!("dist_{}", target_os)
-        },
-    );
+    let dist_dir_name = if target_os == "windows" && target_arch == "aarch64" {
+        "dist_windows_arm64".to_string()
+    } else {
+        let mut name = format!("dist_{}", target_os);
+        if vaapi_enabled {
+            name.push_str("_vaapi");
+        }
+        if target_os == "linux" && vulkan_video_enabled {
+            name.push_str("_vulkan_video");
+        }
+        name
+    };
+    let dist_dir = Path::new("deps")
+        .canonicalize()
+        .unwrap()
+        .join(dist_dir_name);
 
     let enable_libnpp = env::var("I_AM_BUILDING_THIS_AT_HOME_AND_WANT_LIBNPP").map_or(false, |v| {
         ["y", "yes", "true", "1"].contains(&v.to_lowercase().as_str())
     });
 
     if env::var("CARGO_FEATURE_FFMPEG_SYSTEM").is_err() {
-        build_ffmpeg(&dist_dir, enable_libnpp);
+        build_ffmpeg(
+            &dist_dir,
+            enable_libnpp,
+            target_os == "linux" && vulkan_video_enabled,
+        );
     }
 
     println!("cargo:rerun-if-changed=deps/build.sh");
@@ -117,6 +133,7 @@ fn main() {
     println!("cargo:rerun-if-changed=deps/nv-codec-headers.sh");
     println!("cargo:rerun-if-env-changed=ENABLE_VAAPI");
     println!("cargo:rerun-if-env-changed=ENABLE_LIBNPP");
+    println!("cargo:rerun-if-env-changed=ENABLE_VULKAN_VIDEO");
 
     println!("cargo:rerun-if-changed=ts/lib.ts");
 
@@ -167,6 +184,9 @@ fn main() {
     if target_os == "linux" && vaapi_enabled {
         cc_video.define("HAS_VAAPI", None);
     }
+    if target_os == "linux" && vulkan_video_enabled {
+        cc_video.define("HAS_VULKAN_VIDEO", None);
+    }
     if target_os == "macos" {
         cc_video.define("HAS_VIDEOTOOLBOX", None);
     }
@@ -202,6 +222,9 @@ fn main() {
     println!("cargo:rustc-link-lib={}=swscale", ffmpeg_link_kind);
     println!("cargo:rustc-link-lib={}=avutil", ffmpeg_link_kind);
     println!("cargo:rustc-link-lib={}=x264", ffmpeg_link_kind);
+    if target_os == "linux" && vulkan_video_enabled {
+        println!("cargo:rustc-link-lib=dylib=vulkan");
+    }
     if enable_libnpp {
         if let Ok(lib_paths) = env::var("LIBRARY_PATH") {
             for lib_path in lib_paths.split(':') {

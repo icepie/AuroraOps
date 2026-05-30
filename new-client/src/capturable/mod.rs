@@ -28,6 +28,17 @@ pub trait Recorder {
     }
 
     fn capture(&mut self) -> Result<crate::video::PixelProvider<'_>, Box<dyn Error>>;
+
+    fn set_preferences(&mut self, _preferences: RecorderPreferences) {}
+
+    fn capture_frame(&mut self) -> Result<crate::video::CapturedFrame<'_>, Box<dyn Error>> {
+        Ok(crate::video::CapturedFrame::Cpu(self.capture()?))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RecorderPreferences {
+    pub prefer_drm_prime: bool,
 }
 
 pub trait BoxCloneCapturable {
@@ -66,6 +77,16 @@ pub trait Capturable: Send + BoxCloneCapturable {
 
     /// Return a Recorder that can record the current capturable.
     fn recorder(&self, capture_cursor: bool) -> Result<Box<dyn Recorder>, Box<dyn Error>>;
+
+    fn recorder_with_preferences(
+        &self,
+        capture_cursor: bool,
+        preferences: RecorderPreferences,
+    ) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
+        let mut recorder = self.recorder(capture_cursor)?;
+        recorder.set_preferences(preferences);
+        Ok(recorder)
+    }
 }
 
 impl Clone for Box<dyn Capturable> {

@@ -266,6 +266,7 @@ mod tests {
         let opts = video::EncoderOptions {
             try_vaapi: true,
             try_nvenc: true,
+            try_vulkan_video: true,
             try_videotoolbox: false,
             try_mediafoundation: false,
         };
@@ -301,6 +302,7 @@ mod tests {
         let opts = video::EncoderOptions {
             try_vaapi: true,
             try_nvenc: true,
+            try_vulkan_video: true,
             try_videotoolbox: false,
             try_mediafoundation: false,
         };
@@ -325,6 +327,7 @@ mod tests {
         let opts = video::EncoderOptions {
             try_vaapi: true,
             try_nvenc: false,
+            try_vulkan_video: false,
             try_videotoolbox: false,
             try_mediafoundation: false,
         };
@@ -354,6 +357,7 @@ mod tests {
         let opts = video::EncoderOptions {
             try_vaapi: false,
             try_nvenc: false,
+            try_vulkan_video: false,
             try_videotoolbox: false,
             try_mediafoundation: false,
         };
@@ -383,6 +387,7 @@ mod tests {
         let opts = video::EncoderOptions {
             try_vaapi: false,
             try_nvenc: true,
+            try_vulkan_video: false,
             try_videotoolbox: false,
             try_mediafoundation: false,
         };

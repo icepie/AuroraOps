@@ -33,6 +33,10 @@ pub struct Config {
     #[arg(long, help = "Try to use Nvidia's NVENC to encode the video via GPU.")]
     #[serde(default)]
     pub try_nvenc: bool,
+    #[cfg(target_os = "linux")]
+    #[arg(long, help = "Try to use Vulkan Video H.264 hardware encoding.")]
+    #[serde(default)]
+    pub try_vulkan_video: bool,
     #[cfg(target_os = "macos")]
     #[arg(
         long,

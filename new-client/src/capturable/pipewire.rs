@@ -1,8 +1,9 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::c_int;
 use std::io::Write;
-use std::os::unix::io::AsRawFd;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd as StdOwnedFd};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tracing::{debug, trace, warn};
@@ -18,13 +19,21 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app::AppSink;
 
-use crate::capturable::{Capturable, Geometry, Recorder};
-use crate::video::PixelProvider;
+use crate::capturable::{Capturable, Geometry, Recorder, RecorderPreferences};
+use crate::video::{
+    CapturedFrame, DmaBufFrame, DmaBufLayer, DmaBufObject, DmaBufPlane, PixelProvider,
+};
 
 use crate::capturable::remote_desktop_dbus::{
     OrgFreedesktopPortalRemoteDesktop, OrgFreedesktopPortalRequestResponse,
     OrgFreedesktopPortalScreenCast,
 };
+
+#[link(name = "gstallocators-1.0")]
+unsafe extern "C" {
+    fn gst_is_dmabuf_memory(memory: *mut gst::ffi::GstMemory) -> c_int;
+    fn gst_dmabuf_memory_get_fd(memory: *mut gst::ffi::GstMemory) -> c_int;
+}
 
 fn get_sway_rotation() -> u32 {
     use std::io::Read;
@@ -212,10 +221,22 @@ impl Capturable for PipeWireCapturable {
     fn recorder(&self, _capture_cursor: bool) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
         Ok(Box::new(PipeWireRecorder::new(self.clone())?))
     }
+
+    fn recorder_with_preferences(
+        &self,
+        _capture_cursor: bool,
+        preferences: RecorderPreferences,
+    ) -> Result<Box<dyn Recorder>, Box<dyn Error>> {
+        Ok(Box::new(PipeWireRecorder::new_with_preferences(
+            self.clone(),
+            preferences,
+        )?))
+    }
 }
 
 pub struct PipeWireRecorder {
     buffer: Option<gst::MappedBuffer<gst::buffer::Readable>>,
+    drm_prime_buffer: Option<gst::Buffer>,
     buffer_cropped: Vec<u8>,
     pix_fmt: String,
     is_cropped: bool,
@@ -223,10 +244,19 @@ pub struct PipeWireRecorder {
     appsink: AppSink,
     width: usize,
     height: usize,
+    prefer_drm_prime: bool,
+    warned_drm_prime_unavailable: bool,
 }
 
 impl PipeWireRecorder {
     pub fn new(capturable: PipeWireCapturable) -> Result<Self, Box<dyn Error>> {
+        Self::new_with_preferences(capturable, RecorderPreferences::default())
+    }
+
+    fn new_with_preferences(
+        capturable: PipeWireCapturable,
+        preferences: RecorderPreferences,
+    ) -> Result<Self, Box<dyn Error>> {
         let pipeline = gst::Pipeline::new();
 
         let src = gst::ElementFactory::make("pipewiresrc").build()?;
@@ -235,7 +265,7 @@ impl PipeWireRecorder {
 
         // For some reason pipewire blocks on destruction of AppSink if this is not set to true,
         // see: https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/982
-        src.set_property("always-copy", &true);
+        src.set_property("always-copy", &!preferences.prefer_drm_prime);
 
         let sink = gst::ElementFactory::make("appsink").build()?;
         sink.set_property("drop", &true);
@@ -267,6 +297,21 @@ impl PipeWireRecorder {
             .dynamic_cast::<AppSink>()
             .map_err(|_| GStreamerError("Sink element is expected to be an appsink!".into()))?;
         let mut caps = gst::Caps::new_empty();
+        if preferences.prefer_drm_prime && capturable.rotation == 0 {
+            caps.get_mut().unwrap().append_structure_full(
+                gst::structure::Structure::from_iter(
+                    "video/x-raw",
+                    [
+                        ("format", "DMA_DRM".into()),
+                        (
+                            "drm-format",
+                            (&gst::List::new(["XR24", "AR24", "XB24", "AB24"])).into(),
+                        ),
+                    ],
+                ),
+                Some(gst::CapsFeatures::new(["memory:DMABuf"])),
+            );
+        }
         caps.merge_structure(gst::structure::Structure::from_iter(
             "video/x-raw",
             [("format", "BGRx".into())],
@@ -282,11 +327,14 @@ impl PipeWireRecorder {
             pipeline,
             appsink,
             buffer: None,
+            drm_prime_buffer: None,
             pix_fmt: "".into(),
             width: 0,
             height: 0,
             buffer_cropped: vec![],
             is_cropped: false,
+            prefer_drm_prime: preferences.prefer_drm_prime,
+            warned_drm_prime_unavailable: false,
         })
     }
 }
@@ -296,71 +344,132 @@ impl Recorder for PipeWireRecorder {
         "Wayland/PipeWire"
     }
 
+    fn set_preferences(&mut self, preferences: RecorderPreferences) {
+        self.prefer_drm_prime = preferences.prefer_drm_prime;
+    }
+
+    fn capture_frame(&mut self) -> Result<CapturedFrame<'_>, Box<dyn Error>> {
+        if let Some(sample) = self
+            .appsink
+            .try_pull_sample(gst::ClockTime::from_mseconds(16))
+        {
+            let caps = sample
+                .caps()
+                .ok_or_else(|| GStreamerError("PipeWire sample did not include caps.".into()))?;
+            let structure = caps
+                .structure(0)
+                .ok_or_else(|| GStreamerError("PipeWire sample caps are empty.".into()))?;
+            let format: String = structure.value("format")?.get()?;
+            if self.prefer_drm_prime && format == "DMA_DRM" {
+                let drm_prime = sample
+                    .buffer_owned()
+                    .ok_or_else(|| {
+                        Box::new(GStreamerError("Failed to get owned DMA_DRM buffer.".into()))
+                            as Box<dyn Error>
+                    })
+                    .and_then(|buffer| self.buffer_to_drm_prime(buffer, caps));
+                match drm_prime {
+                    Ok(frame) => return Ok(CapturedFrame::DrmPrime(frame)),
+                    Err(err) => {
+                        if !self.warned_drm_prime_unavailable {
+                            debug!(
+                                "Wayland/PipeWire DRM PRIME zero-copy unavailable, using CPU fallback: {err}"
+                            );
+                            self.warned_drm_prime_unavailable = true;
+                        }
+                    }
+                }
+            } else if format == "DMA_DRM" {
+                trace!("PipeWire delivered DMA_DRM while zero-copy is disabled, dropping frame.");
+                return self.capture_frame();
+            } else if self.store_cpu_sample(sample)? {
+                return self.pixel_provider().map(CapturedFrame::Cpu);
+            }
+        } else {
+            trace!("No new buffer available, falling back to previous one.");
+        }
+
+        self.pixel_provider().map(CapturedFrame::Cpu)
+    }
+
     fn capture(&mut self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
         if let Some(sample) = self
             .appsink
             .try_pull_sample(gst::ClockTime::from_mseconds(16))
         {
-            let cap = sample.caps().unwrap().structure(0).unwrap();
-            let w: i32 = cap.value("width")?.get()?;
-            let h: i32 = cap.value("height")?.get()?;
-            self.pix_fmt = cap.value("format")?.get()?;
-            let w = w as usize;
-            let h = h as usize;
-            let buf = sample
-                .buffer_owned()
-                .ok_or_else(|| GStreamerError("Failed to get owned buffer.".into()))?;
-            let mut crop = buf
-                .meta::<gstreamer_video::VideoCropMeta>()
-                .map(|m| m.rect());
-            // only crop if necessary
-            if Some((0, 0, w as u32, h as u32)) == crop {
-                crop = None;
-            }
-            let buf = buf
-                .into_mapped_buffer_readable()
-                .map_err(|_| GStreamerError("Failed to map buffer.".into()))?;
-            let buf_size = buf.size();
-            // BGRx is 4 bytes per pixel
-            if buf_size != (w * h * 4) {
-                // for some reason the width and height of the caps do not guarantee correct buffer
-                // size, so ignore those buffers, see:
-                // https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/985
-                trace!(
-                    "Size of mapped buffer: {} does NOT match size of capturable {}x{}@BGRx, \
-                    dropping it!",
-                    buf_size,
-                    w,
-                    h
-                );
-            } else {
-                // Copy region specified by crop into self.buffer_cropped
-                // TODO: Figure out if ffmpeg provides a zero copy alternative
-                if let Some((x_off, y_off, w_crop, h_crop)) = crop {
-                    let x_off = x_off as usize;
-                    let y_off = y_off as usize;
-                    let w_crop = w_crop as usize;
-                    let h_crop = h_crop as usize;
-                    self.buffer_cropped.clear();
-                    let data = buf.as_slice();
-                    // BGRx is 4 bytes per pixel
-                    self.buffer_cropped.reserve(w_crop * h_crop * 4);
-                    for y in y_off..(y_off + h_crop) {
-                        let i = 4 * (w * y + x_off);
-                        self.buffer_cropped.extend(&data[i..i + 4 * w_crop]);
-                    }
-                    self.width = w_crop;
-                    self.height = h_crop;
-                } else {
-                    self.width = w;
-                    self.height = h;
-                }
-                self.is_cropped = crop.is_some();
-                self.buffer = Some(buf);
-            }
+            self.store_cpu_sample(sample)?;
         } else {
             trace!("No new buffer available, falling back to previous one.");
         }
+        self.pixel_provider()
+    }
+}
+
+impl PipeWireRecorder {
+    fn store_cpu_sample(&mut self, sample: gst::Sample) -> Result<bool, Box<dyn Error>> {
+        let cap = sample.caps().unwrap().structure(0).unwrap();
+        let w: i32 = cap.value("width")?.get()?;
+        let h: i32 = cap.value("height")?.get()?;
+        self.pix_fmt = cap.value("format")?.get()?;
+        if self.pix_fmt == "DMA_DRM" {
+            return Ok(false);
+        }
+        let w = w as usize;
+        let h = h as usize;
+        let buf = sample
+            .buffer_owned()
+            .ok_or_else(|| GStreamerError("Failed to get owned buffer.".into()))?;
+        let mut crop = buf
+            .meta::<gstreamer_video::VideoCropMeta>()
+            .map(|m| m.rect());
+        // only crop if necessary
+        if Some((0, 0, w as u32, h as u32)) == crop {
+            crop = None;
+        }
+        let buf = buf
+            .into_mapped_buffer_readable()
+            .map_err(|_| GStreamerError("Failed to map buffer.".into()))?;
+        let buf_size = buf.size();
+        // BGRx is 4 bytes per pixel
+        if buf_size != (w * h * 4) {
+            // for some reason the width and height of the caps do not guarantee correct buffer
+            // size, so ignore those buffers, see:
+            // https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/985
+            trace!(
+                "Size of mapped buffer: {} does NOT match size of capturable {}x{}@BGRx, \
+                dropping it!",
+                buf_size,
+                w,
+                h
+            );
+            return Ok(false);
+        }
+
+        // Copy region specified by crop into self.buffer_cropped
+        if let Some((x_off, y_off, w_crop, h_crop)) = crop {
+            let x_off = x_off as usize;
+            let y_off = y_off as usize;
+            let w_crop = w_crop as usize;
+            let h_crop = h_crop as usize;
+            self.buffer_cropped.clear();
+            let data = buf.as_slice();
+            self.buffer_cropped.reserve(w_crop * h_crop * 4);
+            for y in y_off..(y_off + h_crop) {
+                let i = 4 * (w * y + x_off);
+                self.buffer_cropped.extend(&data[i..i + 4 * w_crop]);
+            }
+            self.width = w_crop;
+            self.height = h_crop;
+        } else {
+            self.width = w;
+            self.height = h;
+        }
+        self.is_cropped = crop.is_some();
+        self.buffer = Some(buf);
+        Ok(true)
+    }
+
+    fn pixel_provider(&self) -> Result<PixelProvider<'_>, Box<dyn Error>> {
         if self.buffer.is_none() {
             return Err(Box::new(GStreamerError("No buffer available!".into())));
         }
@@ -374,6 +483,75 @@ impl Recorder for PipeWireRecorder {
             "RGBx" => Ok(PixelProvider::RGB0(self.width, self.height, buf)),
             _ => unreachable!(),
         }
+    }
+
+    fn buffer_to_drm_prime(
+        &mut self,
+        buffer: gst::Buffer,
+        caps: &gst::CapsRef,
+    ) -> Result<DmaBufFrame, Box<dyn Error>> {
+        let info = gstreamer_video::VideoInfoDmaDrm::from_caps(caps)?;
+        let meta = buffer
+            .meta::<gstreamer_video::VideoMeta>()
+            .ok_or_else(|| GStreamerError("DMA_DRM buffer did not include VideoMeta.".into()))?;
+        let plane_count = meta.n_planes() as usize;
+        if plane_count == 0 || plane_count > 4 || plane_count > buffer.n_memory() {
+            return Err(Box::new(GStreamerError(format!(
+                "Unsupported DMA_DRM plane count: planes={} memories={}",
+                plane_count,
+                buffer.n_memory()
+            ))));
+        }
+
+        let mut objects = Vec::with_capacity(plane_count);
+        let mut planes = Vec::with_capacity(plane_count);
+        for idx in 0..plane_count {
+            let memory = buffer.peek_memory(idx);
+            let fd = unsafe {
+                if gst_is_dmabuf_memory(memory.as_mut_ptr()) == 0 {
+                    return Err(Box::new(GStreamerError(format!(
+                        "PipeWire memory {idx} is not DMABuf memory"
+                    ))));
+                }
+                let fd = gst_dmabuf_memory_get_fd(memory.as_mut_ptr());
+                if fd < 0 {
+                    return Err(Box::new(GStreamerError(format!(
+                        "PipeWire memory {idx} did not expose a valid DMABuf fd"
+                    ))));
+                }
+                let dup_fd = libc::dup(fd);
+                if dup_fd < 0 {
+                    return Err(Box::new(std::io::Error::last_os_error()));
+                }
+                StdOwnedFd::from_raw_fd(dup_fd)
+            };
+            let offset = meta.offset()[idx].saturating_add(memory.offset());
+            let pitch = meta.stride()[idx] as isize;
+            objects.push(DmaBufObject {
+                fd,
+                size: memory.maxsize(),
+                format_modifier: info.modifier(),
+            });
+            planes.push(DmaBufPlane {
+                object_index: idx,
+                offset: offset as isize,
+                pitch,
+            });
+        }
+
+        self.width = info.width() as usize;
+        self.height = info.height() as usize;
+        self.drm_prime_buffer = Some(buffer);
+        Ok(DmaBufFrame {
+            width: self.width,
+            height: self.height,
+            objects,
+            layers: vec![DmaBufLayer {
+                format: info.fourcc(),
+                plane_count,
+            }],
+            planes,
+        })
     }
 }
 

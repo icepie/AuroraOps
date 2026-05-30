@@ -36,6 +36,11 @@ impl Weylus {
             #[cfg(not(any(target_os = "linux", target_os = "windows")))]
             try_nvenc: false,
 
+            #[cfg(all(target_os = "linux", feature = "vulkan-video"))]
+            try_vulkan_video: config.try_vulkan_video,
+            #[cfg(not(all(target_os = "linux", feature = "vulkan-video")))]
+            try_vulkan_video: false,
+
             #[cfg(target_os = "macos")]
             try_videotoolbox: config.try_videotoolbox,
             #[cfg(not(target_os = "macos"))]

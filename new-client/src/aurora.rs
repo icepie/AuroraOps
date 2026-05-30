@@ -106,6 +106,8 @@ pub struct AgentConfig {
     #[serde(default)]
     pub try_nvenc: bool,
     #[serde(default)]
+    pub try_vulkan_video: bool,
+    #[serde(default)]
     pub try_mediafoundation: bool,
     #[cfg(target_os = "windows")]
     #[serde(default = "default_windows_capture_source")]
@@ -227,6 +229,7 @@ struct AgentCapabilities {
     nvfbc: bool,
     vaapi: bool,
     nvenc: bool,
+    vulkan_video: bool,
     mediafoundation: bool,
     windows_capture_source: bool,
     display_manager: bool,
@@ -250,6 +253,8 @@ struct SaveDesktopConfigPayload {
     try_vaapi: bool,
     #[serde(default)]
     try_nvenc: bool,
+    #[serde(default)]
+    try_vulkan_video: bool,
     #[serde(default)]
     try_mediafoundation: bool,
     #[cfg(target_os = "windows")]
@@ -465,6 +470,7 @@ impl AgentRuntime {
         cfg.access_code = None;
         cfg.try_vaapi = payload.try_vaapi;
         cfg.try_nvenc = payload.try_nvenc;
+        cfg.try_vulkan_video = payload.try_vulkan_video;
         cfg.try_mediafoundation = payload.try_mediafoundation;
         #[cfg(target_os = "windows")]
         {
@@ -1100,6 +1106,7 @@ fn start_weylus_service(conf: &WeylusConfig, runtime: &AgentRuntime) {
     {
         weylus_conf.try_vaapi = agent_cfg.try_vaapi;
         weylus_conf.try_nvenc = agent_cfg.try_nvenc;
+        weylus_conf.try_vulkan_video = agent_cfg.try_vulkan_video;
         weylus_conf.nvfbc_support = agent_cfg.nvfbc_support;
         weylus_conf.wayland_support = agent_cfg.wayland_support;
         weylus_conf.kms_support = agent_cfg.kms_support;
@@ -1333,6 +1340,7 @@ fn envelope(
             nvfbc: cfg!(all(target_os = "linux", feature = "nvfbc")),
             vaapi: cfg!(all(target_os = "linux", feature = "vaapi")),
             nvenc: cfg!(any(target_os = "linux", target_os = "windows")),
+            vulkan_video: cfg!(all(target_os = "linux", feature = "vulkan-video")),
             mediafoundation: cfg!(target_os = "windows"),
             windows_capture_source: cfg!(target_os = "windows"),
             display_manager: cfg!(target_os = "linux"),
@@ -5159,6 +5167,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
         <label class="switch" data-cap="nvfbc"><input id="nvfbcSupport" type="checkbox" /><span><strong>NvFBC</strong>启用 NVIDIA Frame Buffer Capture 捕获后端。</span></label>
         <label class="switch" data-cap="vaapi"><input id="tryVaapi" type="checkbox" /><span><strong>VAAPI</strong>尝试使用 Linux VAAPI 硬件编码。</span></label>
         <label class="switch" data-cap="nvenc"><input id="tryNvenc" type="checkbox" /><span><strong>NVENC</strong>尝试使用 NVIDIA NVENC 硬件编码。</span></label>
+        <label class="switch" data-cap="vulkanVideo"><input id="tryVulkanVideo" type="checkbox" /><span><strong>Vulkan Video</strong>尝试使用 Linux Vulkan Video H.264 硬件编码。</span></label>
         <label class="switch" data-cap="mediafoundation"><input id="tryMediafoundation" type="checkbox" /><span><strong>MediaFoundation</strong>尝试使用 Windows 硬件编码。</span></label>
         <label class="switch" data-cap="displayManager"><input id="controlDisplayManager" type="checkbox" /><span><strong>登录界面控制</strong>root 服务启动时自动探测 DISPLAY / XAUTHORITY。</span></label>
       </div>
@@ -5192,7 +5201,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     </section>
   </main>
   <script>
-    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','nvfbcSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager'];
+    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','nvfbcSupport','tryVaapi','tryNvenc','tryVulkanVideo','tryMediafoundation','controlDisplayManager'];
     const $ = (id) => document.getElementById(id);
     const dirty = new Set();
     ids.forEach((id) => {
@@ -5248,6 +5257,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       setChecked('nvfbcSupport', !!cfg.nvfbcSupport);
       setChecked('tryVaapi', !!cfg.tryVaapi);
       setChecked('tryNvenc', !!cfg.tryNvenc);
+      setChecked('tryVulkanVideo', !!cfg.tryVulkanVideo);
       setChecked('tryMediafoundation', !!cfg.tryMediafoundation);
       setChecked('controlDisplayManager', cfg.controlDisplayManager !== false);
       $('state').textContent = status.state || '-';
@@ -5278,9 +5288,9 @@ const INDEX_HTML: &str = r##"<!doctype html>
         bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 0),
         kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked, nvfbcSupport: $('nvfbcSupport').checked,
         windowsCaptureSource: $('windowsCaptureSource').value || 'auto',
-        tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, tryMediafoundation: $('tryMediafoundation').checked, controlDisplayManager: $('controlDisplayManager').checked
+        tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, tryVulkanVideo: $('tryVulkanVideo').checked, tryMediafoundation: $('tryMediafoundation').checked, controlDisplayManager: $('controlDisplayManager').checked
       }) }, '桌面配置已保存，重启桌面服务后生效');
-      clearDirty('bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','nvfbcSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager');
+      clearDirty('bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','nvfbcSupport','tryVaapi','tryNvenc','tryVulkanVideo','tryMediafoundation','controlDisplayManager');
       await loadStatus();
     }
     async function startAgent() { await call('/api/start', { method: 'POST' }, '连接已启动'); }

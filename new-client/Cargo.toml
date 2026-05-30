@@ -62,7 +62,7 @@ drm-fourcc = "2.2"
 fastfetch-sys = { path = "vendor/fastfetch-sys" }
 gstreamer = { version = "^0.24", optional = true }
 gstreamer-app = { version = "^0.24", features = ["v1_16"], optional = true }
-gstreamer-video = { version = "^0.24", optional = true }
+gstreamer-video = { version = "^0.24", features = ["v1_24"], optional = true }
 linux-raw-sys = "0.4"
 nvfbc-crate = { package = "nvfbc", version = "0.2", optional = true }
 nvfbc-sys = { version = "0.2", optional = true }
@@ -88,6 +88,7 @@ pipewire = ["gstreamer", "gstreamer-app", "gstreamer-video"]
 vaapi = []
 va-static = ["vaapi"]
 nvfbc = ["nvfbc-crate", "nvfbc-sys"]
+vulkan-video = []
 
 [package.metadata.bundle]
 name = "AuroraOps Agent"
