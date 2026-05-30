@@ -160,17 +160,29 @@ pub fn get_capturables(
         let configured_source = std::env::var("AURORAOPS_WINDOWS_CAPTURE")
             .map(|value| WindowsCaptureSource::parse(&value))
             .unwrap_or(WindowsCaptureSource::Auto);
-        let sources: Vec<WindowsCaptureSource> = match configured_source {
-            WindowsCaptureSource::Auto => vec![
-                WindowsCaptureSource::Auto,
-                WindowsCaptureSource::Dxgi,
-                WindowsCaptureSource::Gdi,
-            ],
-            source => vec![source],
+        let sources: Vec<WindowsCaptureSource> = if configured_source == WindowsCaptureSource::Auto
+            && crate::input::autopilot_device_win::is_input_desktop_winlogon()
+        {
+            vec![WindowsCaptureSource::Gdi]
+        } else {
+            match configured_source {
+                WindowsCaptureSource::Auto => vec![
+                    WindowsCaptureSource::Auto,
+                    WindowsCaptureSource::Dxgi,
+                    WindowsCaptureSource::Gdi,
+                ],
+                source => vec![source],
+            }
         };
         let winctx = WinCtx::new();
         for output in winctx.get_capture_outputs() {
-            let name = String::from_utf16_lossy(output.desc.DeviceName.as_ref());
+            let name_len = output
+                .desc
+                .DeviceName
+                .iter()
+                .position(|ch| *ch == 0)
+                .unwrap_or(output.desc.DeviceName.len());
+            let name = String::from_utf16_lossy(&output.desc.DeviceName[..name_len]);
             for source in &sources {
                 let captr = DesktopCapturable::new(
                     output.capture_id,

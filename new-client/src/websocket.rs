@@ -2,6 +2,7 @@ use fastwebsockets::{FragmentCollectorRead, Frame, OpCode, WebSocket, WebSocketE
 use hyper::upgrade::Upgraded;
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{mpsc, Arc};
 use std::thread::{spawn, JoinHandle};
@@ -754,7 +755,8 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                 }
                 const MAX_RETRIES: u32 = 5;
                 const RETRY_DELAY: Duration = Duration::from_millis(500);
-                let mut result = config.capturable.recorder(config.capture_cursor);
+                let mut result =
+                    recorder_for_capturable(config.capturable.as_ref(), config.capture_cursor);
                 for attempt in 1..MAX_RETRIES {
                     if result.is_ok() {
                         break;
@@ -764,7 +766,8 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
                         attempt, MAX_RETRIES
                     );
                     std::thread::sleep(RETRY_DELAY);
-                    result = config.capturable.recorder(config.capture_cursor);
+                    result =
+                        recorder_for_capturable(config.capturable.as_ref(), config.capture_cursor);
                 }
                 match result {
                     Ok(r) => {
@@ -882,6 +885,15 @@ fn handle_video<S: WeylusSender + Clone + 'static>(
             Err(RecvTimeoutError::Disconnected) => return,
         };
     }
+}
+
+fn recorder_for_capturable(
+    capturable: &dyn Capturable,
+    capture_cursor: bool,
+) -> Result<Box<dyn Recorder>, Box<dyn std::error::Error>> {
+    catch_unwind(AssertUnwindSafe(|| capturable.recorder(capture_cursor)))
+        .map_err(|_| "screen recorder initialization panicked".into())
+        .and_then(|result| result)
 }
 
 pub struct WsWeylusReceiver {

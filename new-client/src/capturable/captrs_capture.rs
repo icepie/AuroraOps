@@ -7,16 +7,20 @@ use std::mem;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE};
-use winapi::shared::windef::{HWND, POINT, RECT};
+use winapi::shared::windef::{HDESK, HWND, POINT, RECT};
+use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::wingdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
     SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, SRCCOPY,
 };
 use winapi::um::winuser::{
-    BringWindowToTop, CopyIcon, DestroyIcon, DrawIconEx, EnumWindows, GetAncestor, GetCursorInfo,
-    GetCursorPos, GetDC, GetIconInfo, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-    IsIconic, IsWindowVisible, LoadCursorW, PrintWindow, ReleaseDC, SetForegroundWindow,
-    ShowWindow, CURSORINFO, CURSOR_SHOWING, GA_ROOT, ICONINFO, IDC_ARROW, SW_RESTORE,
+    BringWindowToTop, CloseDesktop, CopyIcon, DestroyIcon, DrawIconEx, EnumWindows, GetAncestor,
+    GetCursorInfo, GetCursorPos, GetDC, GetIconInfo, GetWindowRect, GetWindowTextLengthW,
+    GetWindowTextW, IsIconic, IsWindowVisible, LoadCursorW, OpenInputDesktop, PrintWindow,
+    ReleaseDC, SetForegroundWindow, SetThreadDesktop, ShowWindow, CURSORINFO, CURSOR_SHOWING,
+    DESKTOP_CREATEMENU, DESKTOP_CREATEWINDOW, DESKTOP_ENUMERATE, DESKTOP_HOOKCONTROL,
+    DESKTOP_JOURNALPLAYBACK, DESKTOP_JOURNALRECORD, DESKTOP_READOBJECTS, DESKTOP_SWITCHDESKTOP,
+    DESKTOP_WRITEOBJECTS, GA_ROOT, ICONINFO, IDC_ARROW, SW_RESTORE,
 };
 
 use super::Geometry;
@@ -273,24 +277,30 @@ impl Recorder for GdiRecorder {
 
     fn capture(&mut self) -> Result<crate::video::PixelProvider, Box<dyn Error>> {
         unsafe {
+            let _input_desktop = attach_thread_to_input_desktop();
             let screen_dc = GetDC(ptr::null_mut());
             if screen_dc.is_null() {
-                return Err(Box::new(CaptrsError("GDI GetDC failed".into())));
+                return Err(Box::new(CaptrsError(format!(
+                    "GDI GetDC failed: {}",
+                    std::io::Error::last_os_error()
+                ))));
             }
             let mem_dc = CreateCompatibleDC(screen_dc);
             if mem_dc.is_null() {
                 ReleaseDC(ptr::null_mut(), screen_dc);
-                return Err(Box::new(CaptrsError(
-                    "GDI CreateCompatibleDC failed".into(),
-                )));
+                return Err(Box::new(CaptrsError(format!(
+                    "GDI CreateCompatibleDC failed: {}",
+                    std::io::Error::last_os_error()
+                ))));
             }
             let bitmap = CreateCompatibleBitmap(screen_dc, self.width as i32, self.height as i32);
             if bitmap.is_null() {
                 DeleteDC(mem_dc);
                 ReleaseDC(ptr::null_mut(), screen_dc);
-                return Err(Box::new(CaptrsError(
-                    "GDI CreateCompatibleBitmap failed".into(),
-                )));
+                return Err(Box::new(CaptrsError(format!(
+                    "GDI CreateCompatibleBitmap failed: {}",
+                    std::io::Error::last_os_error()
+                ))));
             }
             let old = SelectObject(mem_dc, bitmap.cast());
             let copied = BitBlt(
@@ -305,11 +315,15 @@ impl Recorder for GdiRecorder {
                 SRCCOPY | CAPTUREBLT,
             );
             if copied == 0 {
+                let err = GetLastError();
                 SelectObject(mem_dc, old);
                 DeleteObject(bitmap.cast());
                 DeleteDC(mem_dc);
                 ReleaseDC(ptr::null_mut(), screen_dc);
-                return Err(Box::new(CaptrsError("GDI BitBlt failed".into())));
+                return Err(Box::new(CaptrsError(format!(
+                    "GDI BitBlt failed: {}",
+                    std::io::Error::from_raw_os_error(err as i32)
+                ))));
             }
             if self.capture_cursor {
                 self.draw_cursor(mem_dc);
@@ -344,7 +358,10 @@ impl Recorder for GdiRecorder {
             ReleaseDC(ptr::null_mut(), screen_dc);
 
             if lines == 0 {
-                return Err(Box::new(CaptrsError("GDI GetDIBits failed".into())));
+                return Err(Box::new(CaptrsError(format!(
+                    "GDI GetDIBits failed: {}",
+                    std::io::Error::last_os_error()
+                ))));
             }
         }
         Ok(crate::video::PixelProvider::BGR0(
@@ -352,6 +369,50 @@ impl Recorder for GdiRecorder {
             self.height,
             &self.buffer,
         ))
+    }
+}
+
+struct InputDesktopHandle(HDESK);
+
+impl Drop for InputDesktopHandle {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.0.is_null() {
+                CloseDesktop(self.0);
+            }
+        }
+    }
+}
+
+fn attach_thread_to_input_desktop() -> Option<InputDesktopHandle> {
+    unsafe {
+        let desktop = OpenInputDesktop(
+            0,
+            0,
+            DESKTOP_READOBJECTS
+                | DESKTOP_WRITEOBJECTS
+                | DESKTOP_CREATEWINDOW
+                | DESKTOP_CREATEMENU
+                | DESKTOP_HOOKCONTROL
+                | DESKTOP_JOURNALRECORD
+                | DESKTOP_JOURNALPLAYBACK
+                | DESKTOP_ENUMERATE
+                | DESKTOP_SWITCHDESKTOP,
+        );
+        if desktop.is_null() {
+            tracing::warn!(
+                "OpenInputDesktop failed before GDI capture: {}",
+                std::io::Error::last_os_error()
+            );
+            return None;
+        }
+        if SetThreadDesktop(desktop) == 0 {
+            tracing::warn!(
+                "SetThreadDesktop(input desktop) failed before GDI capture: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        Some(InputDesktopHandle(desktop))
     }
 }
 

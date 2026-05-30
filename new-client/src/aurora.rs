@@ -70,6 +70,16 @@ const XAUTHORITY_CANDIDATES: &[&str] = &[
     "/var/lib/gdm3/.local/share/xorg/Xauthority",
     "/var/run/sddm/{display}",
 ];
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+const WAYLAND_SESSION_ENV_KEYS: &[&str] = &[
+    "XDG_RUNTIME_DIR",
+    "WAYLAND_DISPLAY",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "XDG_SESSION_TYPE",
+    "XDG_CURRENT_DESKTOP",
+    "SWAYSOCK",
+    "DISPLAY",
+];
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -139,6 +149,9 @@ pub struct AgentStatus {
     pub message: Option<String>,
     pub updated_at: u128,
     pub desktop_url: String,
+    #[cfg(target_os = "windows")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub windows_desktop: Option<crate::input::autopilot_device_win::WindowsDesktopStatus>,
 }
 
 impl Default for AgentStatus {
@@ -150,6 +163,8 @@ impl Default for AgentStatus {
             message: None,
             updated_at: now_millis(),
             desktop_url: String::new(),
+            #[cfg(target_os = "windows")]
+            windows_desktop: None,
         }
     }
 }
@@ -325,7 +340,16 @@ impl AgentRuntime {
     }
 
     fn get_status(&self) -> AgentStatus {
-        self.inner.status.read().unwrap().clone()
+        #[cfg(target_os = "windows")]
+        {
+            let mut status = self.inner.status.read().unwrap().clone();
+            status.windows_desktop = Some(crate::input::autopilot_device_win::desktop_status());
+            status
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            self.inner.status.read().unwrap().clone()
+        }
     }
 
     fn update_status(
@@ -343,6 +367,8 @@ impl AgentRuntime {
             message,
             updated_at: now_millis(),
             desktop_url,
+            #[cfg(target_os = "windows")]
+            windows_desktop: None,
         };
     }
 
@@ -776,6 +802,26 @@ fn setup_uinput_once() {
 fn setup_display_environment() {
     #[cfg(target_os = "linux")]
     {
+        if let Some(env) = find_wayland_session_environment() {
+            let wayland_display = env
+                .get("WAYLAND_DISPLAY")
+                .map(String::as_str)
+                .unwrap_or("-");
+            let dbus = env
+                .get("DBUS_SESSION_BUS_ADDRESS")
+                .map(String::as_str)
+                .unwrap_or("-");
+            info!(
+                "Detected active Wayland session environment: WAYLAND_DISPLAY={} DBUS_SESSION_BUS_ADDRESS={}",
+                wayland_display, dbus
+            );
+            apply_wayland_session_environment(&env);
+        } else {
+            warn!(
+                "No active Wayland session environment was found; Wayland/PipeWire capture may be unavailable."
+            );
+        }
+
         if std::env::var_os("DISPLAY").is_none() {
             std::env::set_var("DISPLAY", ":0");
             info!("DISPLAY was unset; using DISPLAY=:0 for desktop/DM capture.");
@@ -793,6 +839,176 @@ fn setup_display_environment() {
             }
         }
     }
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn apply_wayland_session_environment(env: &HashMap<String, String>) {
+    for key in WAYLAND_SESSION_ENV_KEYS {
+        let Some(value) = env
+            .get(*key)
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+
+        if std::env::var(key).ok().as_deref() == Some(value) {
+            continue;
+        }
+
+        std::env::set_var(key, value);
+        info!("Wayland session environment injected: {key}={value}");
+    }
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn find_wayland_session_environment() -> Option<HashMap<String, String>> {
+    let entries = fs::read_dir("/proc").ok()?;
+    let mut best: Option<(i32, u32, HashMap<String, String>)> = None;
+
+    for entry in entries.flatten() {
+        let pid = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<u32>().ok());
+        let Some(pid) = pid else {
+            continue;
+        };
+
+        let proc_dir = entry.path();
+        let env = read_proc_environment(&proc_dir.join("environ"));
+        if !is_wayland_environment_candidate(&env) {
+            continue;
+        }
+
+        let cmdline = fs::read(proc_dir.join("cmdline"))
+            .ok()
+            .map(|bytes| String::from_utf8_lossy(&bytes).replace('\0', " "))
+            .unwrap_or_default();
+        let score = score_wayland_environment(&env, &cmdline);
+        if score <= 0 {
+            continue;
+        }
+
+        if best
+            .as_ref()
+            .map(|(best_score, _, _)| score > *best_score)
+            .unwrap_or(true)
+        {
+            best = Some((score, pid, env));
+        }
+    }
+
+    if let Some((score, pid, env)) = &best {
+        info!("Selected Wayland session environment from pid {pid} with score {score}");
+        return Some(env.clone());
+    }
+
+    None
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn read_proc_environment(path: &Path) -> HashMap<String, String> {
+    let mut env = HashMap::new();
+    let Ok(bytes) = fs::read(path) else {
+        return env;
+    };
+
+    for item in bytes
+        .split(|byte| *byte == 0)
+        .filter(|item| !item.is_empty())
+    {
+        let text = String::from_utf8_lossy(item);
+        let Some((key, value)) = text.split_once('=') else {
+            continue;
+        };
+        env.insert(key.to_string(), value.to_string());
+    }
+
+    env
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn is_wayland_environment_candidate(env: &HashMap<String, String>) -> bool {
+    env.get("XDG_RUNTIME_DIR")
+        .is_some_and(|value| !value.is_empty())
+        && env
+            .get("WAYLAND_DISPLAY")
+            .is_some_and(|value| !value.is_empty())
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn score_wayland_environment(env: &HashMap<String, String>, cmdline: &str) -> i32 {
+    let mut score = 0;
+
+    if wayland_socket_exists(env) {
+        score += 100;
+    }
+    if dbus_socket_exists(env) {
+        score += 80;
+    }
+    if env
+        .get("XDG_SESSION_TYPE")
+        .is_some_and(|value| value == "wayland")
+    {
+        score += 40;
+    }
+    if env
+        .get("SWAYSOCK")
+        .is_some_and(|value| Path::new(value).exists())
+    {
+        score += 30;
+    }
+    if env
+        .get("XDG_CURRENT_DESKTOP")
+        .is_some_and(|value| value.to_ascii_lowercase().contains("sway"))
+    {
+        score += 20;
+    }
+
+    let cmdline = cmdline.to_ascii_lowercase();
+    if cmdline.contains("sway")
+        || cmdline.contains("waybar")
+        || cmdline.contains("hyprland")
+        || cmdline.contains("river")
+        || cmdline.contains("wayfire")
+        || cmdline.contains("xdg-desktop-portal")
+    {
+        score += 20;
+    }
+
+    score
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn wayland_socket_exists(env: &HashMap<String, String>) -> bool {
+    let Some(display) = env.get("WAYLAND_DISPLAY").filter(|value| !value.is_empty()) else {
+        return false;
+    };
+
+    if display.starts_with('/') {
+        return Path::new(display).exists();
+    }
+
+    env.get("XDG_RUNTIME_DIR")
+        .map(|runtime| Path::new(runtime).join(display).exists())
+        .unwrap_or(false)
+}
+
+#[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
+fn dbus_socket_exists(env: &HashMap<String, String>) -> bool {
+    let Some(address) = env.get("DBUS_SESSION_BUS_ADDRESS") else {
+        return false;
+    };
+    let Some(path) = address
+        .strip_prefix("unix:path=")
+        .and_then(|value| value.split(',').next())
+        .filter(|value| !value.is_empty())
+    else {
+        return false;
+    };
+
+    Path::new(path).exists()
 }
 
 #[cfg(all(not(feature = "agent-service-lite"), target_os = "linux"))]
@@ -1005,6 +1221,17 @@ async fn handle_local_request(
                 ),
             )
         }
+        #[cfg(target_os = "windows")]
+        (Method::POST, "/api/capture-test") => json_response(
+            StatusCode::OK,
+            envelope(
+                &runtime,
+                true,
+                Some(windows_capture_self_test_safe()),
+                None,
+                None,
+            ),
+        ),
         (Method::GET, "/api/service/status") => {
             let status = service_manager::status_message();
             json_response(
@@ -1155,6 +1382,73 @@ fn windows_input_self_test(launch_notepad: bool) -> String {
     let mut lines = crate::input::autopilot_device_win::diagnose_keyboard_context();
     lines.extend(crate::input::autopilot_device_win::diagnose_keyboard_sendinput());
     lines.join("\n")
+}
+
+#[cfg(target_os = "windows")]
+fn windows_capture_self_test_safe() -> String {
+    match std::panic::catch_unwind(windows_capture_self_test) {
+        Ok(message) => message,
+        Err(err) => {
+            if let Some(message) = err.downcast_ref::<String>() {
+                format!("panic={message}")
+            } else if let Some(message) = err.downcast_ref::<&'static str>() {
+                format!("panic={message}")
+            } else {
+                "panic=unknown".to_string()
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_capture_self_test() -> String {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "input_desktop={}",
+        crate::input::autopilot_device_win::desktop_status().input_desktop
+    ));
+    let capturables = crate::capturable::get_capturables();
+    lines.push(format!("capturables={}", capturables.len()));
+    let Some(capturable) = capturables.first() else {
+        return lines.join("\n");
+    };
+    lines.push(format!("capturable={}", capturable.name()));
+    let mut recorder = match capturable.recorder(true) {
+        Ok(recorder) => recorder,
+        Err(err) => {
+            lines.push(format!("recorder=error: {err}"));
+            return lines.join("\n");
+        }
+    };
+    lines.push(format!("backend={}", recorder.backend_name()));
+    match recorder.capture() {
+        Ok(frame) => {
+            let (width, height) = frame.size();
+            let sample_hash = pixel_sample_hash(&frame);
+            lines.push(format!(
+                "frame={width}x{height} sample_hash={sample_hash:016x}"
+            ));
+        }
+        Err(err) => lines.push(format!("capture=error: {err}")),
+    }
+    lines.join("\n")
+}
+
+#[cfg(target_os = "windows")]
+fn pixel_sample_hash(frame: &crate::video::PixelProvider<'_>) -> u64 {
+    let bytes = match frame {
+        crate::video::PixelProvider::RGB(_, _, bytes)
+        | crate::video::PixelProvider::RGB0(_, _, bytes)
+        | crate::video::PixelProvider::BGR0(_, _, bytes)
+        | crate::video::PixelProvider::BGR0S(_, _, _, bytes) => *bytes,
+    };
+    let step = (bytes.len() / 4096).max(1);
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes.iter().step_by(step).take(4096) {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 #[derive(Serialize)]
@@ -4811,6 +5105,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
         <dt>设备 ID</dt><dd id="deviceId">-</dd>
         <dt>TCP</dt><dd id="tcpAddress">-</dd>
         <dt>桌面服务</dt><dd id="desktopUrl">-</dd>
+        <dt data-cap="windowsCaptureSource">Windows 桌面</dt><dd data-cap="windowsCaptureSource" id="windowsDesktop">-</dd>
         <dt>消息</dt><dd id="message">-</dd>
       </dl>
     </section>
@@ -4883,6 +5178,8 @@ const INDEX_HTML: &str = r##"<!doctype html>
       $('desktopUrl').textContent = status.desktopUrl || '-';
       $('desktopLink').href = status.desktopUrl || '#';
       $('desktopLink').hidden = !showDesktopLink;
+      const winDesktop = status.windowsDesktop || {};
+      $('windowsDesktop').textContent = winDesktop.inputDesktop ? `${winDesktop.inputDesktop}${winDesktop.isWinlogon ? ' (Winlogon)' : ''}` : '-';
       $('message').textContent = data.message || status.message || '-';
       if (data.message && data.message.startsWith('active=')) $('serviceStatus').textContent = data.message;
     }

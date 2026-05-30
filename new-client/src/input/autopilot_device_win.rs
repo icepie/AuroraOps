@@ -13,6 +13,7 @@ use winapi::um::processthreadsapi::{
 };
 use winapi::um::winuser::*;
 
+use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::input::device::{InputDevice, InputDeviceType};
@@ -21,6 +22,14 @@ use crate::protocol::{
 };
 
 use crate::capturable::{Capturable, Geometry};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowsDesktopStatus {
+    pub input_desktop: String,
+    pub is_winlogon: bool,
+    pub backend: String,
+}
 
 pub struct WindowsInput {
     capturable: Box<dyn Capturable>,
@@ -195,6 +204,7 @@ impl Drop for WindowsInput {
 
 impl InputDevice for WindowsInput {
     fn send_wheel_event(&mut self, event: &WheelEvent) {
+        let _desktop = attach_thread_to_input_desktop();
         if let Err(err) = self.capturable.before_input() {
             warn!("Failed to activate target before wheel input ({})", err);
             return;
@@ -203,6 +213,7 @@ impl InputDevice for WindowsInput {
     }
 
     fn send_pointer_event(&mut self, event: &PointerEvent) {
+        let _desktop = attach_thread_to_input_desktop();
         if let Err(err) = self.capturable.before_input() {
             warn!("Failed to activate window, sending no input ({})", err);
             return;
@@ -396,6 +407,7 @@ impl InputDevice for WindowsInput {
     }
 
     fn send_keyboard_event(&mut self, event: &KeyboardEvent) {
+        let _desktop = attach_thread_to_input_desktop();
         if let Err(err) = self.capturable.before_input() {
             warn!("Failed to activate target before keyboard input ({})", err);
             return;
@@ -412,6 +424,7 @@ impl InputDevice for WindowsInput {
     }
 
     fn send_text_input_event(&mut self, event: &TextInputEvent) {
+        let _desktop = attach_thread_to_input_desktop();
         if event.text.is_empty() {
             return;
         }
@@ -473,6 +486,19 @@ pub fn diagnose_keyboard_context() -> Vec<String> {
     lines.push(format!("input_desktop={}", input_desktop_label()));
     lines.push(format!("target={}", foreground_window_label()));
     lines
+}
+
+pub fn desktop_status() -> WindowsDesktopStatus {
+    let input_desktop = input_desktop_label();
+    WindowsDesktopStatus {
+        is_winlogon: input_desktop.eq_ignore_ascii_case("winlogon"),
+        input_desktop,
+        backend: input_backend_label(),
+    }
+}
+
+pub fn is_input_desktop_winlogon() -> bool {
+    input_desktop_label().eq_ignore_ascii_case("winlogon")
 }
 
 pub fn diagnose_keyboard_sendinput() -> Vec<String> {
@@ -832,6 +858,50 @@ fn input_desktop_label() -> String {
         let label = desktop_name(input).unwrap_or_else(|| "unknown".to_string());
         CloseDesktop(input);
         label
+    }
+}
+
+struct InputDesktopHandle(HDESK);
+
+impl Drop for InputDesktopHandle {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.0.is_null() {
+                CloseDesktop(self.0);
+            }
+        }
+    }
+}
+
+fn attach_thread_to_input_desktop() -> Option<InputDesktopHandle> {
+    unsafe {
+        let input = OpenInputDesktop(
+            0,
+            FALSE,
+            DESKTOP_READOBJECTS
+                | DESKTOP_WRITEOBJECTS
+                | DESKTOP_CREATEWINDOW
+                | DESKTOP_CREATEMENU
+                | DESKTOP_HOOKCONTROL
+                | DESKTOP_JOURNALRECORD
+                | DESKTOP_JOURNALPLAYBACK
+                | DESKTOP_ENUMERATE
+                | DESKTOP_SWITCHDESKTOP,
+        );
+        if input.is_null() {
+            warn!(
+                "OpenInputDesktop failed before Windows input: {}",
+                std::io::Error::last_os_error()
+            );
+            return None;
+        }
+        if SetThreadDesktop(input) == FALSE {
+            warn!(
+                "SetThreadDesktop(input desktop) failed before Windows input: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        Some(InputDesktopHandle(input))
     }
 }
 
