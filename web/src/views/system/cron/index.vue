@@ -32,7 +32,6 @@
             </template>
             添加任务
           </n-button>
-          &nbsp;
           <n-button type="error" @click="batchDelete" :disabled="batchDeleteDisabled">
             <template #icon>
               <n-icon>
@@ -41,7 +40,6 @@
             </template>
             批量删除
           </n-button>
-          &nbsp;
           <n-button type="info" @click="openGroupModal">
             <template #icon>
               <n-icon>

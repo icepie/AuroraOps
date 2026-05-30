@@ -258,7 +258,7 @@
     const viewportHeight = window.document.documentElement.clientHeight || window.innerHeight;
     const bottomGap = 18;
     devicePageHeight.value = `${Math.max(360, Math.floor(viewportHeight - top - bottomGap))}px`;
-    isCompactDeviceTable.value = el.clientWidth > 0 && el.clientWidth <= 900;
+    isCompactDeviceTable.value = el.clientWidth > 0 && el.clientWidth <= 1180;
   }
 
   function renderActionButton(
@@ -730,6 +730,7 @@
     min-height: 360px;
     overflow: hidden;
     container-type: inline-size;
+    min-width: 0;
 
     :deep(.n-card) {
       border-radius: 4px;
@@ -740,6 +741,7 @@
     display: grid;
     grid-template-columns: 272px minmax(0, 1fr);
     width: 100%;
+    min-width: 0;
     gap: 8px;
     align-items: stretch;
     height: 100%;
@@ -762,6 +764,7 @@
     flex: 1 1 auto;
     flex-direction: column;
     width: 100%;
+    max-width: 100%;
   }
 
   .group-panel {
@@ -873,8 +876,10 @@
     flex-direction: column;
     flex: 1 1 auto;
     width: 100%;
+    max-width: 100%;
     height: 100%;
     min-height: 0;
+    min-width: 0;
     border: 1px solid var(--n-border-color);
     box-shadow: none;
     background: var(--n-color);
@@ -1280,24 +1285,23 @@
     }
   }
 
-  @container (max-width: 900px) {
-    .device-page {
-      overflow: hidden;
-    }
-
+  @media (max-width: 1180px) {
     .device-layout,
     .device-layout--collapsed {
       display: flex;
       flex-direction: column;
       width: 100%;
+      max-width: 100%;
       height: 100%;
       min-height: 0;
+      overflow: hidden;
     }
 
     .device-layout__aside {
       display: flex;
       flex: 0 0 auto;
       width: 100%;
+      max-width: 100%;
       max-height: 34vh;
       min-height: 180px;
       overflow: hidden;
@@ -1314,6 +1318,7 @@
 
     .device-table-panel {
       width: 100%;
+      max-width: 100%;
       min-width: 0;
       flex: 1 1 auto;
       min-height: 0;
@@ -1353,6 +1358,25 @@
       justify-content: flex-start;
       flex-wrap: wrap;
       white-space: normal;
+    }
+  }
+
+  @container (max-width: 900px) {
+    .device-layout,
+    .device-layout--collapsed {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .device-layout__main,
+    .device-table-panel {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
   }
 

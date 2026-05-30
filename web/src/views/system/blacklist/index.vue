@@ -32,7 +32,6 @@
             </template>
             添加策略
           </n-button>
-          &nbsp;
           <n-button type="error" @click="batchDelete" :disabled="batchDeleteDisabled">
             <template #icon>
               <n-icon>

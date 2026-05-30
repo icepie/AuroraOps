@@ -33,7 +33,6 @@
             </template>
             添加岗位
           </n-button>
-          &nbsp;
           <n-button type="error" @click="batchDelete" :disabled="batchDeleteDisabled">
             <template #icon>
               <n-icon>
