@@ -5,8 +5,10 @@ use crate::protocol::{KeyboardEvent, PointerEvent, TextInputEvent, WheelEvent};
 pub enum InputDeviceType {
     AutoPilotDevice,
     UInputDevice,
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "pipewire"))]
     WaylandPortalDevice,
+    #[cfg(all(target_os = "linux", feature = "pipewire"))]
+    WlrootsVirtualPointer,
     #[cfg(target_os = "linux")]
     XTestDevice,
     #[cfg(target_os = "windows")]
@@ -18,8 +20,10 @@ impl InputDeviceType {
         match self {
             InputDeviceType::AutoPilotDevice => "AutoPilot",
             InputDeviceType::UInputDevice => "uinput",
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", feature = "pipewire"))]
             InputDeviceType::WaylandPortalDevice => "Wayland Portal",
+            #[cfg(all(target_os = "linux", feature = "pipewire"))]
+            InputDeviceType::WlrootsVirtualPointer => "wlroots virtual pointer",
             #[cfg(target_os = "linux")]
             InputDeviceType::XTestDevice => "XTest",
             #[cfg(target_os = "windows")]

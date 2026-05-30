@@ -3,7 +3,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ClientConfiguration {
     #[cfg(target_os = "linux")]
+    #[serde(default)]
     pub uinput_support: bool,
+    #[serde(default)]
+    pub input_backend: Option<String>,
     pub capturable_id: usize,
     pub capture_cursor: bool,
     pub max_width: usize,
@@ -36,6 +39,7 @@ pub enum MessageOutbound {
     ConfigOk,
     RuntimeStatus(RuntimeStatus),
     EncoderCapabilities(EncoderCapabilities),
+    InputCapabilities(InputCapabilities),
     CustomInputAreas(CustomInputAreas),
     ConfigError(String),
     Error(String),
@@ -50,6 +54,19 @@ pub struct EncoderCapabilities {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderOption {
+    pub value: String,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct InputCapabilities {
+    pub options: Vec<InputOption>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct InputOption {
     pub value: String,
     pub label: String,
 }

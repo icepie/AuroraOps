@@ -51,6 +51,7 @@ fn response_from_str(s: &str, content_type: &str) -> Response<Full<Bytes>> {
     Response::builder()
         .status(StatusCode::OK)
         .header("content-type", content_type)
+        .header("cache-control", "no-store")
         .body(s.to_string().into())
         .unwrap()
 }

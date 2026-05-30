@@ -71,9 +71,17 @@
                 <label><input type="checkbox" id="enable_mouse" checked /> <span>启用鼠标</span></label>
                 <label><input type="checkbox" id="enable_stylus" checked /> <span>启用手写笔</span></label>
                 <label><input type="checkbox" id="enable_touch" checked /> <span>启用触控</span></label>
-                <label {{#if (not uinput_enabled)}}class="hide" {{/if}}>
-                    <input type="checkbox" id="uinput_support" checked />
-                    <span>启用系统输入</span>
+                <label>输入方式<br>
+                    <select id="input_backend">
+                        <option value="auto">自动</option>
+                        <option value="platform">系统原生</option>
+                        <option value="portal" data-platform="linux">Wayland Portal</option>
+                        <option value="wlroots-pointer" data-platform="linux">wlroots 指针</option>
+                        <option value="uinput" data-platform="linux">uinput</option>
+                        <option value="xtest" data-platform="linux">XTest</option>
+                        <option value="autopilot" data-platform="macos">AutoPilot</option>
+                        <option value="none">禁用</option>
+                    </select>
                 </label>
                 <label><input type="checkbox" id="virtual_cursor" checked /> <span>虚拟光标</span></label>
                 <label>最小压感阈值<br><input type="range" id="min_pressure" min="0" max="1" step="0.01"
@@ -83,9 +91,8 @@
                     <button id="pointer_capture_toggle" title="Ctrl+Alt+Shift+K">捕获鼠标</button>
                     <button id="input_capture_toggle" title="Ctrl+Alt+Shift+K">同时捕获</button>
                 </div>
-                <button id="custom_input_areas" {{#if (not enable_custom_input_areas)}}class="hide" {{/if}}>自定义输入区域</button>
-                <label {{#if (not enable_custom_input_areas)}}class="hide" {{/if}}><input type="checkbox"
-                        id="enable_custom_input_areas" /> <span>启用自定义输入区域</span></label>
+                {{!-- Custom input areas are disabled for now. The original backend selector UI was removed
+                with the FLTK GUI, and the remaining checkbox only affects coordinate remapping. --}}
             </section>
             <section {{#if (not uinput_enabled)}}class="hide" {{/if}}>
                 <label><span>客户端名称</span><br><input type="text" id="client_name" /><br><span>可选，用于区分多个控制端。</span></label>
@@ -100,7 +107,7 @@
             <section id="runtime_status_section">
                 <label><span>抓取方式：</span><output id="capture_backend">未启动</output></label>
                 <label><span>编码方式：</span><output id="encoder_backend">未启动</output></label>
-                <label><span>输入方式：</span><output id="input_backend">未启动</output></label>
+                <label><span>输入方式：</span><output id="input_backend_status">未启动</output></label>
                 <label><span>指针状态：</span><output id="pointer_backend">未启动</output></label>
                 <label><span>键盘状态：</span><output id="keyboard_backend">未启动</output></label>
             </section>

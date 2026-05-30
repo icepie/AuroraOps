@@ -11,6 +11,8 @@ pub mod uinput_device;
 pub mod uinput_keys;
 #[cfg(all(target_os = "linux", feature = "pipewire"))]
 pub mod wayland_portal_device;
+#[cfg(all(target_os = "linux", feature = "pipewire"))]
+pub mod wlroots_virtual_pointer_device;
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
 pub mod x11_keys;

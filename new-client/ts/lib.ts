@@ -84,7 +84,7 @@ function run(level: string) {
         fps_out = document.getElementById("fps") as HTMLOutputElement;
         capture_backend_out = document.getElementById("capture_backend") as HTMLOutputElement;
         encoder_backend_out = document.getElementById("encoder_backend") as HTMLOutputElement;
-        input_backend_out = document.getElementById("input_backend") as HTMLOutputElement;
+        input_backend_out = document.getElementById("input_backend_status") as HTMLOutputElement;
         pointer_backend_out = document.getElementById("pointer_backend") as HTMLOutputElement;
         keyboard_backend_out = document.getElementById("keyboard_backend") as HTMLOutputElement;
         check_video = document.getElementById("enable_video") as HTMLInputElement;
@@ -420,6 +420,7 @@ class Settings {
     scale_video_input: HTMLInputElement;
     scale_video_output: HTMLOutputElement;
     encoder_select: HTMLSelectElement;
+    input_backend_select: HTMLSelectElement;
     display_rotation_select: HTMLSelectElement;
     input_rotation_select: HTMLSelectElement;
     range_min_pressure: HTMLInputElement;
@@ -440,6 +441,7 @@ class Settings {
         this.scale_video_input = document.getElementById("scale_video") as HTMLInputElement;
         this.scale_video_output = this.scale_video_input.nextElementSibling as HTMLOutputElement;
         this.encoder_select = document.getElementById("encoder") as HTMLSelectElement;
+        this.input_backend_select = document.getElementById("input_backend") as HTMLSelectElement;
         this.display_rotation_select = document.getElementById("display_rotation") as HTMLSelectElement;
         this.input_rotation_select = document.getElementById("input_rotation") as HTMLSelectElement;
         this.range_min_pressure = document.getElementById("min_pressure") as HTMLInputElement;
@@ -533,9 +535,11 @@ class Settings {
             this.toggle_energysaving((e.target as HTMLInputElement).checked);
         };
 
-        this.checks.get("enable_custom_input_areas").onchange = () => {
-            this.save_settings();
-        };
+        if (this.checks.get("enable_custom_input_areas")) {
+            this.checks.get("enable_custom_input_areas").onchange = () => {
+                this.save_settings();
+            };
+        }
         this.checks.get("virtual_cursor").onchange = () => {
             this.save_settings();
             if (!this.checks.get("virtual_cursor").checked)
@@ -547,17 +551,22 @@ class Settings {
 
         // server
         let upd_server_config = () => { this.save_settings(); this.send_server_config() };
-        this.checks.get("uinput_support").onchange = upd_server_config;
+        if (this.checks.get("uinput_support"))
+            this.checks.get("uinput_support").onchange = upd_server_config;
         this.checks.get("capture_cursor").onchange = upd_server_config;
         this.scale_video_input.onchange = upd_server_config;
         this.encoder_select.onchange = upd_server_config;
+        this.input_backend_select.onchange = upd_server_config;
         this.client_name_input.onchange = upd_server_config;
         this.frame_rate_input.onchange = upd_server_config;
 
         document.getElementById("refresh").onclick = () => this.webSocket.send('"GetCapturableList"');
-        document.getElementById("custom_input_areas").onclick = () => {
-            this.webSocket.send('"ChooseCustomInputAreas"');
-        };
+        let custom_input_areas = document.getElementById("custom_input_areas");
+        if (custom_input_areas) {
+            custom_input_areas.onclick = () => {
+                this.webSocket.send('"ChooseCustomInputAreas"');
+            };
+        }
         this.capturable_select.onchange = () => {
             this.send_server_config();
             focusRemoteInputSurface(inputCapture?.keyboard || inputCapture?.pointer);
@@ -569,10 +578,9 @@ class Settings {
             return;
         let config = new Object(null);
         config["capturable_id"] = Number(this.capturable_select.value);
-        for (const key of [
-            "uinput_support",
-            "capture_cursor"])
-            config[key] = this.checks.get(key).checked;
+        config["uinput_support"] = (this.input_backend_select.value || "auto") !== "xtest";
+        config["input_backend"] = this.input_backend_select.value || "auto";
+        config["capture_cursor"] = this.checks.get("capture_cursor").checked;
         let [w, h] = calc_max_video_resolution(this.scale_video_input.valueAsNumber);
         config["max_width"] = w;
         config["max_height"] = h;
@@ -590,6 +598,7 @@ class Settings {
         settings["frame_rate"] = frame_rate_scale(this.frame_rate_input.valueAsNumber).toString();
         settings["scale_video"] = this.scale_video_input.value;
         settings["encoder"] = this.encoder_select.value;
+        settings["input_backend"] = this.input_backend_select.value;
         settings["display_rotation"] = this.display_rotation_select.value;
         settings["input_rotation"] = this.input_rotation_select.value;
         settings["min_pressure"] = this.range_min_pressure.value;
@@ -628,6 +637,8 @@ class Settings {
 
             if (settings["encoder"])
                 this.encoder_select.value = settings["encoder"];
+            if (settings["input_backend"])
+                this.input_backend_select.value = settings["input_backend"];
             this.display_rotation_select.value = normalized_rotation(settings["display_rotation"] || "0").toString();
             this.input_rotation_select.value = normalized_rotation(settings["input_rotation"] || "0").toString();
 
@@ -658,7 +669,8 @@ class Settings {
             }
 
 
-            if (document.getElementById("custom_input_areas").classList.contains("hide")) {
+            let custom_input_areas = document.getElementById("custom_input_areas");
+            if (custom_input_areas && custom_input_areas.classList.contains("hide")) {
                 this.checks.get("enable_custom_input_areas").checked = false;
             }
 
@@ -760,6 +772,24 @@ class Settings {
             this.encoder_select.value = "auto";
         this.save_settings();
     }
+
+    update_input_options(options: { value: string, label: string }[]) {
+        const current = this.input_backend_select.value || "auto";
+        this.input_backend_select.innerText = "";
+        for (const option of options) {
+            if (!option || !option.value)
+                continue;
+            const elem = document.createElement("option");
+            elem.value = option.value;
+            elem.innerText = option.label || option.value;
+            this.input_backend_select.appendChild(elem);
+        }
+        if ([...this.input_backend_select.options].some((option) => option.value === current))
+            this.input_backend_select.value = current;
+        else
+            this.input_backend_select.value = "auto";
+        this.save_settings();
+    }
 }
 
 let settings: Settings;
@@ -816,7 +846,7 @@ class PEvent {
         let y_offset = 0;
         let x_scale = 1;
         let y_scale = 1;
-        if (settings.checks.get("enable_custom_input_areas").checked) {
+        if (settings.checks.get("enable_custom_input_areas")?.checked && settings.custom_input_areas) {
             let custom_input_area: Rect = null;
             if (event.pointerType == "mouse") {
                 custom_input_area = settings.custom_input_areas.mouse;
@@ -1627,7 +1657,8 @@ function handle_messages(
                     onConfigError(msg["ConfigError"]);
                 } else if ("CustomInputAreas" in msg) {
                     settings.custom_input_areas = msg["CustomInputAreas"];
-                    settings.checks.get("enable_custom_input_areas").checked = true;
+                    if (settings.checks.get("enable_custom_input_areas"))
+                        settings.checks.get("enable_custom_input_areas").checked = true;
                     settings.save_settings();
                 } else if ("RuntimeStatus" in msg) {
                     const status = msg["RuntimeStatus"];
@@ -1643,6 +1674,8 @@ function handle_messages(
                         keyboard_backend_out.value = status["keyboardBackend"] || "未知";
                 } else if ("EncoderCapabilities" in msg) {
                     settings.update_encoder_options(msg["EncoderCapabilities"]["options"] || []);
+                } else if ("InputCapabilities" in msg) {
+                    settings.update_input_options(msg["InputCapabilities"]["options"] || []);
                 }
             }
 
