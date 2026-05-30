@@ -216,6 +216,8 @@ pub struct WeylusClientConfig {
     pub kms_support: bool,
     #[cfg(target_os = "linux")]
     pub kms_device: Option<String>,
+    #[cfg(target_os = "linux")]
+    pub nvfbc_support: bool,
     pub no_gui: bool,
 }
 
@@ -322,9 +324,22 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         send_message(&mut self.sender, message)
     }
 
-    fn process_wheel_event(&mut self, event: &WheelEvent) {
+    fn process_wheel_event(&mut self, event: &WheelEvent)
+    where
+        S: WeylusSender,
+    {
         match &mut self.input_device {
-            Some(i) => i.send_wheel_event(event),
+            Some(i) => {
+                i.send_wheel_event(event);
+                let mut statuses = i.drain_keyboard_status();
+                statuses.insert(
+                    0,
+                    format!("agent recv wheel dx={} dy={}", event.dx, event.dy),
+                );
+                for status in statuses {
+                    send_pointer_status(&mut self.sender, status);
+                }
+            }
             None => warn!("Input device is not initalized, can not process WheelEvent!"),
         }
     }
@@ -351,6 +366,9 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                         event.y
                     ),
                 );
+            }
+            for status in self.input_device.as_mut().unwrap().drain_keyboard_status() {
+                send_pointer_status(&mut self.sender, status);
             }
         } else {
             warn!("Input device is not initalized, can not process PointerEvent!");
@@ -474,6 +492,8 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             self.config.kms_support,
             #[cfg(target_os = "linux")]
             self.config.kms_device.as_deref(),
+            #[cfg(target_os = "linux")]
+            self.config.nvfbc_support,
         );
         self.capturables.iter().for_each(|c| {
             windows.push(c.name());

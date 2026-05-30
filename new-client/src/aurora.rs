@@ -110,6 +110,9 @@ pub struct AgentConfig {
     #[cfg(target_os = "windows")]
     #[serde(default = "default_windows_capture_source")]
     pub windows_capture_source: String,
+    #[cfg(target_os = "linux")]
+    #[serde(default)]
+    pub nvfbc_support: bool,
     #[serde(default)]
     pub wayland_support: bool,
     #[serde(default)]
@@ -221,6 +224,7 @@ struct AgentCapabilities {
     platform: &'static str,
     wayland: bool,
     kms: bool,
+    nvfbc: bool,
     vaapi: bool,
     nvenc: bool,
     mediafoundation: bool,
@@ -251,6 +255,9 @@ struct SaveDesktopConfigPayload {
     #[cfg(target_os = "windows")]
     #[serde(default = "default_windows_capture_source")]
     windows_capture_source: String,
+    #[cfg(target_os = "linux")]
+    #[serde(default)]
+    nvfbc_support: bool,
     #[serde(default)]
     wayland_support: bool,
     #[serde(default)]
@@ -463,6 +470,10 @@ impl AgentRuntime {
         {
             cfg.windows_capture_source =
                 normalize_windows_capture_source(&payload.windows_capture_source);
+        }
+        #[cfg(target_os = "linux")]
+        {
+            cfg.nvfbc_support = payload.nvfbc_support;
         }
         cfg.wayland_support = payload.wayland_support;
         cfg.kms_support = payload.kms_support;
@@ -1089,6 +1100,7 @@ fn start_weylus_service(conf: &WeylusConfig, runtime: &AgentRuntime) {
     {
         weylus_conf.try_vaapi = agent_cfg.try_vaapi;
         weylus_conf.try_nvenc = agent_cfg.try_nvenc;
+        weylus_conf.nvfbc_support = agent_cfg.nvfbc_support;
         weylus_conf.wayland_support = agent_cfg.wayland_support;
         weylus_conf.kms_support = agent_cfg.kms_support;
         weylus_conf.kms_device = agent_cfg.kms_device.clone();
@@ -1205,17 +1217,13 @@ async fn handle_local_request(
         },
         #[cfg(target_os = "windows")]
         (Method::POST, "/api/input-test") => {
-            let launch_notepad = req
-                .uri()
-                .query()
-                .map(|query| query.contains("notepad=1") || query.contains("notepad=true"))
-                .unwrap_or(false);
+            let input_test = WindowsInputTestQuery::from_query(req.uri().query());
             json_response(
                 StatusCode::OK,
                 envelope(
                     &runtime,
                     true,
-                    Some(windows_input_self_test_safe(launch_notepad)),
+                    Some(windows_input_self_test_safe(input_test)),
                     None,
                     None,
                 ),
@@ -1322,6 +1330,7 @@ fn envelope(
             platform: std::env::consts::OS,
             wayland: cfg!(all(target_os = "linux", feature = "pipewire")),
             kms: cfg!(target_os = "linux"),
+            nvfbc: cfg!(all(target_os = "linux", feature = "nvfbc")),
             vaapi: cfg!(all(target_os = "linux", feature = "vaapi")),
             nvenc: cfg!(any(target_os = "linux", target_os = "windows")),
             mediafoundation: cfg!(target_os = "windows"),
@@ -1359,8 +1368,65 @@ fn text(status: StatusCode, body: &str) -> Response<Full<Bytes>> {
 }
 
 #[cfg(target_os = "windows")]
-fn windows_input_self_test_safe(launch_notepad: bool) -> String {
-    match std::panic::catch_unwind(|| windows_input_self_test(launch_notepad)) {
+#[derive(Default)]
+struct WindowsInputTestQuery {
+    launch_notepad: bool,
+    text: Option<String>,
+    enter: bool,
+    click: Option<(f64, f64)>,
+}
+
+#[cfg(target_os = "windows")]
+impl WindowsInputTestQuery {
+    fn from_query(query: Option<&str>) -> Self {
+        let mut parsed = Self::default();
+        let Some(query) = query else {
+            return parsed;
+        };
+        for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+            match key.as_ref() {
+                "notepad" => parsed.launch_notepad = query_bool(&value),
+                "text" => parsed.text = Some(value.into_owned()),
+                "enter" => parsed.enter = query_bool(&value),
+                "click" => parsed.click = parse_click_probe(&value),
+                "clickX" => {
+                    let x = value.parse::<f64>().ok();
+                    let y = parsed.click.map(|(_, y)| y).or(Some(0.5));
+                    if let (Some(x), Some(y)) = (x, y) {
+                        parsed.click = Some((x, y));
+                    }
+                }
+                "clickY" => {
+                    let y = value.parse::<f64>().ok();
+                    let x = parsed.click.map(|(x, _)| x).or(Some(0.5));
+                    if let (Some(x), Some(y)) = (x, y) {
+                        parsed.click = Some((x, y));
+                    }
+                }
+                _ => {}
+            }
+        }
+        parsed
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn query_bool(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn parse_click_probe(value: &str) -> Option<(f64, f64)> {
+    let (x, y) = value.split_once(',')?;
+    Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_input_self_test_safe(query: WindowsInputTestQuery) -> String {
+    match std::panic::catch_unwind(|| windows_input_self_test(query)) {
         Ok(message) => message,
         Err(err) => {
             if let Some(message) = err.downcast_ref::<String>() {
@@ -1375,12 +1441,22 @@ fn windows_input_self_test_safe(launch_notepad: bool) -> String {
 }
 
 #[cfg(target_os = "windows")]
-fn windows_input_self_test(launch_notepad: bool) -> String {
-    if launch_notepad {
+fn windows_input_self_test(query: WindowsInputTestQuery) -> String {
+    if query.launch_notepad {
         return crate::input::autopilot_device_win::diagnose_notepad_keyboard_input().join("\n");
     }
-    let mut lines = crate::input::autopilot_device_win::diagnose_keyboard_context();
-    lines.extend(crate::input::autopilot_device_win::diagnose_keyboard_sendinput());
+    let mut lines = if query.text.is_some() || query.enter || query.click.is_some() {
+        crate::input::autopilot_device_win::diagnose_input_probe(
+            query.text.as_deref(),
+            query.enter,
+            query.click,
+        )
+    } else {
+        let mut lines = crate::input::autopilot_device_win::diagnose_keyboard_context();
+        lines.extend(crate::input::autopilot_device_win::diagnose_keyboard_sendinput());
+        lines
+    };
+    lines.push("usage=/api/input-test?text=1234&enter=1&click=0.5,0.55 or ?notepad=1".to_string());
     lines.join("\n")
 }
 
@@ -5080,6 +5156,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       <div class="switches" style="margin-top: 14px;">
         <label class="switch" data-cap="wayland"><input id="waylandSupport" type="checkbox" /><span><strong>Wayland / PipeWire</strong>启用 Wayland 捕获和自定义输入区域支持。</span></label>
         <label class="switch" data-cap="kms"><input id="kmsSupport" type="checkbox" /><span><strong>KMS / DRM</strong>直接通过 DRM/KMS 捕获帧缓冲。</span></label>
+        <label class="switch" data-cap="nvfbc"><input id="nvfbcSupport" type="checkbox" /><span><strong>NvFBC</strong>启用 NVIDIA Frame Buffer Capture 捕获后端。</span></label>
         <label class="switch" data-cap="vaapi"><input id="tryVaapi" type="checkbox" /><span><strong>VAAPI</strong>尝试使用 Linux VAAPI 硬件编码。</span></label>
         <label class="switch" data-cap="nvenc"><input id="tryNvenc" type="checkbox" /><span><strong>NVENC</strong>尝试使用 NVIDIA NVENC 硬件编码。</span></label>
         <label class="switch" data-cap="mediafoundation"><input id="tryMediafoundation" type="checkbox" /><span><strong>MediaFoundation</strong>尝试使用 Windows 硬件编码。</span></label>
@@ -5115,7 +5192,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
     </section>
   </main>
   <script>
-    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager'];
+    const ids = ['serverHost','deviceName','bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','nvfbcSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager'];
     const $ = (id) => document.getElementById(id);
     const dirty = new Set();
     ids.forEach((id) => {
@@ -5168,6 +5245,7 @@ const INDEX_HTML: &str = r##"<!doctype html>
       setInput('windowsCaptureSource', cfg.windowsCaptureSource || 'auto');
       setChecked('waylandSupport', !!cfg.waylandSupport);
       setChecked('kmsSupport', !!cfg.kmsSupport);
+      setChecked('nvfbcSupport', !!cfg.nvfbcSupport);
       setChecked('tryVaapi', !!cfg.tryVaapi);
       setChecked('tryNvenc', !!cfg.tryNvenc);
       setChecked('tryMediafoundation', !!cfg.tryMediafoundation);
@@ -5198,11 +5276,11 @@ const INDEX_HTML: &str = r##"<!doctype html>
     async function saveDesktopConfig() {
       await call('/api/desktop-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         bindAddress: $('bindAddress').value, webPort: Number($('webPort').value || 0),
-        kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked,
+        kmsDevice: $('kmsDevice').value || null, waylandSupport: $('waylandSupport').checked, kmsSupport: $('kmsSupport').checked, nvfbcSupport: $('nvfbcSupport').checked,
         windowsCaptureSource: $('windowsCaptureSource').value || 'auto',
         tryVaapi: $('tryVaapi').checked, tryNvenc: $('tryNvenc').checked, tryMediafoundation: $('tryMediafoundation').checked, controlDisplayManager: $('controlDisplayManager').checked
       }) }, '桌面配置已保存，重启桌面服务后生效');
-      clearDirty('bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager');
+      clearDirty('bindAddress','webPort','kmsDevice','windowsCaptureSource','waylandSupport','kmsSupport','nvfbcSupport','tryVaapi','tryNvenc','tryMediafoundation','controlDisplayManager');
       await loadStatus();
     }
     async function startAgent() { await call('/api/start', { method: 'POST' }, '连接已启动'); }

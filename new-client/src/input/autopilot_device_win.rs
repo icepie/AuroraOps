@@ -204,18 +204,28 @@ impl Drop for WindowsInput {
 
 impl InputDevice for WindowsInput {
     fn send_wheel_event(&mut self, event: &WheelEvent) {
-        let _desktop = attach_thread_to_input_desktop();
+        let desktop = attach_thread_to_input_desktop();
+        self.pending_keyboard_status
+            .push(desktop.status_line("wheel attach desktop"));
         if let Err(err) = self.capturable.before_input() {
             warn!("Failed to activate target before wheel input ({})", err);
+            self.pending_keyboard_status
+                .push(format!("wheel before_input failed: {err}"));
             return;
         }
         unsafe { mouse_event(MOUSEEVENTF_WHEEL, 0, 0, event.dy as DWORD, 0) };
+        self.pending_keyboard_status
+            .push(format!("wheel mouse_event dy={}", event.dy));
     }
 
     fn send_pointer_event(&mut self, event: &PointerEvent) {
-        let _desktop = attach_thread_to_input_desktop();
+        let desktop = attach_thread_to_input_desktop();
+        self.pending_keyboard_status
+            .push(desktop.status_line("pointer attach desktop"));
         if let Err(err) = self.capturable.before_input() {
             warn!("Failed to activate window, sending no input ({})", err);
+            self.pending_keyboard_status
+                .push(format!("pointer before_input failed: {err}"));
             return;
         }
         let Geometry::VirtualScreen(offset_x, offset_y, width, height, left, top) =
@@ -396,9 +406,14 @@ impl InputDevice for WindowsInput {
                     focus_window_at_point(screen_x, screen_y);
                 }
                 unsafe {
-                    SetCursorPos(screen_x, screen_y);
+                    let cursor_ok = SetCursorPos(screen_x, screen_y) != FALSE;
+                    self.pending_keyboard_status.push(format!(
+                        "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
+                    ));
                     if dw_flags != 0 {
                         mouse_event(dw_flags, 0 as u32, 0 as u32, 0, 0);
+                        self.pending_keyboard_status
+                            .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
                     }
                 }
             }
@@ -407,9 +422,13 @@ impl InputDevice for WindowsInput {
     }
 
     fn send_keyboard_event(&mut self, event: &KeyboardEvent) {
-        let _desktop = attach_thread_to_input_desktop();
+        let desktop = attach_thread_to_input_desktop();
+        self.pending_keyboard_status
+            .push(desktop.status_line("keyboard attach desktop"));
         if let Err(err) = self.capturable.before_input() {
             warn!("Failed to activate target before keyboard input ({})", err);
+            self.pending_keyboard_status
+                .push(format!("keyboard before_input failed: {err}"));
             return;
         }
         let focused = focus_window_under_cursor();
@@ -424,12 +443,16 @@ impl InputDevice for WindowsInput {
     }
 
     fn send_text_input_event(&mut self, event: &TextInputEvent) {
-        let _desktop = attach_thread_to_input_desktop();
+        let desktop = attach_thread_to_input_desktop();
+        self.pending_keyboard_status
+            .push(desktop.status_line("text attach desktop"));
         if event.text.is_empty() {
             return;
         }
         if let Err(err) = self.capturable.before_input() {
             warn!("Failed to activate target before text input ({})", err);
+            self.pending_keyboard_status
+                .push(format!("text before_input failed: {err}"));
             return;
         }
         let focused = focus_window_under_cursor();
@@ -503,9 +526,53 @@ pub fn is_input_desktop_winlogon() -> bool {
 
 pub fn diagnose_keyboard_sendinput() -> Vec<String> {
     let mut lines = Vec::new();
+    let desktop = attach_thread_to_input_desktop();
+    lines.push(desktop.status_line("probe attach desktop"));
     let down = send_vk(b'A' as WORD, true);
     let up = send_vk(b'A' as WORD, false);
     lines.push(format!("sendinput key=A down={down} up={up}"));
+    lines
+}
+
+pub fn diagnose_input_probe(
+    text: Option<&str>,
+    send_enter: bool,
+    click: Option<(f64, f64)>,
+) -> Vec<String> {
+    let mut lines = diagnose_keyboard_context();
+    let desktop = attach_thread_to_input_desktop();
+    lines.push(desktop.status_line("probe attach desktop"));
+
+    if let Some((x, y)) = click {
+        let (screen_x, screen_y) = normalized_virtual_screen_point(x, y);
+        let cursor_ok = unsafe { SetCursorPos(screen_x, screen_y) != FALSE };
+        lines.push(format!(
+            "probe click point={x:.4},{y:.4} screen={screen_x},{screen_y} set_cursor={cursor_ok}"
+        ));
+        unsafe {
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+        }
+        lines.push("probe click primary=sent".to_string());
+    }
+
+    if let Some(text) = text.filter(|value| !value.is_empty()) {
+        let ok = send_unicode_text(text);
+        let preview: String = text.chars().take(16).collect();
+        lines.push(format!(
+            "probe text len={} text={preview:?} ok={ok}",
+            text.chars().count()
+        ));
+    }
+
+    if send_enter {
+        let down = send_vk(VK_RETURN as WORD, true);
+        let up = send_vk(VK_RETURN as WORD, false);
+        lines.push(format!("probe enter down={down} up={up}"));
+    }
+
+    lines.push(format!("input_desktop_after={}", input_desktop_label()));
+    lines.push(format!("target_after={}", foreground_window_label()));
     lines
 }
 
@@ -873,7 +940,35 @@ impl Drop for InputDesktopHandle {
     }
 }
 
-fn attach_thread_to_input_desktop() -> Option<InputDesktopHandle> {
+struct InputDesktopAttachment {
+    _handle: Option<InputDesktopHandle>,
+    desktop: String,
+    open_error: Option<String>,
+    set_thread_ok: Option<bool>,
+    set_thread_error: Option<String>,
+}
+
+impl InputDesktopAttachment {
+    fn status_line(&self, prefix: &str) -> String {
+        let open = if let Some(err) = &self.open_error {
+            format!("failed: {err}")
+        } else {
+            "ok".to_string()
+        };
+        let set_thread = match (self.set_thread_ok, self.set_thread_error.as_ref()) {
+            (Some(true), _) => "ok".to_string(),
+            (Some(false), Some(err)) => format!("failed: {err}"),
+            (Some(false), None) => "failed".to_string(),
+            (None, _) => "skipped".to_string(),
+        };
+        format!(
+            "{prefix}: inputDesktop={} openInputDesktop={open} setThreadDesktop={set_thread}",
+            self.desktop
+        )
+    }
+}
+
+fn attach_thread_to_input_desktop() -> InputDesktopAttachment {
     unsafe {
         let input = OpenInputDesktop(
             0,
@@ -889,19 +984,53 @@ fn attach_thread_to_input_desktop() -> Option<InputDesktopHandle> {
                 | DESKTOP_SWITCHDESKTOP,
         );
         if input.is_null() {
-            warn!(
-                "OpenInputDesktop failed before Windows input: {}",
-                std::io::Error::last_os_error()
-            );
-            return None;
+            let err = std::io::Error::last_os_error().to_string();
+            warn!("OpenInputDesktop failed before Windows input: {}", err);
+            return InputDesktopAttachment {
+                _handle: None,
+                desktop: format!("unavailable: {err}"),
+                open_error: Some(err),
+                set_thread_ok: None,
+                set_thread_error: None,
+            };
         }
+        let desktop = desktop_name(input).unwrap_or_else(|| "unknown".to_string());
         if SetThreadDesktop(input) == FALSE {
+            let err = std::io::Error::last_os_error().to_string();
             warn!(
                 "SetThreadDesktop(input desktop) failed before Windows input: {}",
-                std::io::Error::last_os_error()
+                err
             );
+            return InputDesktopAttachment {
+                _handle: Some(InputDesktopHandle(input)),
+                desktop,
+                open_error: None,
+                set_thread_ok: Some(false),
+                set_thread_error: Some(err),
+            };
         }
-        Some(InputDesktopHandle(input))
+        InputDesktopAttachment {
+            _handle: Some(InputDesktopHandle(input)),
+            desktop,
+            open_error: None,
+            set_thread_ok: Some(true),
+            set_thread_error: None,
+        }
+    }
+}
+
+fn normalized_virtual_screen_point(x: f64, y: f64) -> (i32, i32) {
+    let x = x.clamp(0.0, 1.0);
+    let y = y.clamp(0.0, 1.0);
+    unsafe {
+        let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        let width = GetSystemMetrics(SM_CXVIRTUALSCREEN).max(1);
+        let height = GetSystemMetrics(SM_CYVIRTUALSCREEN).max(1);
+        (
+            left + (x * f64::from(width.saturating_sub(1))) as i32,
+            top + (y * f64::from(height.saturating_sub(1))) as i32,
+        )
     }
 }
 

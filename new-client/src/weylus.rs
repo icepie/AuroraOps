@@ -85,6 +85,8 @@ impl Weylus {
                 kms_support: config.kms_support,
                 #[cfg(target_os = "linux")]
                 kms_device: config.kms_device.clone(),
+                #[cfg(target_os = "linux")]
+                nvfbc_support: config.nvfbc_support,
                 no_gui: config.no_gui,
             },
         );

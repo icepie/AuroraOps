@@ -7,6 +7,8 @@ use tracing::{debug, warn};
 pub mod core_graphics;
 #[cfg(target_os = "linux")]
 pub mod kms;
+#[cfg(all(target_os = "linux", feature = "nvfbc"))]
+pub mod nvfbc_capture;
 #[cfg(all(target_os = "linux", feature = "pipewire"))]
 pub mod pipewire;
 #[cfg(target_os = "linux")]
@@ -77,10 +79,29 @@ pub fn get_capturables(
     #[cfg(target_os = "linux")] capture_cursor: bool,
     #[cfg(target_os = "linux")] kms_support: bool,
     #[cfg(target_os = "linux")] kms_device: Option<&str>,
+    #[cfg(target_os = "linux")] nvfbc_support: bool,
 ) -> Vec<Box<dyn Capturable>> {
     let mut capturables: Vec<Box<dyn Capturable>> = vec![];
     #[cfg(target_os = "linux")]
     {
+        let _ = capture_cursor;
+        #[cfg(feature = "nvfbc")]
+        if nvfbc_support {
+            use crate::capturable::nvfbc_capture::get_capturables as get_capturables_nvfbc;
+            match get_capturables_nvfbc() {
+                Ok(captrs) => {
+                    for c in captrs {
+                        capturables.push(Box::new(c));
+                    }
+                }
+                Err(err) => warn!("Failed to get list of capturables via NvFBC: {}", err),
+            }
+        }
+        #[cfg(not(feature = "nvfbc"))]
+        if nvfbc_support {
+            warn!("NvFBC capture not available (built without 'nvfbc' feature)");
+        }
+
         #[cfg(feature = "pipewire")]
         if wayland_support {
             use crate::capturable::pipewire::get_capturables as get_capturables_pw;

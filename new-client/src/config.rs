@@ -55,6 +55,10 @@ pub struct Config {
     )]
     #[serde(default = "default_windows_capture_source")]
     pub windows_capture_source: String,
+    #[cfg(target_os = "linux")]
+    #[arg(long, help = "Enable NVIDIA NvFBC capture backend.")]
+    #[serde(default)]
+    pub nvfbc_support: bool,
     #[arg(long, help = "Start Weylus server immediately on program start.")]
     #[serde(default)]
     pub auto_start: bool,
