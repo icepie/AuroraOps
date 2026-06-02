@@ -2588,6 +2588,7 @@ struct TerminalSession {
     pty_child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
     process_child: Option<Child>,
     input_mode: TerminalInputMode,
+    output_encoding: TerminalOutputEncoding,
     line_buffer: String,
     done: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -2596,6 +2597,12 @@ struct TerminalSession {
 enum TerminalInputMode {
     Raw,
     PipeLine,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TerminalOutputEncoding {
+    Utf8,
+    WindowsOem,
 }
 
 impl Drop for TerminalSession {
@@ -2662,11 +2669,13 @@ impl TerminalManager {
                 let session_id_clone = session_id.clone();
                 let tcp_sender = self.tcp_sender.clone();
                 let done = session.done.clone();
+                let output_encoding = session.output_encoding;
                 for mut reader in session.readers.drain(..) {
                     spawn_terminal_reader(
                         session_id_clone.clone(),
                         tcp_sender.clone(),
                         done.clone(),
+                        output_encoding,
                         move |buf| reader.read(buf),
                     );
                 }
@@ -2738,6 +2747,7 @@ fn spawn_terminal_reader<F>(
     session_id_clone: String,
     tcp_sender: mpsc::Sender<TcpOutbound>,
     done: Arc<std::sync::atomic::AtomicBool>,
+    output_encoding: TerminalOutputEncoding,
     mut read_fn: F,
 ) where
     F: FnMut(&mut [u8]) -> std::io::Result<usize> + Send + 'static,
@@ -2773,7 +2783,7 @@ fn spawn_terminal_reader<F>(
                     }
                 }
 
-                let output = String::from_utf8_lossy(&pending).to_string();
+                let output = decode_terminal_output(&pending, output_encoding);
                 pending.clear();
                 let _ = output_sender.send(TcpOutbound {
                     router: "DeviceTerminalOutputReq",
@@ -2875,6 +2885,7 @@ fn start_pty_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> 
         pty_child: Some(child),
         process_child: None,
         input_mode: TerminalInputMode::Raw,
+        output_encoding: TerminalOutputEncoding::Utf8,
         line_buffer: String::new(),
         done: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     })
@@ -2915,6 +2926,7 @@ fn start_pipe_terminal_process(shell: &str) -> Result<TerminalSession, BoxError>
         pty_child: None,
         process_child: Some(child),
         input_mode: TerminalInputMode::PipeLine,
+        output_encoding: TerminalOutputEncoding::WindowsOem,
         line_buffer: String::new(),
         done: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     })
@@ -2969,6 +2981,63 @@ fn resize_terminal_session(
     Ok(())
 }
 
+fn decode_terminal_output(bytes: &[u8], encoding: TerminalOutputEncoding) -> String {
+    if encoding == TerminalOutputEncoding::Utf8 {
+        return String::from_utf8_lossy(bytes).to_string();
+    }
+
+    if let Ok(output) = std::str::from_utf8(bytes) {
+        return output.to_string();
+    }
+
+    decode_windows_oem_output(bytes)
+}
+
+#[cfg(target_os = "windows")]
+fn decode_windows_oem_output(bytes: &[u8]) -> String {
+    use winapi::um::stringapiset::MultiByteToWideChar;
+    use winapi::um::winnls::{GetOEMCP, MB_ERR_INVALID_CHARS};
+
+    if bytes.is_empty() {
+        return String::new();
+    }
+
+    unsafe {
+        let code_page = GetOEMCP();
+        let src_len = bytes.len().min(i32::MAX as usize) as i32;
+        let src = bytes.as_ptr() as *const i8;
+        let mut wide_len = MultiByteToWideChar(
+            code_page,
+            MB_ERR_INVALID_CHARS,
+            src,
+            src_len,
+            ptr::null_mut(),
+            0,
+        );
+        let mut flags = MB_ERR_INVALID_CHARS;
+        if wide_len <= 0 {
+            flags = 0;
+            wide_len = MultiByteToWideChar(code_page, flags, src, src_len, ptr::null_mut(), 0);
+        }
+        if wide_len <= 0 {
+            return String::from_utf8_lossy(bytes).to_string();
+        }
+
+        let mut wide = vec![0u16; wide_len as usize];
+        let written =
+            MultiByteToWideChar(code_page, flags, src, src_len, wide.as_mut_ptr(), wide_len);
+        if written <= 0 {
+            return String::from_utf8_lossy(bytes).to_string();
+        }
+        String::from_utf16_lossy(&wide[..written as usize])
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn decode_windows_oem_output(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).to_string()
+}
+
 fn write_terminal_input(
     session: &mut TerminalSession,
     session_id: &str,
@@ -2986,6 +3055,11 @@ fn write_terminal_input(
         match ch {
             '\r' | '\n' => {
                 let mut line = std::mem::take(&mut session.line_buffer);
+                if is_pipe_clear_command(&line) {
+                    echo.push_str("\r\n\u{001b}[2J\u{001b}[H");
+                    session.writer.write_all(b"\r\n")?;
+                    continue;
+                }
                 line.push_str("\r\n");
                 session.writer.write_all(line.as_bytes())?;
                 echo.push_str("\r\n");
@@ -3020,6 +3094,10 @@ fn write_terminal_input(
     }
 
     Ok(())
+}
+
+fn is_pipe_clear_command(line: &str) -> bool {
+    line.trim().eq_ignore_ascii_case("cls")
 }
 
 fn stop_terminal_session(mut session: TerminalSession) {

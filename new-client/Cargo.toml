@@ -46,7 +46,7 @@ url = "^2.5"
 
 [target.'cfg(windows)'.dependencies]
 fastfetch-sys = { path = "vendor/fastfetch-sys" }
-winapi = { version = "0.3.9", features = ["d3d11", "d3dcommon", "dxgi", "dxgi1_2", "dxgitype", "errhandlingapi", "handleapi", "minwindef", "processthreadsapi", "securitybaseapi", "shellapi", "synchapi", "userenv", "winbase", "wingdi", "winnt", "winuser", "winsvc", "wtsapi32"] }
+winapi = { version = "0.3.9", features = ["d3d11", "d3dcommon", "dxgi", "dxgi1_2", "dxgitype", "errhandlingapi", "handleapi", "minwindef", "processthreadsapi", "securitybaseapi", "shellapi", "stringapiset", "synchapi", "userenv", "winbase", "wingdi", "winnls", "winnt", "winuser", "winsvc", "wtsapi32"] }
 wio = "0.2.2"
 captrs = "^0.3.1"
 
