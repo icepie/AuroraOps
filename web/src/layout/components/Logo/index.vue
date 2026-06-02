@@ -1,5 +1,5 @@
 <template>
-  <div class="logo">
+  <div class="logo" :class="{ 'logo-collapsed': collapsed }">
     <img :src="siteLogo" alt="" />
     <h2 v-show="!collapsed" class="title">{{ projectName }}</h2>
   </div>
@@ -37,7 +37,7 @@
     box-sizing: border-box;
     height: @header-height;
     overflow: hidden;
-    padding: 0 12px;
+    padding: 0 8px;
     white-space: nowrap;
 
     img {
@@ -50,17 +50,21 @@
     }
 
     .title {
-      display: inline-flex;
-      align-items: center;
+      display: block;
       min-width: 0;
-      margin-bottom: 0;
+      margin: 0;
       overflow: hidden;
       height: 24px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       line-height: 24px;
       letter-spacing: 0;
-      text-overflow: ellipsis;
+    }
+
+    &.logo-collapsed {
+      justify-content: center;
+      gap: 0;
+      padding: 0;
     }
   }
 </style>

@@ -585,7 +585,7 @@
         height: @header-height;
         overflow: hidden;
         white-space: nowrap;
-        padding: 0 12px;
+        padding: 0 8px;
         min-width: 200px;
 
         img {
@@ -598,16 +598,14 @@
         }
 
         .title {
-          display: inline-flex;
-          align-items: center;
+          display: block;
           min-width: 0;
-          margin-bottom: 0;
+          margin: 0;
           overflow: hidden;
           height: 24px;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 600;
           line-height: 24px;
-          text-overflow: ellipsis;
         }
       }
 

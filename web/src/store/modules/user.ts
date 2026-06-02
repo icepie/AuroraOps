@@ -11,6 +11,7 @@ import {
   IS_LOCKSCREEN,
 } from '@/store/mutation-types';
 import { ResultEnum } from '@/enums/httpEnum';
+import defaultLogo from '@/assets/images/logo.png';
 import {
   getConfig,
   getLoginConfig,
@@ -23,7 +24,7 @@ import { isWechatBrowser } from '@/utils/is';
 import { DeptTypeEnum } from '@/enums/deptEnum';
 const Storage = createStorage({ storage: localStorage });
 const APP_BRAND_NAME = (import.meta.env.VITE_GLOB_APP_TITLE || '').trim();
-const DEFAULT_LOGO = new URL('@/assets/images/logo.png', import.meta.url).href;
+const DEFAULT_LOGO = defaultLogo;
 
 function normalizeLoginConfig(config: LoginConfigState | null): LoginConfigState | null {
   if (!config) {
