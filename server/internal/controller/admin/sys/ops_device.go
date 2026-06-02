@@ -283,6 +283,7 @@ func (c *cOpsDevice) TerminalWS(r *ghttp.Request) {
 		_ = service.TCPServer().SendTerminalOpen(ctx, sessionID, cols, rows, shell)
 	}
 
+readLoop:
 	for {
 		_, message, readErr := conn.ReadMessage()
 		if readErr != nil {
@@ -314,11 +315,16 @@ func (c *cOpsDevice) TerminalWS(r *ghttp.Request) {
 			openTerminal(payload.Cols, payload.Rows, payload.Shell)
 		case "close":
 			terminalClosedByUser = true
+			break readLoop
 		}
 	}
 
-	if terminalClosedByUser {
-		_ = service.TCPServer().SendTerminalClose(ctx, sessionID, "terminal closed by user")
+	if terminalOpened {
+		closeMessage := "terminal websocket disconnected"
+		if terminalClosedByUser {
+			closeMessage = "terminal closed by user"
+		}
+		_ = service.TCPServer().SendTerminalClose(ctx, sessionID, closeMessage)
 	}
 	cancelCtx()
 	cancel()

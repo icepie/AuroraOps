@@ -10,8 +10,7 @@ use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener, TcpStream, Udp
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
-#[cfg(target_os = "windows")]
-use std::process::Command;
+use std::process::{Child, Command, Stdio};
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -2238,9 +2237,13 @@ fn connect_tcp(
     info!("device tcp login succeeded");
     on_connected();
     let mut write_stream = stream.try_clone()?;
+    let writer_failed = Arc::new(AtomicBool::new(false));
+    let writer_failed_for_thread = writer_failed.clone();
     thread::spawn(move || {
         while let Ok(out) = out_rx.recv() {
-            if send_tcp(&mut write_stream, out.router, out.data).is_err() {
+            if let Err(err) = send_tcp(&mut write_stream, out.router, out.data) {
+                warn!("tcp writer disconnected: {err}");
+                writer_failed_for_thread.store(true, Ordering::SeqCst);
                 break;
             }
         }
@@ -2257,6 +2260,12 @@ fn connect_tcp(
                 return Ok(());
             }
             Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {}
+        }
+
+        if writer_failed.load(Ordering::SeqCst) {
+            terminals.close_all();
+            desktops.close_all();
+            return Err("tcp writer disconnected".into());
         }
 
         match recv_tcp(&mut stream) {
@@ -2278,21 +2287,35 @@ fn connect_tcp(
         }
 
         if last_tcp_heartbeat.elapsed() >= Duration::from_secs(30) {
-            let _ = out_tx.send(TcpOutbound {
-                router: "DeviceHeartbeatReq",
-                data: json!({ "deviceId": cfg.device_id }),
-            });
+            if out_tx
+                .send(TcpOutbound {
+                    router: "DeviceHeartbeatReq",
+                    data: json!({ "deviceId": cfg.device_id }),
+                })
+                .is_err()
+            {
+                terminals.close_all();
+                desktops.close_all();
+                return Err("tcp writer queue disconnected".into());
+            }
             last_tcp_heartbeat = std::time::Instant::now();
         }
         if last_monitor_report.elapsed() >= MONITOR_REPORT_INTERVAL {
             let snapshot = monitor_collector.sample();
-            let _ = out_tx.send(TcpOutbound {
-                router: "DeviceMonitorReportReq",
-                data: json!({
-                    "deviceId": cfg.device_id,
-                    "snapshot": snapshot,
-                }),
-            });
+            if out_tx
+                .send(TcpOutbound {
+                    router: "DeviceMonitorReportReq",
+                    data: json!({
+                        "deviceId": cfg.device_id,
+                        "snapshot": snapshot,
+                    }),
+                })
+                .is_err()
+            {
+                terminals.close_all();
+                desktops.close_all();
+                return Err("tcp writer queue disconnected".into());
+            }
             last_monitor_report = std::time::Instant::now();
         }
         if last_http_heartbeat.elapsed() >= Duration::from_secs(60) {
@@ -2381,6 +2404,7 @@ fn run_weylus_tunnel(cfg: &AgentConfig) -> Result<(), BoxError> {
     let (mut socket, _) = connect(tunnel_url.as_str())?;
     if let MaybeTlsStream::Plain(stream) = socket.get_mut() {
         let _ = stream.set_read_timeout(Some(Duration::from_millis(100)));
+        let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
     }
     info!("weylus tunnel connected");
 
@@ -2414,7 +2438,7 @@ fn run_weylus_tunnel(cfg: &AgentConfig) -> Result<(), BoxError> {
                         last_pong = std::time::Instant::now();
                         continue;
                     }
-                    Message::Close(_) => break,
+                    Message::Close(_) => return Err("weylus tunnel closed by server".into()),
                     _ => continue,
                 };
                 if bytes.len() < 9 {
@@ -2461,7 +2485,6 @@ fn run_weylus_tunnel(cfg: &AgentConfig) -> Result<(), BoxError> {
             Err(err) => return Err(Box::new(err)),
         }
     }
-    Ok(())
 }
 
 fn queue_weylus_tunnel_frame(
@@ -2559,17 +2582,30 @@ struct TerminalManager {
 }
 
 struct TerminalSession {
-    reader: Option<Box<dyn Read + Send>>,
+    readers: Vec<Box<dyn Read + Send>>,
     writer: Box<dyn Write + Send>,
-    master: Box<dyn portable_pty::MasterPty + Send>,
-    child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+    master: Option<Box<dyn portable_pty::MasterPty + Send>>,
+    pty_child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+    process_child: Option<Child>,
+    input_mode: TerminalInputMode,
+    line_buffer: String,
     done: Arc<std::sync::atomic::AtomicBool>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TerminalInputMode {
+    Raw,
+    PipeLine,
 }
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
         self.done.store(true, Ordering::Relaxed);
-        if let Some(mut child) = self.child.take() {
+        if let Some(mut child) = self.pty_child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        if let Some(mut child) = self.process_child.take() {
             let _ = child.kill();
             let _ = child.wait();
         }
@@ -2626,10 +2662,13 @@ impl TerminalManager {
                 let session_id_clone = session_id.clone();
                 let tcp_sender = self.tcp_sender.clone();
                 let done = session.done.clone();
-                if let Some(mut reader) = session.reader.take() {
-                    spawn_terminal_reader(session_id_clone, tcp_sender, done, move |buf| {
-                        reader.read(buf)
-                    });
+                for mut reader in session.readers.drain(..) {
+                    spawn_terminal_reader(
+                        session_id_clone.clone(),
+                        tcp_sender.clone(),
+                        done.clone(),
+                        move |buf| reader.read(buf),
+                    );
                 }
                 self.sessions.insert(session_id, session);
             }
@@ -2647,8 +2686,7 @@ impl TerminalManager {
             .to_string();
         let input = data.get("input").and_then(Value::as_str).unwrap_or("");
         if let Some(session) = self.sessions.get_mut(&session_id) {
-            let _ = session.writer.write_all(input.as_bytes());
-            let _ = session.writer.flush();
+            let _ = write_terminal_input(session, &session_id, input, &self.tcp_sender);
         } else {
             let _ =
                 send_terminal_closed(&self.tcp_sender, &session_id, "terminal session not found");
@@ -2759,7 +2797,10 @@ fn spawn_terminal_reader<F>(
             }
         }
         drop(output_tx);
-        if !done.load(Ordering::Relaxed) {
+        if done
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
             let _ = tcp_sender.send(TcpOutbound {
                 router: "DeviceTerminalClosedReq",
                 data: json!({
@@ -2772,6 +2813,43 @@ fn spawn_terminal_reader<F>(
 }
 
 fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
+    if should_prefer_pipe_terminal() {
+        warn!("legacy Windows detected, using terminal pipe mode");
+        return start_pipe_terminal_process(shell);
+    }
+
+    match start_pty_terminal_process(shell) {
+        Ok(session) => Ok(session),
+        Err(pty_error) => {
+            warn!("pty terminal start failed, falling back to pipe mode: {pty_error}");
+            start_pipe_terminal_process(shell).map_err(|pipe_error| {
+                format!(
+                    "failed to start terminal; pty error: {pty_error}; pipe fallback error: {pipe_error}"
+                )
+                .into()
+            })
+        }
+    }
+}
+
+fn should_prefer_pipe_terminal() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let version = detect_kernel_version();
+        let first_number = version
+            .split(|ch: char| !ch.is_ascii_digit())
+            .find(|part| !part.is_empty())
+            .and_then(|part| part.parse::<u32>().ok());
+
+        if let Some(value) = first_number {
+            return value < 10 || (1000..10000).contains(&value);
+        }
+    }
+
+    false
+}
+
+fn start_pty_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
     use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 
     let pty_system = native_pty_system();
@@ -2791,12 +2869,85 @@ fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
     let reader = pair.master.try_clone_reader()?;
     let writer = pair.master.take_writer()?;
     Ok(TerminalSession {
-        reader: Some(reader),
+        readers: vec![reader],
         writer,
-        master: pair.master,
-        child: Some(child),
+        master: Some(pair.master),
+        pty_child: Some(child),
+        process_child: None,
+        input_mode: TerminalInputMode::Raw,
+        line_buffer: String::new(),
         done: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     })
+}
+
+fn start_pipe_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
+    let mut cmd = Command::new(shell);
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("TERM", "xterm-256color")
+        .env("COLORTERM", "truecolor")
+        .env("CLICOLOR", "1")
+        .env("CLICOLOR_FORCE", "1")
+        .env("FORCE_COLOR", "1");
+    configure_pipe_terminal_shell(&mut cmd, shell);
+
+    let mut child = cmd.spawn()?;
+    let writer = child
+        .stdin
+        .take()
+        .ok_or("terminal pipe fallback did not provide stdin")?;
+    let mut readers: Vec<Box<dyn Read + Send>> = Vec::new();
+    if let Some(stdout) = child.stdout.take() {
+        readers.push(Box::new(stdout));
+    }
+    if let Some(stderr) = child.stderr.take() {
+        readers.push(Box::new(stderr));
+    }
+    if readers.is_empty() {
+        return Err("terminal pipe fallback did not provide stdout or stderr".into());
+    }
+
+    Ok(TerminalSession {
+        readers,
+        writer: Box::new(writer),
+        master: None,
+        pty_child: None,
+        process_child: Some(child),
+        input_mode: TerminalInputMode::PipeLine,
+        line_buffer: String::new(),
+        done: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    })
+}
+
+fn configure_pipe_terminal_shell(cmd: &mut Command, shell: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let shell_name = Path::new(shell)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(shell)
+            .to_ascii_lowercase();
+        if shell_name == "cmd.exe" || shell_name == "cmd" {
+            cmd.arg("/Q").arg("/K");
+        }
+        return;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let shell_name = Path::new(shell)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(shell)
+            .to_ascii_lowercase();
+        if matches!(
+            shell_name.as_str(),
+            "bash" | "sh" | "zsh" | "fish" | "dash" | "ksh"
+        ) {
+            cmd.arg("-i");
+        }
+    }
 }
 
 fn resize_terminal_session(
@@ -2807,18 +2958,77 @@ fn resize_terminal_session(
     if cols == 0 || rows == 0 {
         return Ok(());
     }
-    session.master.resize(portable_pty::PtySize {
-        rows,
-        cols,
-        pixel_width: 0,
-        pixel_height: 0,
-    })?;
+    if let Some(master) = &session.master {
+        master.resize(portable_pty::PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })?;
+    }
+    Ok(())
+}
+
+fn write_terminal_input(
+    session: &mut TerminalSession,
+    session_id: &str,
+    input: &str,
+    tcp_sender: &mpsc::Sender<TcpOutbound>,
+) -> Result<(), BoxError> {
+    if session.input_mode == TerminalInputMode::Raw {
+        session.writer.write_all(input.as_bytes())?;
+        session.writer.flush()?;
+        return Ok(());
+    }
+
+    let mut echo = String::new();
+    for ch in input.chars() {
+        match ch {
+            '\r' | '\n' => {
+                let mut line = std::mem::take(&mut session.line_buffer);
+                line.push_str("\r\n");
+                session.writer.write_all(line.as_bytes())?;
+                echo.push_str("\r\n");
+            }
+            '\u{0003}' => {
+                session.line_buffer.clear();
+                session.writer.write_all(&[0x03])?;
+                echo.push_str("^C\r\n");
+            }
+            '\u{0008}' | '\u{007f}' => {
+                if !session.line_buffer.is_empty() {
+                    session.line_buffer.pop();
+                    echo.push_str("\u{0008} \u{0008}");
+                }
+            }
+            _ => {
+                session.line_buffer.push(ch);
+                echo.push(ch);
+            }
+        }
+    }
+    session.writer.flush()?;
+
+    if !echo.is_empty() {
+        let _ = tcp_sender.send(TcpOutbound {
+            router: "DeviceTerminalOutputReq",
+            data: json!({
+                "sessionId": session_id,
+                "output": echo,
+            }),
+        });
+    }
+
     Ok(())
 }
 
 fn stop_terminal_session(mut session: TerminalSession) {
     session.done.store(true, Ordering::Relaxed);
-    if let Some(mut child) = session.child.take() {
+    if let Some(mut child) = session.pty_child.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    if let Some(mut child) = session.process_child.take() {
         let _ = child.kill();
         let _ = child.wait();
     }
@@ -4722,7 +4932,11 @@ fn normalize_http_base(host: &str) -> String {
 
 fn default_shell() -> String {
     if cfg!(target_os = "windows") {
-        return "cmd.exe".to_string();
+        return std::env::var("COMSPEC")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "cmd.exe".to_string());
     }
 
     std::env::var("SHELL")

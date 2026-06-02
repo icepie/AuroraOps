@@ -17,7 +17,7 @@ This file tracks the client machines registered to the local AuroraOps server an
 | 7 | linux-192.168.1.141 | quiet | 192.168.1.141 | Arch Linux | x86_64 | `zks@192.168.1.141:22` | SSH works; password provided by user and sudo verified. Remote shell is fish; use `bash -lc` for maintenance commands. Existing ssh config entry `root@192.168.1.141:10022` is not valid now and can override this host; use `ssh -F /dev/null -p 22 zks@192.168.1.141` until config is fixed. Service runs as root from `/usr/local/bin/auroraops-agent`. Installed Linux x86_64 `ffmpeg-system,vaapi` build on 2026-05-28 with embedded frontend capture/rotation controls, optional inline macOS-style virtual cursor, pointer-lock drag fixes, and keyboard release hardening; service active; SHA256 `a67d5a38eed00866f2156a3c8a7bef81974444f0708fd6a5dc1d18297bbf2821`. Latest backup: `/usr/local/bin/auroraops-agent.bak-20260528-maccursor-inline`. |
 | 8 | linux-192.168.2.101 | fitos-mjj | 192.168.2.101 | Arch Linux | x86_64 | `gg@192.168.2.101:22` | SSH works; password provided by user and sudo verified. Service runs as root from `/usr/local/bin/auroraops-agent` with `--try-vaapi`; system FFmpeg has `h264_nvenc`, `hevc_nvenc`, and `h264_vaapi`. Reused the local Arch x86_64 `ffmpeg-system,vaapi` build and installed on 2026-05-28 with embedded frontend capture/rotation controls, optional inline macOS-style virtual cursor, pointer-lock drag fixes, and keyboard release hardening; service active; SHA256 `a67d5a38eed00866f2156a3c8a7bef81974444f0708fd6a5dc1d18297bbf2821`. Latest backup: `/usr/local/bin/auroraops-agent.bak-20260528-maccursor-inline`. |
 | 9 | gl | gl-H610M-H-V3-DDR4 | 192.168.2.7 | Ubuntu 26.04 LTS | x86_64 | `gl@192.168.2.7:22` | SSH works; password provided by user and sudo verified. Remote shell is fish; use `bash -lc` for maintenance commands. Service runs as root from `/opt/auroraops/auroraops-agent`; system FFmpeg has `h264_nvenc`, `hevc_nvenc`, and `h264_vaapi`. Installed Linux x86_64 `ffmpeg-system,vaapi` build on 2026-05-28 with embedded frontend capture/rotation controls, optional inline macOS-style virtual cursor, pointer-lock drag fixes, and keyboard release hardening; service active; SHA256 `a67d5a38eed00866f2156a3c8a7bef81974444f0708fd6a5dc1d18297bbf2821`. Latest backup: `/opt/auroraops/auroraops-agent.bak-20260528-maccursor-inline`. |
-| 10 | Win7-64-PDY202501 | WIN7-64-PDY2025 | 192.168.1.166 | Windows 7 SP1 | x86_64 | `Administrator@192.168.1.166:2222` | SSH works; password provided by user but not stored here. Service `auroraops-agent` runs as LocalSystem from `C:\AuroraOps\auroraops-agent.exe` with config `C:\ProgramData\AuroraOps\agent-config.json`; connected to `http://192.168.2.222:8000` on 2026-06-02, registered as device ID `10`, status `connected`, TCP address `192.168.2.222:8099`, local management port `127.0.0.1:18765`. Installed Win7-compatible Windows x86_64 GNU build with dynamic Win8+ synthetic pointer API loading and mouse fallback, plus `auroraops-waitonaddress-shim.dll` and `auroraops-bcprng.dll`; service Running; agent SHA256 `24c4fca331926aa738efdacc7318a55eda62fb20235b25713e7b74c10ac7d14b`, wait shim SHA256 `8fa87d0b9912ccf9d87dfc2f38b55763dc474ee68787fafde67412f6049df8bd`, ProcessPrng shim SHA256 `3e9b2d7ef70143cee5af2030ee072ed3a80056a4caa48b7e9832f9716651ab83`. Old incomplete `api-ms-win-core-synch-l1-2-0.dll` shim was renamed to `C:\AuroraOps\api-ms-win-core-synch-l1-2-0.dll.bak` because it interfered with Win7 DLL search. |
+| 10 | Win7-64-PDY202501 | WIN7-64-PDY2025 | 192.168.1.166 | Windows 7 SP1 | x86_64 | `Administrator@192.168.1.166:2222` | SSH works; password provided by user but not stored here. Service `auroraops-agent` runs as LocalSystem from `C:\AuroraOps\auroraops-agent.exe` with config `C:\ProgramData\AuroraOps\agent-config.json`; connected to `http://192.168.2.222:8000` on 2026-06-02, registered as device ID `10`, status `connected`, TCP address `192.168.2.222:8099`, local management port `127.0.0.1:18765`. Installed Win7-compatible Windows x86_64 GNU build with dynamic Win8+ synthetic pointer API loading, mouse fallback, terminal pipe fallback, and pipe line-input fallback for `cmd.exe`, plus `auroraops-waitonaddress-shim.dll` and `auroraops-bcprng.dll`; service Running; agent SHA256 `a463a3c56d891933b4784ac95f651acaf09c3060ddfd861b0bb73592aa0eadc1`, wait shim SHA256 `8fa87d0b9912ccf9d87dfc2f38b55763dc474ee68787fafde67412f6049df8bd`, ProcessPrng shim SHA256 `3e9b2d7ef70143cee5af2030ee072ed3a80056a4caa48b7e9832f9716651ab83`. Latest backup: `C:\AuroraOps\auroraops-agent.exe.bak-20260602-typing`. Old incomplete `api-ms-win-core-synch-l1-2-0.dll` shim was renamed to `C:\AuroraOps\api-ms-win-core-synch-l1-2-0.dll.bak` because it interfered with Win7 DLL search. |
 
 ## Probe Notes
 
@@ -29,10 +29,79 @@ This file tracks the client machines registered to the local AuroraOps server an
 - Arch x86_64 remote-local NVENC-capable build SHA256 on `192.168.2.186`: `9fa4aacb341dab09ed76dd87effada6996237ff85ddca6c3eb0f03b284c0cd8c`.
 - Updated successfully on 2026-05-28: local `192.168.2.222`, remote-local build on `192.168.2.52`, remote-local build on `192.168.2.161`, remote-local NVENC-capable build on `192.168.2.186`, Linux x86_64 VAAPI build on `192.168.1.141`, reused Arch x86_64 VAAPI build on `192.168.2.101`, Linux x86_64 VAAPI build on `192.168.2.7`, Windows x86_64 build on `192.168.2.72` and `192.168.2.36`.
 - Updated successfully on 2026-06-02: Win7 x86_64 client on `192.168.1.166:2222`, installed to `C:\AuroraOps`, connected to service server `http://192.168.2.222:8000`.
+- Local service server on `192.168.2.222` runs under `auroraops-server.service` from `/data/Projects/AuroraOps/server/temp/auroraops-server`; 2026-06-02 reconnect/terminal-close build SHA256 `6edf89ee6359082237db470d62ced2845e15cdc1b980eb4576c261227bd95caa`.
 - Windows build SHA256 with embedded frontend capture/rotation controls, Windows cursor compositing with Win10 fallback, optional inline macOS-style virtual cursor, pointer-lock drag fixes, keyboard release hardening, and explicit DXGI selection preserved: `18370828ec23bfa716f13a4c812a47c74591c9660e6fc4d3740b5857d6559d49`.
-- Win7-compatible Windows build SHA256 with dynamic synthetic pointer API loading and WaitOnAddress/ProcessPrng compatibility shims: `24c4fca331926aa738efdacc7318a55eda62fb20235b25713e7b74c10ac7d14b`.
+- Win7-compatible Windows build SHA256 with dynamic synthetic pointer API loading, terminal pipe fallback, pipe line-input fallback for `cmd.exe`, and WaitOnAddress/ProcessPrng compatibility shims: `a463a3c56d891933b4784ac95f651acaf09c3060ddfd861b0bb73592aa0eadc1`.
 - aarch64 and Windows clients require matching binaries/packages and should not receive the local Linux x86_64 binary.
 - Plaintext SSH passwords are not stored in this repository file.
+
+## Win7 Build Procedure
+
+The Win7 client uses the normal Windows GNU release target plus PE import patching. Do not deploy the `x86_64-win7-windows-gnu` custom-target build without retesting on Win7; on 2026-06-02 it passed local build checks but crashed during Win7 process startup with `0xc0000005`.
+
+Build the regular Windows GNU agent first:
+
+```bash
+rtk cargo build --manifest-path new-client/Cargo.toml --release --target x86_64-pc-windows-gnu --bin auroraops-agent
+```
+
+Patch the generated PE import strings into Win7-compatible shims and time fallback:
+
+```bash
+rtk python3 - <<'PY'
+from pathlib import Path
+import pefile
+
+src = Path("new-client/target/x86_64-pc-windows-gnu/release/auroraops-agent.exe")
+dst = Path("/tmp/auroraops-agent-win7-patched.exe")
+data = bytearray(src.read_bytes())
+replacements = [
+    (b"bcryptprimitives.dll\0", b"auroraops-bcprng.dll\0"),
+    (b"api-ms-win-core-synch-l1-2-0.dll\0", b"auroraops-waitonaddress-shim.dll\0"),
+    (b"GetSystemTimePreciseAsFileTime\0", b"GetSystemTimeAsFileTime\0"),
+]
+
+for old, new in replacements:
+    if len(new) > len(old):
+        raise SystemExit(f"replacement too long: {old!r} -> {new!r}")
+    count = 0
+    start = 0
+    while True:
+        pos = data.find(old, start)
+        if pos < 0:
+            break
+        data[pos:pos + len(old)] = new + b"\0" * (len(old) - len(new))
+        count += 1
+        start = pos + len(old)
+    if count == 0:
+        raise SystemExit(f"pattern not found: {old!r}")
+    print(old.decode(errors="ignore").rstrip("\0"), count)
+
+dst.write_bytes(data)
+pe = pefile.PE(str(dst), fast_load=False)
+pe.OPTIONAL_HEADER.CheckSum = pe.generate_checksum()
+pe.write(str(dst))
+print(dst)
+PY
+```
+
+Verify the patched import table before upload:
+
+```bash
+rtk bash -lc 'x86_64-w64-mingw32-objdump -p /tmp/auroraops-agent-win7-patched.exe | grep -i "DLL Name\|WaitOnAddress\|GetSystemTimePrecise\|GetSystemTimeAsFileTime\|bcryptprimitives\|auroraops-bcprng\|auroraops-waitonaddress"'
+rtk bash -lc 'sha256sum /tmp/auroraops-agent-win7-patched.exe new-client/target/x86_64-pc-windows-gnu/release/auroraops-bcprng.dll new-client/target/x86_64-pc-windows-gnu/release/auroraops-waitonaddress-shim.dll'
+```
+
+The patched import table must show `auroraops-bcprng.dll`, `auroraops-waitonaddress-shim.dll`, `WaitOnAddress`, and two `GetSystemTimeAsFileTime` entries. It must not show `bcryptprimitives.dll`, `api-ms-win-core-synch-l1-2-0.dll`, or `GetSystemTimePreciseAsFileTime`.
+
+Upload the patched exe and test it before replacing the service binary:
+
+```bash
+rtk sshpass -p '<password>' scp -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/auroraops_known_hosts -P 2222 /tmp/auroraops-agent-win7-patched.exe Administrator@192.168.1.166:C:/AuroraOps/auroraops-agent-new.exe
+rtk sshpass -p '<password>' ssh -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/auroraops_known_hosts -p 2222 Administrator@192.168.1.166 "C:\Windows\System32\cmd.exe /c C:\AuroraOps\auroraops-agent-new.exe --version"
+```
+
+Only after `--version` works on Win7 should the service be stopped, the old `C:\AuroraOps\auroraops-agent.exe` backed up, the patched exe copied into place, and `auroraops-agent` restarted.
 
 ## Need Confirmation
 
