@@ -22,6 +22,8 @@ import (
 
 const (
 	weylusTunnelWriteWait  = 10 * time.Second
+	weylusTunnelReadWait   = 75 * time.Second
+	weylusTunnelPingPeriod = 25 * time.Second
 	weylusTunnelOpenWait   = 10 * time.Second
 	weylusTunnelFrameOpen  = byte(1)
 	weylusTunnelFrameData  = byte(2)
@@ -127,10 +129,17 @@ func (t *weylusTunnel) run(ctx context.Context) {
 	defer unregisterWeylusTunnel(t)
 	defer t.close()
 
+	_ = t.conn.SetReadDeadline(time.Now().Add(weylusTunnelReadWait))
+	t.conn.SetPongHandler(func(string) error {
+		_ = t.conn.SetReadDeadline(time.Now().Add(weylusTunnelReadWait))
+		return nil
+	})
+
 	go t.writeLoop()
 	for {
 		messageType, payload, err := t.conn.ReadMessage()
 		if err != nil {
+			g.Log().Debugf(ctx, "weylus tunnel read closed: deviceId=%d err=%v", t.deviceID, err)
 			return
 		}
 		if messageType != websocket.BinaryMessage || len(payload) < 9 {
@@ -155,11 +164,19 @@ func (t *weylusTunnel) run(ctx context.Context) {
 }
 
 func (t *weylusTunnel) writeLoop() {
+	ticker := time.NewTicker(weylusTunnelPingPeriod)
+	defer ticker.Stop()
 	for {
 		select {
 		case payload := <-t.send:
 			_ = t.conn.SetWriteDeadline(time.Now().Add(weylusTunnelWriteWait))
 			if err := t.conn.WriteMessage(websocket.BinaryMessage, payload); err != nil {
+				t.close()
+				return
+			}
+		case <-ticker.C:
+			_ = t.conn.SetWriteDeadline(time.Now().Add(weylusTunnelWriteWait))
+			if err := t.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				t.close()
 				return
 			}

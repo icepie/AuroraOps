@@ -3,10 +3,11 @@ use std::iter;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
-use winapi::shared::basetsd::ULONG_PTR;
-use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, WORD};
+use winapi::shared::basetsd::{UINT32, ULONG_PTR};
+use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, ULONG, WORD};
 use winapi::shared::windef::{HDESK, HWND, POINT};
 use winapi::um::handleapi::CloseHandle;
+use winapi::um::libloaderapi::{GetModuleHandleW, GetProcAddress};
 use winapi::um::processthreadsapi::{
     CreateProcessW, GetCurrentProcessId, GetCurrentThreadId, ProcessIdToSessionId,
     PROCESS_INFORMATION, STARTUPINFOW,
@@ -33,8 +34,7 @@ pub struct WindowsDesktopStatus {
 
 pub struct WindowsInput {
     capturable: Box<dyn Capturable>,
-    pointer_device_handle: *mut HSYNTHETICPOINTERDEVICE__,
-    touch_device_handle: *mut HSYNTHETICPOINTERDEVICE__,
+    synthetic_pointer: Option<SyntheticPointerRuntime>,
     multitouch_map: std::collections::HashMap<i64, POINTER_TYPE_INFO>,
     keyboard: KeyboardInputWorker,
     pending_keyboard_status: Vec<String>,
@@ -42,18 +42,113 @@ pub struct WindowsInput {
 
 impl WindowsInput {
     pub fn new(capturable: Box<dyn Capturable>) -> Self {
+        let mut pending_keyboard_status = Vec::new();
+        let synthetic_pointer = match SyntheticPointerRuntime::new() {
+            Some(runtime) => Some(runtime),
+            None => {
+                pending_keyboard_status.push(
+                    "Windows synthetic pointer API unavailable; pen/touch uses mouse fallback"
+                        .to_string(),
+                );
+                None
+            }
+        };
+        Self {
+            capturable: capturable.clone(),
+            synthetic_pointer,
+            multitouch_map: std::collections::HashMap::new(),
+            keyboard: KeyboardInputWorker::new(),
+            pending_keyboard_status,
+        }
+    }
+}
+
+struct SyntheticPointerApi {
+    initialize_touch_injection: unsafe extern "system" fn(UINT32, DWORD) -> BOOL,
+    create_synthetic_pointer_device: unsafe extern "system" fn(
+        POINTER_INPUT_TYPE,
+        ULONG,
+        POINTER_FEEDBACK_MODE,
+    ) -> HSYNTHETICPOINTERDEVICE,
+    inject_synthetic_pointer_input: unsafe extern "system" fn(
+        HSYNTHETICPOINTERDEVICE,
+        *const POINTER_TYPE_INFO,
+        UINT32,
+    ) -> BOOL,
+    destroy_synthetic_pointer_device: unsafe extern "system" fn(HSYNTHETICPOINTERDEVICE),
+}
+
+struct SyntheticPointerRuntime {
+    api: SyntheticPointerApi,
+    pointer_device_handle: HSYNTHETICPOINTERDEVICE,
+    touch_device_handle: HSYNTHETICPOINTERDEVICE,
+}
+
+impl SyntheticPointerRuntime {
+    fn new() -> Option<Self> {
+        let api = SyntheticPointerApi::load()?;
         unsafe {
-            InitializeTouchInjection(5, TOUCH_FEEDBACK_DEFAULT);
-            Self {
-                capturable: capturable.clone(),
-                pointer_device_handle: CreateSyntheticPointerDevice(PT_PEN, 1, 1),
-                touch_device_handle: CreateSyntheticPointerDevice(PT_TOUCH, 5, 1),
-                multitouch_map: std::collections::HashMap::new(),
-                keyboard: KeyboardInputWorker::new(),
-                pending_keyboard_status: Vec::new(),
+            (api.initialize_touch_injection)(5, TOUCH_FEEDBACK_DEFAULT);
+            Some(Self {
+                pointer_device_handle: (api.create_synthetic_pointer_device)(PT_PEN, 1, 1),
+                touch_device_handle: (api.create_synthetic_pointer_device)(PT_TOUCH, 5, 1),
+                api,
+            })
+        }
+    }
+}
+
+impl Drop for SyntheticPointerRuntime {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.pointer_device_handle.is_null() {
+                (self.api.destroy_synthetic_pointer_device)(self.pointer_device_handle);
+            }
+            if !self.touch_device_handle.is_null() {
+                (self.api.destroy_synthetic_pointer_device)(self.touch_device_handle);
             }
         }
     }
+}
+
+impl SyntheticPointerApi {
+    fn load() -> Option<Self> {
+        unsafe {
+            let user32 = GetModuleHandleW(wide("user32.dll").as_ptr());
+            if user32.is_null() {
+                return None;
+            }
+            Some(Self {
+                initialize_touch_injection: load_user32_proc(
+                    user32,
+                    b"InitializeTouchInjection\0",
+                )?,
+                create_synthetic_pointer_device: load_user32_proc(
+                    user32,
+                    b"CreateSyntheticPointerDevice\0",
+                )?,
+                inject_synthetic_pointer_input: load_user32_proc(
+                    user32,
+                    b"InjectSyntheticPointerInput\0",
+                )?,
+                destroy_synthetic_pointer_device: load_user32_proc(
+                    user32,
+                    b"DestroySyntheticPointerDevice\0",
+                )?,
+            })
+        }
+    }
+}
+
+unsafe fn load_user32_proc<T>(
+    module: winapi::shared::minwindef::HMODULE,
+    name: &[u8],
+) -> Option<T> {
+    let proc = GetProcAddress(module, name.as_ptr().cast());
+    if proc.is_null() {
+        return None;
+    }
+    Some(std::mem::transmute_copy(&proc))
 }
 
 struct KeyboardInputWorker {
@@ -189,19 +284,6 @@ impl Drop for KeyboardInputWorker {
     }
 }
 
-impl Drop for WindowsInput {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.pointer_device_handle.is_null() {
-                DestroySyntheticPointerDevice(self.pointer_device_handle);
-            }
-            if !self.touch_device_handle.is_null() {
-                DestroySyntheticPointerDevice(self.touch_device_handle);
-            }
-        }
-    }
-}
-
 impl InputDevice for WindowsInput {
     fn send_wheel_event(&mut self, event: &WheelEvent) {
         let desktop = attach_thread_to_input_desktop();
@@ -265,6 +347,23 @@ impl InputDevice for WindowsInput {
         }
         match event.pointer_type {
             PointerType::Pen => {
+                let Some(runtime) = &self.synthetic_pointer else {
+                    self.pending_keyboard_status.push(
+                        "pen fallback to mouse pointer; synthetic pointer API unavailable"
+                            .to_string(),
+                    );
+                    let screen_x = (event.x * width as f64) as i32 + left;
+                    let screen_y = (event.y * height as f64) as i32 + top;
+                    let (cursor_ok, dw_flags) = send_mouse_pointer_event(event, screen_x, screen_y);
+                    self.pending_keyboard_status.push(format!(
+                        "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
+                    ));
+                    if dw_flags != 0 {
+                        self.pending_keyboard_status
+                            .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
+                    }
+                    return;
+                };
                 unsafe {
                     let mut pointer_type_info = POINTER_TYPE_INFO {
                         type_: PT_PEN,
@@ -299,10 +398,31 @@ impl InputDevice for WindowsInput {
                         tiltX: event.tilt_x,
                         tiltY: event.tilt_y,
                     };
-                    InjectSyntheticPointerInput(self.pointer_device_handle, &pointer_type_info, 1);
+                    (runtime.api.inject_synthetic_pointer_input)(
+                        runtime.pointer_device_handle,
+                        &pointer_type_info,
+                        1,
+                    );
                 }
             }
             PointerType::Touch => {
+                let Some(runtime) = &self.synthetic_pointer else {
+                    self.pending_keyboard_status.push(
+                        "touch fallback to mouse pointer; synthetic pointer API unavailable"
+                            .to_string(),
+                    );
+                    let screen_x = (event.x * width as f64) as i32 + left;
+                    let screen_y = (event.y * height as f64) as i32 + top;
+                    let (cursor_ok, dw_flags) = send_mouse_pointer_event(event, screen_x, screen_y);
+                    self.pending_keyboard_status.push(format!(
+                        "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
+                    ));
+                    if dw_flags != 0 {
+                        self.pending_keyboard_status
+                            .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
+                    }
+                    return;
+                };
                 unsafe {
                     let mut pointer_type_info = POINTER_TYPE_INFO {
                         type_: PT_TOUCH,
@@ -333,7 +453,11 @@ impl InputDevice for WindowsInput {
                     let b: Box<[POINTER_TYPE_INFO]> = pointer_type_info_vec.into_boxed_slice();
                     let m: *mut POINTER_TYPE_INFO = Box::into_raw(b) as _;
 
-                    InjectSyntheticPointerInput(self.touch_device_handle, m, len as u32);
+                    (runtime.api.inject_synthetic_pointer_input)(
+                        runtime.touch_device_handle,
+                        m,
+                        len as u32,
+                    );
 
                     match event.event_type {
                         PointerEventType::DOWN
@@ -351,70 +475,15 @@ impl InputDevice for WindowsInput {
                 }
             }
             PointerType::Mouse => {
-                let mut dw_flags = 0;
-
-                let (screen_x, screen_y) = (
-                    (event.x * width as f64) as i32 + left,
-                    (event.y * height as f64) as i32 + top,
-                );
-
-                match event.event_type {
-                    PointerEventType::DOWN => match event.button {
-                        Button::PRIMARY => {
-                            dw_flags |= MOUSEEVENTF_LEFTDOWN;
-                        }
-                        Button::SECONDARY => {
-                            dw_flags |= MOUSEEVENTF_RIGHTDOWN;
-                        }
-                        Button::AUXILARY => {
-                            dw_flags |= MOUSEEVENTF_MIDDLEDOWN;
-                        }
-                        _ => {}
-                    },
-                    PointerEventType::MOVE | PointerEventType::OVER | PointerEventType::ENTER => {}
-                    PointerEventType::UP => match event.button {
-                        Button::PRIMARY => {
-                            dw_flags |= MOUSEEVENTF_LEFTUP;
-                        }
-                        Button::SECONDARY => {
-                            dw_flags |= MOUSEEVENTF_RIGHTUP;
-                        }
-                        Button::AUXILARY => {
-                            dw_flags |= MOUSEEVENTF_MIDDLEUP;
-                        }
-                        _ => {}
-                    },
-                    PointerEventType::CANCEL | PointerEventType::LEAVE | PointerEventType::OUT => {
-                        if event.buttons.contains(Button::PRIMARY)
-                            || event.button == Button::PRIMARY
-                        {
-                            dw_flags |= MOUSEEVENTF_LEFTUP;
-                        }
-                        if event.buttons.contains(Button::SECONDARY)
-                            || event.button == Button::SECONDARY
-                        {
-                            dw_flags |= MOUSEEVENTF_RIGHTUP;
-                        }
-                        if event.buttons.contains(Button::AUXILARY)
-                            || event.button == Button::AUXILARY
-                        {
-                            dw_flags |= MOUSEEVENTF_MIDDLEUP;
-                        }
-                    }
-                }
-                if matches!(event.event_type, PointerEventType::DOWN) {
-                    focus_window_at_point(screen_x, screen_y);
-                }
-                unsafe {
-                    let cursor_ok = SetCursorPos(screen_x, screen_y) != FALSE;
-                    self.pending_keyboard_status.push(format!(
-                        "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
-                    ));
-                    if dw_flags != 0 {
-                        mouse_event(dw_flags, 0 as u32, 0 as u32, 0, 0);
-                        self.pending_keyboard_status
-                            .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
-                    }
+                let screen_x = (event.x * width as f64) as i32 + left;
+                let screen_y = (event.y * height as f64) as i32 + top;
+                let (cursor_ok, dw_flags) = send_mouse_pointer_event(event, screen_x, screen_y);
+                self.pending_keyboard_status.push(format!(
+                    "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
+                ));
+                if dw_flags != 0 {
+                    self.pending_keyboard_status
+                        .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
                 }
             }
             PointerType::Unknown => todo!(),
@@ -522,6 +591,46 @@ pub fn desktop_status() -> WindowsDesktopStatus {
 
 pub fn is_input_desktop_winlogon() -> bool {
     input_desktop_label().eq_ignore_ascii_case("winlogon")
+}
+
+fn send_mouse_pointer_event(event: &PointerEvent, screen_x: i32, screen_y: i32) -> (bool, DWORD) {
+    let mut dw_flags = 0;
+    match event.event_type {
+        PointerEventType::DOWN => match event.button {
+            Button::PRIMARY => dw_flags |= MOUSEEVENTF_LEFTDOWN,
+            Button::SECONDARY => dw_flags |= MOUSEEVENTF_RIGHTDOWN,
+            Button::AUXILARY => dw_flags |= MOUSEEVENTF_MIDDLEDOWN,
+            _ => {}
+        },
+        PointerEventType::MOVE | PointerEventType::OVER | PointerEventType::ENTER => {}
+        PointerEventType::UP => match event.button {
+            Button::PRIMARY => dw_flags |= MOUSEEVENTF_LEFTUP,
+            Button::SECONDARY => dw_flags |= MOUSEEVENTF_RIGHTUP,
+            Button::AUXILARY => dw_flags |= MOUSEEVENTF_MIDDLEUP,
+            _ => {}
+        },
+        PointerEventType::CANCEL | PointerEventType::LEAVE | PointerEventType::OUT => {
+            if event.buttons.contains(Button::PRIMARY) || event.button == Button::PRIMARY {
+                dw_flags |= MOUSEEVENTF_LEFTUP;
+            }
+            if event.buttons.contains(Button::SECONDARY) || event.button == Button::SECONDARY {
+                dw_flags |= MOUSEEVENTF_RIGHTUP;
+            }
+            if event.buttons.contains(Button::AUXILARY) || event.button == Button::AUXILARY {
+                dw_flags |= MOUSEEVENTF_MIDDLEUP;
+            }
+        }
+    }
+    if matches!(event.event_type, PointerEventType::DOWN) {
+        focus_window_at_point(screen_x, screen_y);
+    }
+    unsafe {
+        let cursor_ok = SetCursorPos(screen_x, screen_y) != FALSE;
+        if dw_flags != 0 {
+            mouse_event(dw_flags, 0, 0, 0, 0);
+        }
+        (cursor_ok, dw_flags)
+    }
 }
 
 pub fn diagnose_keyboard_sendinput() -> Vec<String> {

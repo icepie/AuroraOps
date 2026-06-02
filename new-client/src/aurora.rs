@@ -57,6 +57,8 @@ const WEYLUS_TUNNEL_CHUNK_SIZE: usize = 64 * 1024;
 const WEYLUS_TUNNEL_FRAME_OPEN: u8 = 1;
 const WEYLUS_TUNNEL_FRAME_DATA: u8 = 2;
 const WEYLUS_TUNNEL_FRAME_CLOSE: u8 = 3;
+const WEYLUS_TUNNEL_PING_INTERVAL: Duration = Duration::from_secs(30);
+const WEYLUS_TUNNEL_PONG_TIMEOUT: Duration = Duration::from_secs(90);
 const REGISTER_RETRY_MAX: Duration = Duration::from_secs(10);
 const TCP_RETRY_MAX: Duration = Duration::from_secs(5);
 const MONITOR_REPORT_INTERVAL: Duration = Duration::from_secs(1);
@@ -2385,15 +2387,33 @@ fn run_weylus_tunnel(cfg: &AgentConfig) -> Result<(), BoxError> {
     let streams: Arc<Mutex<HashMap<u64, mpsc::Sender<Vec<u8>>>>> =
         Arc::new(Mutex::new(HashMap::new()));
     let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>();
+    let mut last_ping = std::time::Instant::now();
+    let mut last_pong = std::time::Instant::now();
     loop {
         while let Ok(frame) = out_rx.try_recv() {
             socket.send(Message::Binary(frame))?;
+        }
+
+        if last_ping.elapsed() >= WEYLUS_TUNNEL_PING_INTERVAL {
+            socket.send(Message::Ping(Vec::new()))?;
+            last_ping = std::time::Instant::now();
+        }
+        if last_pong.elapsed() >= WEYLUS_TUNNEL_PONG_TIMEOUT {
+            return Err("weylus tunnel pong timeout".into());
         }
 
         match socket.read() {
             Ok(message) => {
                 let bytes = match message {
                     Message::Binary(bytes) => bytes,
+                    Message::Ping(payload) => {
+                        socket.send(Message::Pong(payload))?;
+                        continue;
+                    }
+                    Message::Pong(_) => {
+                        last_pong = std::time::Instant::now();
+                        continue;
+                    }
                     Message::Close(_) => break,
                     _ => continue,
                 };
