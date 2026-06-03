@@ -295,9 +295,14 @@ impl InputDevice for WindowsInput {
                 .push(format!("wheel before_input failed: {err}"));
             return;
         }
-        unsafe { mouse_event(MOUSEEVENTF_WHEEL, 0, 0, event.dy as DWORD, 0) };
-        self.pending_keyboard_status
-            .push(format!("wheel mouse_event dy={}", event.dy));
+        let (ok, fallback) = dispatch_mouse_input(MOUSEEVENTF_WHEEL, event.dy as DWORD);
+        self.pending_keyboard_status.push(mouse_dispatch_status(
+            "wheel",
+            MOUSEEVENTF_WHEEL,
+            event.dy as DWORD,
+            ok,
+            fallback,
+        ));
     }
 
     fn send_pointer_event(&mut self, event: &PointerEvent) {
@@ -354,14 +359,8 @@ impl InputDevice for WindowsInput {
                     );
                     let screen_x = (event.x * width as f64) as i32 + left;
                     let screen_y = (event.y * height as f64) as i32 + top;
-                    let (cursor_ok, dw_flags) = send_mouse_pointer_event(event, screen_x, screen_y);
-                    self.pending_keyboard_status.push(format!(
-                        "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
-                    ));
-                    if dw_flags != 0 {
-                        self.pending_keyboard_status
-                            .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
-                    }
+                    self.pending_keyboard_status
+                        .extend(send_mouse_pointer_event(event, screen_x, screen_y));
                     return;
                 };
                 unsafe {
@@ -413,14 +412,8 @@ impl InputDevice for WindowsInput {
                     );
                     let screen_x = (event.x * width as f64) as i32 + left;
                     let screen_y = (event.y * height as f64) as i32 + top;
-                    let (cursor_ok, dw_flags) = send_mouse_pointer_event(event, screen_x, screen_y);
-                    self.pending_keyboard_status.push(format!(
-                        "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
-                    ));
-                    if dw_flags != 0 {
-                        self.pending_keyboard_status
-                            .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
-                    }
+                    self.pending_keyboard_status
+                        .extend(send_mouse_pointer_event(event, screen_x, screen_y));
                     return;
                 };
                 unsafe {
@@ -477,14 +470,8 @@ impl InputDevice for WindowsInput {
             PointerType::Mouse => {
                 let screen_x = (event.x * width as f64) as i32 + left;
                 let screen_y = (event.y * height as f64) as i32 + top;
-                let (cursor_ok, dw_flags) = send_mouse_pointer_event(event, screen_x, screen_y);
-                self.pending_keyboard_status.push(format!(
-                    "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
-                ));
-                if dw_flags != 0 {
-                    self.pending_keyboard_status
-                        .push(format!("pointer mouse_event flags=0x{dw_flags:x}"));
-                }
+                self.pending_keyboard_status
+                    .extend(send_mouse_pointer_event(event, screen_x, screen_y));
             }
             PointerType::Unknown => todo!(),
         }
@@ -593,7 +580,63 @@ pub fn is_input_desktop_winlogon() -> bool {
     input_desktop_label().eq_ignore_ascii_case("winlogon")
 }
 
-fn send_mouse_pointer_event(event: &PointerEvent, screen_x: i32, screen_y: i32) -> (bool, DWORD) {
+fn send_mouse_input(flags: DWORD, data: DWORD) -> bool {
+    let mut input = INPUT {
+        type_: INPUT_MOUSE,
+        u: unsafe { std::mem::zeroed() },
+    };
+    unsafe {
+        *input.u.mi_mut() = MOUSEINPUT {
+            dx: 0,
+            dy: 0,
+            mouseData: data,
+            dwFlags: flags,
+            time: 0,
+            dwExtraInfo: 0 as ULONG_PTR,
+        };
+        let sent = SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
+        if sent == 0 {
+            warn!(
+                "Windows mouse SendInput failed: {}",
+                std::io::Error::last_os_error()
+            );
+            return false;
+        }
+    }
+    true
+}
+
+fn send_mouse_event_fallback(flags: DWORD, data: DWORD) {
+    unsafe { mouse_event(flags, 0, 0, data, 0) };
+}
+
+/// Sends a mouse event through `SendInput(INPUT_MOUSE)`, the primary path. Only when SendInput
+/// reports failure does it fall back to the legacy `mouse_event` API. Returns whether the primary
+/// path succeeded and whether the `mouse_event` fallback was triggered, so callers can surface both
+/// in their status logs instead of hiding the fallback behind a success.
+fn dispatch_mouse_input(flags: DWORD, data: DWORD) -> (bool, bool) {
+    if send_mouse_input(flags, data) {
+        (true, false)
+    } else {
+        send_mouse_event_fallback(flags, data);
+        (false, true)
+    }
+}
+
+fn mouse_dispatch_status(
+    prefix: &str,
+    flags: DWORD,
+    data: DWORD,
+    ok: bool,
+    fallback: bool,
+) -> String {
+    format!(
+        "{prefix} SendInput flags=0x{flags:x} data={data} ok={ok} fallback={}",
+        if fallback { "mouse_event" } else { "false" }
+    )
+}
+
+fn send_mouse_pointer_event(event: &PointerEvent, screen_x: i32, screen_y: i32) -> Vec<String> {
     let mut dw_flags = 0;
     match event.event_type {
         PointerEventType::DOWN => match event.button {
@@ -624,13 +667,16 @@ fn send_mouse_pointer_event(event: &PointerEvent, screen_x: i32, screen_y: i32) 
     if matches!(event.event_type, PointerEventType::DOWN) {
         focus_window_at_point(screen_x, screen_y);
     }
-    unsafe {
-        let cursor_ok = SetCursorPos(screen_x, screen_y) != FALSE;
-        if dw_flags != 0 {
-            mouse_event(dw_flags, 0, 0, 0, 0);
-        }
-        (cursor_ok, dw_flags)
+    let mut lines = Vec::new();
+    let cursor_ok = unsafe { SetCursorPos(screen_x, screen_y) != FALSE };
+    lines.push(format!(
+        "pointer SetCursorPos x={screen_x} y={screen_y} ok={cursor_ok}"
+    ));
+    if dw_flags != 0 {
+        let (ok, fallback) = dispatch_mouse_input(dw_flags, 0);
+        lines.push(mouse_dispatch_status("pointer", dw_flags, 0, ok, fallback));
     }
+    lines
 }
 
 pub fn diagnose_keyboard_sendinput() -> Vec<String> {
@@ -658,11 +704,22 @@ pub fn diagnose_input_probe(
         lines.push(format!(
             "probe click point={x:.4},{y:.4} screen={screen_x},{screen_y} set_cursor={cursor_ok}"
         ));
-        unsafe {
-            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-        }
-        lines.push("probe click primary=sent".to_string());
+        let (down_ok, down_fb) = dispatch_mouse_input(MOUSEEVENTF_LEFTDOWN, 0);
+        lines.push(mouse_dispatch_status(
+            "probe click down",
+            MOUSEEVENTF_LEFTDOWN,
+            0,
+            down_ok,
+            down_fb,
+        ));
+        let (up_ok, up_fb) = dispatch_mouse_input(MOUSEEVENTF_LEFTUP, 0);
+        lines.push(mouse_dispatch_status(
+            "probe click up",
+            MOUSEEVENTF_LEFTUP,
+            0,
+            up_ok,
+            up_fb,
+        ));
     }
 
     if let Some(text) = text.filter(|value| !value.is_empty()) {

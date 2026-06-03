@@ -71,12 +71,23 @@
                 <label><input type="checkbox" id="enable_mouse" checked /> <span>启用鼠标</span></label>
                 <label><input type="checkbox" id="enable_stylus" checked /> <span>启用手写笔</span></label>
                 <label><input type="checkbox" id="enable_touch" checked /> <span>启用触控</span></label>
-                <label>输入方式<br>
-                    <select id="input_backend">
+                <label>鼠标输入<br>
+                    <select id="pointer_backend_select">
                         <option value="auto">自动</option>
                         <option value="platform">系统原生</option>
                         <option value="portal" data-platform="linux">Wayland Portal</option>
                         <option value="wlroots-pointer" data-platform="linux">wlroots 指针</option>
+                        <option value="uinput" data-platform="linux">uinput</option>
+                        <option value="xtest" data-platform="linux">XTest</option>
+                        <option value="autopilot" data-platform="macos">AutoPilot</option>
+                        <option value="none">禁用</option>
+                    </select>
+                </label>
+                <label>键盘输入<br>
+                    <select id="keyboard_backend_select">
+                        <option value="auto">自动</option>
+                        <option value="platform">系统原生</option>
+                        <option value="portal" data-platform="linux">Wayland Portal</option>
                         <option value="uinput" data-platform="linux">uinput</option>
                         <option value="xtest" data-platform="linux">XTest</option>
                         <option value="autopilot" data-platform="macos">AutoPilot</option>

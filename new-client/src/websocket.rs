@@ -145,7 +145,7 @@ fn encoder_capabilities(options: EncoderOptions) -> EncoderCapabilities {
 }
 
 fn input_capabilities() -> InputCapabilities {
-    let mut options = vec![
+    let base_options = vec![
         InputOption {
             value: "auto".to_string(),
             label: "自动".to_string(),
@@ -155,43 +155,75 @@ fn input_capabilities() -> InputCapabilities {
             label: "禁用".to_string(),
         },
     ];
+    let mut pointer_options = base_options.clone();
+    let mut keyboard_options = base_options;
 
     #[cfg(target_os = "linux")]
     {
-        options.push(InputOption {
+        let portal = InputOption {
             value: "portal".to_string(),
             label: "Wayland Portal".to_string(),
-        });
+        };
+        pointer_options.push(portal.clone());
+        keyboard_options.push(portal);
         #[cfg(feature = "pipewire")]
-        options.push(InputOption {
+        pointer_options.push(InputOption {
             value: "wlroots-pointer".to_string(),
             label: "wlroots 指针".to_string(),
         });
-        options.push(InputOption {
+        let uinput = InputOption {
             value: "uinput".to_string(),
             label: "uinput".to_string(),
-        });
-        options.push(InputOption {
+        };
+        pointer_options.push(uinput.clone());
+        keyboard_options.push(uinput);
+        let xtest = InputOption {
             value: "xtest".to_string(),
             label: "XTest".to_string(),
-        });
-        options.push(InputOption {
+        };
+        pointer_options.push(xtest.clone());
+        keyboard_options.push(xtest);
+        let autopilot = InputOption {
             value: "autopilot".to_string(),
             label: "AutoPilot".to_string(),
-        });
+        };
+        pointer_options.push(autopilot.clone());
+        keyboard_options.push(autopilot);
     }
     #[cfg(target_os = "windows")]
-    options.push(InputOption {
-        value: "platform".to_string(),
-        label: "Windows SendInput".to_string(),
-    });
+    {
+        let platform = InputOption {
+            value: "platform".to_string(),
+            label: "Windows SendInput".to_string(),
+        };
+        pointer_options.push(platform.clone());
+        keyboard_options.push(platform);
+    }
     #[cfg(target_os = "macos")]
-    options.push(InputOption {
-        value: "autopilot".to_string(),
-        label: "AutoPilot".to_string(),
-    });
+    {
+        let autopilot = InputOption {
+            value: "autopilot".to_string(),
+            label: "AutoPilot".to_string(),
+        };
+        pointer_options.push(autopilot.clone());
+        keyboard_options.push(autopilot);
+    }
 
-    InputCapabilities { options }
+    let mut options = pointer_options.clone();
+    for option in &keyboard_options {
+        if !options
+            .iter()
+            .any(|existing| existing.value == option.value)
+        {
+            options.push(option.clone());
+        }
+    }
+
+    InputCapabilities {
+        options,
+        pointer_options,
+        keyboard_options,
+    }
 }
 
 fn send_message<S>(sender: &mut S, message: MessageOutbound)
@@ -284,17 +316,13 @@ enum InputBackendSelection {
     None,
 }
 
-fn input_backend_selection(config: &ClientConfiguration) -> InputBackendSelection {
-    #[cfg(target_os = "linux")]
-    let value = config.input_backend.as_deref().unwrap_or_else(|| {
-        if config.uinput_support {
-            "auto"
-        } else {
-            "xtest"
-        }
-    });
-    #[cfg(not(target_os = "linux"))]
-    let value = config.input_backend.as_deref().unwrap_or("auto");
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DeviceSlot {
+    Pointer,
+    Keyboard,
+}
+
+fn parse_backend_value(value: &str) -> InputBackendSelection {
     match value.trim().to_ascii_lowercase().as_str() {
         "" | "auto" => InputBackendSelection::Auto,
         "platform" | "native" | "windows" | "sendinput" | "system" | "system-input" => {
@@ -312,11 +340,48 @@ fn input_backend_selection(config: &ClientConfiguration) -> InputBackendSelectio
     }
 }
 
+fn resolve_backend_value<'a>(
+    config: &'a ClientConfiguration,
+    explicit: Option<&'a str>,
+) -> &'a str {
+    let value = explicit.or(config.input_backend.as_deref());
+    #[cfg(target_os = "linux")]
+    {
+        value.unwrap_or_else(|| {
+            if config.uinput_support {
+                "auto"
+            } else {
+                "xtest"
+            }
+        })
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        value.unwrap_or("auto")
+    }
+}
+
+fn pointer_backend_selection(config: &ClientConfiguration) -> InputBackendSelection {
+    parse_backend_value(resolve_backend_value(
+        config,
+        config.pointer_backend.as_deref(),
+    ))
+}
+
+fn keyboard_backend_selection(config: &ClientConfiguration) -> InputBackendSelection {
+    parse_backend_value(resolve_backend_value(
+        config,
+        config.keyboard_backend.as_deref(),
+    ))
+}
+
 pub struct WeylusClientHandler<S, R, FnUInput> {
     sender: S,
     receiver: Option<R>,
     video_sender: mpsc::Sender<VideoCommands>,
-    input_device: Option<Box<dyn InputDevice>>,
+    pointer_device: Option<Box<dyn InputDevice>>,
+    keyboard_device: Option<Box<dyn InputDevice>>,
+    keyboard_shares_pointer: bool,
     capturables: Vec<Box<dyn Capturable>>,
     on_uinput_inaccessible: FnUInput,
     config: WeylusClientConfig,
@@ -363,7 +428,9 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             sender,
             receiver: Some(receiver),
             video_sender,
-            input_device: None,
+            pointer_device: None,
+            keyboard_device: None,
+            keyboard_shares_pointer: false,
             capturables: vec![],
             on_uinput_inaccessible,
             config,
@@ -444,11 +511,19 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         send_message(&mut self.sender, message)
     }
 
+    fn keyboard_device_mut(&mut self) -> Option<&mut Box<dyn InputDevice>> {
+        if self.keyboard_shares_pointer {
+            self.pointer_device.as_mut()
+        } else {
+            self.keyboard_device.as_mut()
+        }
+    }
+
     fn process_wheel_event(&mut self, event: &WheelEvent)
     where
         S: WeylusSender,
     {
-        match &mut self.input_device {
+        match &mut self.pointer_device {
             Some(i) => {
                 i.send_wheel_event(event);
                 let mut statuses = i.drain_keyboard_status();
@@ -460,7 +535,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                     send_pointer_status(&mut self.sender, status);
                 }
             }
-            None => warn!("Input device is not initalized, can not process WheelEvent!"),
+            None => warn!("Pointer device is not initalized, can not process WheelEvent!"),
         }
     }
 
@@ -468,8 +543,8 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     where
         S: WeylusSender,
     {
-        if self.input_device.is_some() {
-            self.input_device
+        if self.pointer_device.is_some() {
+            self.pointer_device
                 .as_mut()
                 .unwrap()
                 .send_pointer_event(event);
@@ -487,11 +562,16 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                     ),
                 );
             }
-            for status in self.input_device.as_mut().unwrap().drain_keyboard_status() {
+            for status in self
+                .pointer_device
+                .as_mut()
+                .unwrap()
+                .drain_keyboard_status()
+            {
                 send_pointer_status(&mut self.sender, status);
             }
         } else {
-            warn!("Input device is not initalized, can not process PointerEvent!");
+            warn!("Pointer device is not initalized, can not process PointerEvent!");
         }
     }
 
@@ -499,7 +579,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     where
         S: WeylusSender,
     {
-        if self.input_device.is_some() {
+        if self.keyboard_device_mut().is_some() {
             let keyboard_backend = format!(
                 "agent recv {} code={} key={}",
                 match event.event_type {
@@ -510,10 +590,9 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 event.code,
                 event.key
             );
-            let mut statuses = self.input_device.as_mut().unwrap().drain_keyboard_status();
+            let mut statuses = self.keyboard_device_mut().unwrap().drain_keyboard_status();
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.input_device
-                    .as_mut()
+                self.keyboard_device_mut()
                     .unwrap()
                     .send_keyboard_event(event)
             }));
@@ -524,7 +603,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 );
             }
             statuses.insert(0, keyboard_backend);
-            statuses.append(&mut self.input_device.as_mut().unwrap().drain_keyboard_status());
+            statuses.append(&mut self.keyboard_device_mut().unwrap().drain_keyboard_status());
             for status in statuses {
                 self.send_message(MessageOutbound::RuntimeStatus(RuntimeStatus {
                     capture_backend: None,
@@ -535,7 +614,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 }));
             }
         } else {
-            warn!("Input device is not initalized, can not process KeyboardEvent!");
+            warn!("Keyboard device is not initalized, can not process KeyboardEvent!");
         }
     }
 
@@ -543,17 +622,16 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     where
         S: WeylusSender,
     {
-        if self.input_device.is_some() {
+        if self.keyboard_device_mut().is_some() {
             let text_preview: String = event.text.chars().take(16).collect();
             let keyboard_backend = format!(
                 "agent recv text len={} text={:?}",
                 event.text.chars().count(),
                 text_preview
             );
-            let mut statuses = self.input_device.as_mut().unwrap().drain_keyboard_status();
+            let mut statuses = self.keyboard_device_mut().unwrap().drain_keyboard_status();
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.input_device
-                    .as_mut()
+                self.keyboard_device_mut()
                     .unwrap()
                     .send_text_input_event(event)
             }));
@@ -561,7 +639,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 warn!("Text input handler panicked; event skipped");
             }
             statuses.insert(0, keyboard_backend);
-            statuses.append(&mut self.input_device.as_mut().unwrap().drain_keyboard_status());
+            statuses.append(&mut self.keyboard_device_mut().unwrap().drain_keyboard_status());
             for status in statuses {
                 self.send_message(MessageOutbound::RuntimeStatus(RuntimeStatus {
                     capture_backend: None,
@@ -572,7 +650,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 }));
             }
         } else {
-            warn!("Input device is not initalized, can not process TextInputEvent!");
+            warn!("Keyboard device is not initalized, can not process TextInputEvent!");
         }
     }
 
@@ -580,7 +658,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     where
         S: WeylusSender,
     {
-        if let Some(device) = self.input_device.as_mut() {
+        if let Some(device) = self.keyboard_device_mut() {
             device.release_keyboard();
             let mut statuses = device.drain_keyboard_status();
             if statuses.is_empty() {
@@ -627,9 +705,70 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         self.send_message(MessageOutbound::CapturableList(windows));
     }
 
+    fn device_slot_mut(&mut self, slot: DeviceSlot) -> &mut Option<Box<dyn InputDevice>> {
+        match slot {
+            DeviceSlot::Pointer => &mut self.pointer_device,
+            DeviceSlot::Keyboard => &mut self.keyboard_device,
+        }
+    }
+
+    fn device_label(device: &Option<Box<dyn InputDevice>>) -> String {
+        device
+            .as_ref()
+            .map(|device| {
+                #[cfg(target_os = "windows")]
+                if device.device_type() == InputDeviceType::WindowsInput {
+                    return crate::input::autopilot_device_win::input_backend_label();
+                }
+                device.device_type().label().to_string()
+            })
+            .unwrap_or_else(|| "不可用".to_string())
+    }
+
+    #[cfg(target_os = "macos")]
+    fn ensure_autopilot_device(
+        &mut self,
+        slot: DeviceSlot,
+        capturable: Box<dyn Capturable>,
+        client_name_changed: bool,
+    ) {
+        let slot_ref = self.device_slot_mut(slot);
+        let reuse = slot_ref.as_ref().map_or(false, |device| {
+            !client_name_changed && device.device_type() == InputDeviceType::AutoPilotDevice
+        });
+        if reuse {
+            slot_ref.as_mut().unwrap().set_capturable(capturable);
+        } else {
+            *slot_ref = Some(Box::new(
+                crate::input::autopilot_device::AutoPilotDevice::new(capturable),
+            ));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn ensure_windows_device(
+        &mut self,
+        slot: DeviceSlot,
+        capturable: Box<dyn Capturable>,
+        client_name_changed: bool,
+    ) {
+        let slot_ref = self.device_slot_mut(slot);
+        let reuse = slot_ref.as_ref().map_or(false, |device| {
+            !client_name_changed && device.device_type() == InputDeviceType::WindowsInput
+        });
+        if reuse {
+            slot_ref.as_mut().unwrap().set_capturable(capturable);
+        } else {
+            *slot_ref = Some(Box::new(
+                crate::input::autopilot_device_win::WindowsInput::new(capturable),
+            ));
+        }
+    }
+
     #[cfg(target_os = "linux")]
     fn set_input_device(
         &mut self,
+        slot: DeviceSlot,
         device_type: InputDeviceType,
         capturable: Box<dyn Capturable>,
         client_name_changed: bool,
@@ -638,21 +777,24 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     where
         FnUInput: Fn(),
     {
-        if self.input_device.as_ref().map_or(false, |device| {
+        let reuse = self.device_slot_mut(slot).as_ref().map_or(false, |device| {
             !client_name_changed && device.device_type() == device_type
-        }) {
-            if let Some(device) = self.input_device.as_mut() {
+        });
+        if reuse {
+            if let Some(device) = self.device_slot_mut(slot).as_mut() {
                 device.set_capturable(capturable);
             }
             return Ok(());
         }
-        self.input_device = Some(create(self, capturable)?);
+        let device = create(self, capturable)?;
+        *self.device_slot_mut(slot) = Some(device);
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
     fn try_select_portal_input(
         &mut self,
+        slot: DeviceSlot,
         capturable: Box<dyn Capturable>,
         client_name_changed: bool,
     ) -> Result<(), String>
@@ -667,6 +809,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 return Err("selected capturable has no active Wayland portal session".to_string());
             }
             return self.set_input_device(
+                slot,
                 InputDeviceType::WaylandPortalDevice,
                 capturable,
                 client_name_changed,
@@ -675,7 +818,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         }
         #[cfg(not(feature = "pipewire"))]
         {
-            let _ = (capturable, client_name_changed);
+            let _ = (slot, capturable, client_name_changed);
             Err("Wayland portal input is not available without the pipewire feature".to_string())
         }
     }
@@ -683,6 +826,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     #[cfg(target_os = "linux")]
     fn try_select_wlroots_pointer_input(
         &mut self,
+        slot: DeviceSlot,
         capturable: Box<dyn Capturable>,
         client_name_changed: bool,
     ) -> Result<(), String>
@@ -692,6 +836,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         #[cfg(feature = "pipewire")]
         {
             return self.set_input_device(
+                slot,
                 InputDeviceType::WlrootsVirtualPointer,
                 capturable,
                 client_name_changed,
@@ -700,7 +845,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         }
         #[cfg(not(feature = "pipewire"))]
         {
-            let _ = (capturable, client_name_changed);
+            let _ = (slot, capturable, client_name_changed);
             Err("wlroots virtual pointer is not available without the pipewire feature".to_string())
         }
     }
@@ -708,6 +853,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     #[cfg(target_os = "linux")]
     fn try_select_uinput(
         &mut self,
+        slot: DeviceSlot,
         capturable: Box<dyn Capturable>,
         client_name_changed: bool,
     ) -> Result<(), String>
@@ -715,6 +861,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         FnUInput: Fn(),
     {
         self.set_input_device(
+            slot,
             InputDeviceType::UInputDevice,
             capturable,
             client_name_changed,
@@ -734,6 +881,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     #[cfg(target_os = "linux")]
     fn try_select_xtest(
         &mut self,
+        slot: DeviceSlot,
         capturable: Box<dyn Capturable>,
         client_name_changed: bool,
     ) -> Result<(), String>
@@ -741,6 +889,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         FnUInput: Fn(),
     {
         self.set_input_device(
+            slot,
             InputDeviceType::XTestDevice,
             capturable,
             client_name_changed,
@@ -754,6 +903,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     #[cfg(target_os = "linux")]
     fn try_select_autopilot(
         &mut self,
+        slot: DeviceSlot,
         capturable: Box<dyn Capturable>,
         client_name_changed: bool,
     ) -> Result<(), String>
@@ -761,6 +911,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
         FnUInput: Fn(),
     {
         self.set_input_device(
+            slot,
             InputDeviceType::AutoPilotDevice,
             capturable,
             client_name_changed,
@@ -775,16 +926,18 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
     #[cfg(target_os = "linux")]
     fn select_linux_input_device(
         &mut self,
+        slot: DeviceSlot,
         selection: InputBackendSelection,
         capturable: Box<dyn Capturable>,
         client_name_changed: bool,
-    ) where
+    ) -> Result<(), Vec<String>>
+    where
         S: WeylusSender,
         FnUInput: Fn(),
     {
         if selection == InputBackendSelection::None {
-            self.input_device = None;
-            return;
+            *self.device_slot_mut(slot) = None;
+            return Ok(());
         }
 
         let mut errors = Vec::<String>::new();
@@ -805,23 +958,25 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             let result = match *attempt {
                 InputBackendSelection::Auto => unreachable!(),
                 InputBackendSelection::Platform => {
-                    self.try_select_uinput(capturable.clone(), client_name_changed)
+                    self.try_select_uinput(slot, capturable.clone(), client_name_changed)
                 }
                 InputBackendSelection::Portal => {
-                    self.try_select_portal_input(capturable.clone(), client_name_changed)
+                    self.try_select_portal_input(slot, capturable.clone(), client_name_changed)
                 }
-                InputBackendSelection::WlrootsPointer => {
-                    self.try_select_wlroots_pointer_input(capturable.clone(), client_name_changed)
-                }
+                InputBackendSelection::WlrootsPointer => self.try_select_wlroots_pointer_input(
+                    slot,
+                    capturable.clone(),
+                    client_name_changed,
+                ),
                 InputBackendSelection::UInput => {
-                    self.try_select_uinput(capturable.clone(), client_name_changed)
+                    self.try_select_uinput(slot, capturable.clone(), client_name_changed)
                 }
                 InputBackendSelection::XTest => {
-                    self.try_select_xtest(capturable.clone(), client_name_changed)
+                    self.try_select_xtest(slot, capturable.clone(), client_name_changed)
                 }
                 InputBackendSelection::AutoPilot => {
                     if has_x_display() {
-                        self.try_select_autopilot(capturable.clone(), client_name_changed)
+                        self.try_select_autopilot(slot, capturable.clone(), client_name_changed)
                     } else {
                         Err("DISPLAY is unset".to_string())
                     }
@@ -830,7 +985,7 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             };
 
             match result {
-                Ok(()) => return,
+                Ok(()) => return Ok(()),
                 Err(err) => {
                     debug!("Input backend {:?} unavailable: {}", attempt, err);
                     errors.push(format!("{attempt:?}: {err}"));
@@ -838,15 +993,50 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
             }
         }
 
-        warn!(
-            "Input disabled: no usable Linux input backend is available ({})",
-            errors.join("; ")
-        );
-        self.input_device = None;
-        self.send_message(MessageOutbound::Error(format!(
-            "Input disabled: no usable Linux input backend is available ({})",
-            errors.join("; ")
-        )));
+        *self.device_slot_mut(slot) = None;
+        Err(errors)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn select_macos_input_device(
+        &mut self,
+        slot: DeviceSlot,
+        selection: InputBackendSelection,
+        capturable: Box<dyn Capturable>,
+        client_name_changed: bool,
+    ) {
+        match selection {
+            InputBackendSelection::None => *self.device_slot_mut(slot) = None,
+            InputBackendSelection::Auto
+            | InputBackendSelection::Platform
+            | InputBackendSelection::AutoPilot => {
+                self.ensure_autopilot_device(slot, capturable, client_name_changed);
+            }
+            other => {
+                warn!("Input backend {:?} is not supported on macOS", other);
+                *self.device_slot_mut(slot) = None;
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn select_windows_input_device(
+        &mut self,
+        slot: DeviceSlot,
+        selection: InputBackendSelection,
+        capturable: Box<dyn Capturable>,
+        client_name_changed: bool,
+    ) {
+        match selection {
+            InputBackendSelection::None => *self.device_slot_mut(slot) = None,
+            InputBackendSelection::Auto | InputBackendSelection::Platform => {
+                self.ensure_windows_device(slot, capturable, client_name_changed);
+            }
+            other => {
+                warn!("Input backend {:?} is not supported on Windows", other);
+                *self.device_slot_mut(slot) = None;
+            }
+        }
     }
 
     fn update_config(&mut self, config: ClientConfiguration)
@@ -880,11 +1070,22 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
 
         if capturable_id < self.capturables.len() {
             let capturable = self.capturables[capturable_id].clone();
-            let input_selection = input_backend_selection(&config);
+            let pointer_selection = pointer_backend_selection(&config);
+            let keyboard_selection = keyboard_backend_selection(&config);
+            let share_devices = pointer_selection == keyboard_selection;
             info!(
-                "Client config: capturable_id={} input_backend={} capture_cursor={} max={}x{} frame_rate={:.1} encoder={} client_name={}",
+                "Client config: capturable_id={} pointer_backend={} keyboard_backend={} capture_cursor={} max={}x{} frame_rate={:.1} encoder={} client_name={}",
                 capturable_id,
-                config.input_backend.as_deref().unwrap_or("auto"),
+                config
+                    .pointer_backend
+                    .as_deref()
+                    .or(config.input_backend.as_deref())
+                    .unwrap_or("auto"),
+                config
+                    .keyboard_backend
+                    .as_deref()
+                    .or(config.input_backend.as_deref())
+                    .unwrap_or("auto"),
                 config.capture_cursor,
                 config.max_width,
                 config.max_height,
@@ -898,6 +1099,11 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
                 capturable.name()
             );
 
+            // When both pointer and keyboard request the same backend, drive them through a single
+            // shared device. This avoids creating two backends (e.g. two Wayland portal prompts or
+            // two uinput devices) for the common case where the whole input stack is unified.
+            self.keyboard_shares_pointer = share_devices;
+
             #[cfg(target_os = "linux")]
             {
                 self.capture_cursor = config.capture_cursor;
@@ -905,77 +1111,101 @@ impl<S, R, FnUInput> WeylusClientHandler<S, R, FnUInput> {
 
             #[cfg(target_os = "linux")]
             {
-                self.select_linux_input_device(
-                    input_selection,
+                if let Err(errors) = self.select_linux_input_device(
+                    DeviceSlot::Pointer,
+                    pointer_selection,
                     capturable.clone(),
                     client_name_changed,
-                );
+                ) {
+                    warn!(
+                        "Pointer input disabled: no usable Linux input backend ({})",
+                        errors.join("; ")
+                    );
+                    self.send_message(MessageOutbound::Error(format!(
+                        "Pointer input disabled: no usable Linux input backend ({})",
+                        errors.join("; ")
+                    )));
+                }
+                if share_devices {
+                    self.keyboard_device = None;
+                } else if let Err(errors) = self.select_linux_input_device(
+                    DeviceSlot::Keyboard,
+                    keyboard_selection,
+                    capturable.clone(),
+                    client_name_changed,
+                ) {
+                    warn!(
+                        "Keyboard input disabled: no usable Linux input backend ({})",
+                        errors.join("; ")
+                    );
+                    self.send_message(MessageOutbound::Error(format!(
+                        "Keyboard input disabled: no usable Linux input backend ({})",
+                        errors.join("; ")
+                    )));
+                }
             }
 
             #[cfg(target_os = "macos")]
             {
-                match input_selection {
-                    InputBackendSelection::None => self.input_device = None,
-                    InputBackendSelection::Auto
-                    | InputBackendSelection::Platform
-                    | InputBackendSelection::AutoPilot => {
-                        if self.input_device.as_ref().map_or(true, |device| {
-                            client_name_changed
-                                || device.device_type() != InputDeviceType::AutoPilotDevice
-                        }) {
-                            self.input_device = Some(Box::new(
-                                crate::input::autopilot_device::AutoPilotDevice::new(
-                                    capturable.clone(),
-                                ),
-                            ));
-                        } else if let Some(device) = self.input_device.as_mut() {
-                            device.set_capturable(capturable.clone());
-                        }
-                    }
-                    other => {
-                        warn!("Input backend {:?} is not supported on macOS", other);
-                        self.input_device = None;
-                    }
-                }
-            }
-            #[cfg(target_os = "windows")]
-            {
-                match input_selection {
-                    InputBackendSelection::None => self.input_device = None,
-                    InputBackendSelection::Auto | InputBackendSelection::Platform => {
-                        if self.input_device.as_ref().map_or(true, |device| {
-                            client_name_changed
-                                || device.device_type() != InputDeviceType::WindowsInput
-                        }) {
-                            self.input_device = Some(Box::new(
-                                crate::input::autopilot_device_win::WindowsInput::new(
-                                    capturable.clone(),
-                                ),
-                            ));
-                        } else if let Some(device) = self.input_device.as_mut() {
-                            device.set_capturable(capturable.clone());
-                        }
-                    }
-                    other => {
-                        warn!("Input backend {:?} is not supported on Windows", other);
-                        self.input_device = None;
-                    }
+                self.select_macos_input_device(
+                    DeviceSlot::Pointer,
+                    pointer_selection,
+                    capturable.clone(),
+                    client_name_changed,
+                );
+                if share_devices {
+                    self.keyboard_device = None;
+                } else {
+                    self.select_macos_input_device(
+                        DeviceSlot::Keyboard,
+                        keyboard_selection,
+                        capturable.clone(),
+                        client_name_changed,
+                    );
                 }
             }
 
-            let input_backend = self
-                .input_device
-                .as_ref()
-                .map(|device| {
-                    #[cfg(target_os = "windows")]
-                    if device.device_type() == InputDeviceType::WindowsInput {
-                        return crate::input::autopilot_device_win::input_backend_label();
-                    }
-                    device.device_type().label().to_string()
-                })
-                .unwrap_or_else(|| "不可用".to_string());
-            info!("Input backend selected: {input_backend}");
-            send_input_status(&mut self.sender, &input_backend);
+            #[cfg(target_os = "windows")]
+            {
+                self.select_windows_input_device(
+                    DeviceSlot::Pointer,
+                    pointer_selection,
+                    capturable.clone(),
+                    client_name_changed,
+                );
+                if share_devices {
+                    self.keyboard_device = None;
+                } else {
+                    self.select_windows_input_device(
+                        DeviceSlot::Keyboard,
+                        keyboard_selection,
+                        capturable.clone(),
+                        client_name_changed,
+                    );
+                }
+            }
+
+            let pointer_backend = Self::device_label(&self.pointer_device);
+            let keyboard_backend = if share_devices {
+                pointer_backend.clone()
+            } else {
+                Self::device_label(&self.keyboard_device)
+            };
+            info!("Input backend selected: pointer={pointer_backend} keyboard={keyboard_backend}");
+            let combined = if share_devices {
+                pointer_backend.clone()
+            } else {
+                format!("指针 {pointer_backend} / 键盘 {keyboard_backend}")
+            };
+            send_input_status(&mut self.sender, &combined);
+            send_pointer_status(&mut self.sender, format!("backend {pointer_backend}"));
+            self.send_message(MessageOutbound::RuntimeStatus(RuntimeStatus {
+                capture_backend: None,
+                encoder_backend: None,
+                input_backend: None,
+                pointer_backend: None,
+                keyboard_backend: Some(format!("backend {keyboard_backend}")),
+            }));
 
             if let Err(err) = self.video_sender.send(VideoCommands::Start(VideoConfig {
                 capturable,

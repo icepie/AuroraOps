@@ -420,7 +420,8 @@ class Settings {
     scale_video_input: HTMLInputElement;
     scale_video_output: HTMLOutputElement;
     encoder_select: HTMLSelectElement;
-    input_backend_select: HTMLSelectElement;
+    pointer_backend_select: HTMLSelectElement;
+    keyboard_backend_select: HTMLSelectElement;
     display_rotation_select: HTMLSelectElement;
     input_rotation_select: HTMLSelectElement;
     range_min_pressure: HTMLInputElement;
@@ -441,7 +442,8 @@ class Settings {
         this.scale_video_input = document.getElementById("scale_video") as HTMLInputElement;
         this.scale_video_output = this.scale_video_input.nextElementSibling as HTMLOutputElement;
         this.encoder_select = document.getElementById("encoder") as HTMLSelectElement;
-        this.input_backend_select = document.getElementById("input_backend") as HTMLSelectElement;
+        this.pointer_backend_select = document.getElementById("pointer_backend_select") as HTMLSelectElement;
+        this.keyboard_backend_select = document.getElementById("keyboard_backend_select") as HTMLSelectElement;
         this.display_rotation_select = document.getElementById("display_rotation") as HTMLSelectElement;
         this.input_rotation_select = document.getElementById("input_rotation") as HTMLSelectElement;
         this.range_min_pressure = document.getElementById("min_pressure") as HTMLInputElement;
@@ -556,7 +558,8 @@ class Settings {
         this.checks.get("capture_cursor").onchange = upd_server_config;
         this.scale_video_input.onchange = upd_server_config;
         this.encoder_select.onchange = upd_server_config;
-        this.input_backend_select.onchange = upd_server_config;
+        this.pointer_backend_select.onchange = upd_server_config;
+        this.keyboard_backend_select.onchange = upd_server_config;
         this.client_name_input.onchange = upd_server_config;
         this.frame_rate_input.onchange = upd_server_config;
 
@@ -578,8 +581,11 @@ class Settings {
             return;
         let config = new Object(null);
         config["capturable_id"] = Number(this.capturable_select.value);
-        config["uinput_support"] = (this.input_backend_select.value || "auto") !== "xtest";
-        config["input_backend"] = this.input_backend_select.value || "auto";
+        const pointer_backend = this.pointer_backend_select.value || "auto";
+        const keyboard_backend = this.keyboard_backend_select.value || "auto";
+        config["uinput_support"] = pointer_backend !== "xtest" && keyboard_backend !== "xtest";
+        config["pointer_backend"] = pointer_backend;
+        config["keyboard_backend"] = keyboard_backend;
         config["capture_cursor"] = this.checks.get("capture_cursor").checked;
         let [w, h] = calc_max_video_resolution(this.scale_video_input.valueAsNumber);
         config["max_width"] = w;
@@ -598,7 +604,8 @@ class Settings {
         settings["frame_rate"] = frame_rate_scale(this.frame_rate_input.valueAsNumber).toString();
         settings["scale_video"] = this.scale_video_input.value;
         settings["encoder"] = this.encoder_select.value;
-        settings["input_backend"] = this.input_backend_select.value;
+        settings["pointer_backend"] = this.pointer_backend_select.value;
+        settings["keyboard_backend"] = this.keyboard_backend_select.value;
         settings["display_rotation"] = this.display_rotation_select.value;
         settings["input_rotation"] = this.input_rotation_select.value;
         settings["min_pressure"] = this.range_min_pressure.value;
@@ -637,8 +644,15 @@ class Settings {
 
             if (settings["encoder"])
                 this.encoder_select.value = settings["encoder"];
-            if (settings["input_backend"])
-                this.input_backend_select.value = settings["input_backend"];
+            const legacy_input_backend = settings["input_backend"];
+            if (settings["pointer_backend"])
+                this.pointer_backend_select.value = settings["pointer_backend"];
+            else if (legacy_input_backend)
+                this.pointer_backend_select.value = legacy_input_backend;
+            if (settings["keyboard_backend"])
+                this.keyboard_backend_select.value = settings["keyboard_backend"];
+            else if (legacy_input_backend)
+                this.keyboard_backend_select.value = legacy_input_backend;
             this.display_rotation_select.value = normalized_rotation(settings["display_rotation"] || "0").toString();
             this.input_rotation_select.value = normalized_rotation(settings["input_rotation"] || "0").toString();
 
@@ -773,22 +787,34 @@ class Settings {
         this.save_settings();
     }
 
-    update_input_options(options: { value: string, label: string }[]) {
-        const current = this.input_backend_select.value || "auto";
-        this.input_backend_select.innerText = "";
+    update_input_options(
+        options: { value: string, label: string }[],
+        pointerOptions?: { value: string, label: string }[],
+        keyboardOptions?: { value: string, label: string }[],
+    ) {
+        const pointer_options = pointerOptions || options;
+        // Backwards compatibility for old agents that only send one shared list.
+        const keyboard_options = keyboardOptions || options.filter((option) => option && option.value !== "wlroots-pointer");
+        this.refresh_backend_select(this.pointer_backend_select, pointer_options);
+        this.refresh_backend_select(this.keyboard_backend_select, keyboard_options);
+        this.save_settings();
+    }
+
+    refresh_backend_select(select: HTMLSelectElement, options: { value: string, label: string }[]) {
+        const current = select.value || "auto";
+        select.innerText = "";
         for (const option of options) {
             if (!option || !option.value)
                 continue;
             const elem = document.createElement("option");
             elem.value = option.value;
             elem.innerText = option.label || option.value;
-            this.input_backend_select.appendChild(elem);
+            select.appendChild(elem);
         }
-        if ([...this.input_backend_select.options].some((option) => option.value === current))
-            this.input_backend_select.value = current;
+        if ([...select.options].some((option) => option.value === current))
+            select.value = current;
         else
-            this.input_backend_select.value = "auto";
-        this.save_settings();
+            select.value = "auto";
     }
 }
 
@@ -1675,7 +1701,12 @@ function handle_messages(
                 } else if ("EncoderCapabilities" in msg) {
                     settings.update_encoder_options(msg["EncoderCapabilities"]["options"] || []);
                 } else if ("InputCapabilities" in msg) {
-                    settings.update_input_options(msg["InputCapabilities"]["options"] || []);
+                    const capabilities = msg["InputCapabilities"];
+                    settings.update_input_options(
+                        capabilities["options"] || [],
+                        capabilities["pointerOptions"],
+                        capabilities["keyboardOptions"],
+                    );
                 }
             }
 

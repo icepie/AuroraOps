@@ -7,6 +7,10 @@ pub struct ClientConfiguration {
     pub uinput_support: bool,
     #[serde(default)]
     pub input_backend: Option<String>,
+    #[serde(default)]
+    pub pointer_backend: Option<String>,
+    #[serde(default)]
+    pub keyboard_backend: Option<String>,
     pub capturable_id: usize,
     pub capture_cursor: bool,
     pub max_width: usize,
@@ -62,6 +66,8 @@ pub struct EncoderOption {
 #[serde(rename_all = "camelCase")]
 pub struct InputCapabilities {
     pub options: Vec<InputOption>,
+    pub pointer_options: Vec<InputOption>,
+    pub keyboard_options: Vec<InputOption>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
