@@ -6,7 +6,9 @@ use std::fs;
 use std::io::{Read, Write};
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::mem;
-use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener, TcpStream, UdpSocket};
+use std::net::{
+    IpAddr, SocketAddr, TcpListener as StdTcpListener, TcpStream, ToSocketAddrs, UdpSocket,
+};
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
@@ -36,8 +38,9 @@ use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tracing::{error, info, warn};
+use tungstenite::handshake::HandshakeError;
 use tungstenite::stream::MaybeTlsStream;
-use tungstenite::{connect, Message};
+use tungstenite::{client, connect, Message, WebSocket};
 use url::Url;
 
 #[cfg(not(feature = "agent-service-lite"))]
@@ -56,6 +59,7 @@ const WEYLUS_TUNNEL_CHUNK_SIZE: usize = 64 * 1024;
 const WEYLUS_TUNNEL_FRAME_OPEN: u8 = 1;
 const WEYLUS_TUNNEL_FRAME_DATA: u8 = 2;
 const WEYLUS_TUNNEL_FRAME_CLOSE: u8 = 3;
+const WEYLUS_TUNNEL_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const WEYLUS_TUNNEL_PING_INTERVAL: Duration = Duration::from_secs(30);
 const WEYLUS_TUNNEL_PONG_TIMEOUT: Duration = Duration::from_secs(90);
 const REGISTER_RETRY_MAX: Duration = Duration::from_secs(10);
@@ -2401,7 +2405,7 @@ fn run_weylus_tunnel(cfg: &AgentConfig) -> Result<(), BoxError> {
         return Err("missing tunnel identity".into());
     }
     let tunnel_url = build_weylus_tunnel_url(cfg)?;
-    let (mut socket, _) = connect(tunnel_url.as_str())?;
+    let mut socket = connect_weylus_tunnel(tunnel_url.as_str())?;
     if let MaybeTlsStream::Plain(stream) = socket.get_mut() {
         let _ = stream.set_read_timeout(Some(Duration::from_millis(100)));
         let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
@@ -2484,6 +2488,45 @@ fn run_weylus_tunnel(cfg: &AgentConfig) -> Result<(), BoxError> {
                     || err.kind() == std::io::ErrorKind::TimedOut => {}
             Err(err) => return Err(Box::new(err)),
         }
+    }
+}
+
+fn connect_weylus_tunnel(
+    tunnel_url: &str,
+) -> Result<WebSocket<MaybeTlsStream<TcpStream>>, BoxError> {
+    let url = Url::parse(tunnel_url)?;
+    if url.scheme() != "ws" {
+        let (socket, _) = connect(tunnel_url)?;
+        return Ok(socket);
+    }
+
+    let host = url.host_str().ok_or("weylus tunnel url missing host")?;
+    let port = url
+        .port_or_known_default()
+        .ok_or("weylus tunnel url missing port")?;
+    let mut last_err = None;
+    for addr in (host, port).to_socket_addrs()? {
+        match TcpStream::connect_timeout(&addr, WEYLUS_TUNNEL_CONNECT_TIMEOUT) {
+            Ok(stream) => {
+                stream.set_nodelay(true)?;
+                stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+                stream.set_write_timeout(Some(Duration::from_secs(10)))?;
+                return client(tunnel_url, MaybeTlsStream::Plain(stream))
+                    .map(|(socket, _)| socket)
+                    .map_err(|err| match err {
+                        HandshakeError::Failure(err) => Box::new(err) as BoxError,
+                        HandshakeError::Interrupted(_) => {
+                            "weylus tunnel handshake interrupted".into()
+                        }
+                    });
+            }
+            Err(err) => last_err = Some(err),
+        }
+    }
+
+    match last_err {
+        Some(err) => Err(Box::new(err)),
+        None => Err("weylus tunnel host resolved to no addresses".into()),
     }
 }
 
