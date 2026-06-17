@@ -50,6 +50,9 @@ winapi = { version = "0.3.9", features = ["d3d11", "d3dcommon", "dxgi", "dxgi1_2
 wio = "0.2.2"
 captrs = "^0.3.1"
 
+[target.'cfg(all(target_os = "windows", target_arch = "x86_64"))'.dependencies]
+winpty-rs = { version = "1.0.6", optional = true, features = ["winpty"] }
+
 [build-dependencies]
 cc = "^1.1"
 num_cpus = "^1.16"
@@ -82,7 +85,7 @@ core-graphics = "^0.24"
 fastfetch-sys = { path = "vendor/fastfetch-sys" }
 
 [features]
-default = ["pipewire"]
+default = ["pipewire", "winpty-terminal"]
 agent-service-lite = []
 bench = []
 ffmpeg-system = []
@@ -91,6 +94,7 @@ pipewire-drm-prime = ["pipewire", "gstreamer-video/v1_24"]
 vaapi = []
 va-static = ["vaapi"]
 nvfbc = ["nvfbc-crate", "nvfbc-sys"]
+winpty-terminal = ["dep:winpty-rs"]
 vulkan-video = []
 
 [package.metadata.bundle]

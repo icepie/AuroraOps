@@ -19,12 +19,14 @@ jobs:
             msystem: CLANG64
             package_prefix: mingw-w64-clang-x86_64
             extra_packages: mingw-w64-clang-x86_64-nasm
+            winpty_asset: winpty-0.4.3-msys2-2.7.0-x64.tar.gz
           - arch: arm64
             rust_target: aarch64-pc-windows-gnullvm
             runner: windows-11-arm
             msystem: CLANGARM64
             package_prefix: mingw-w64-clang-aarch64
             extra_packages: ''
+            winpty_asset: ''
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -65,6 +67,27 @@ jobs:
           make --version | head -1
           cargo --version
 
+      - name: Download WinPTY runtime
+        if: matrix.winpty_asset != ''
+        working-directory: new-client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/rprichard/winpty/releases/download/0.4.3/${{ matrix.winpty_asset }}"
+          New-Item -ItemType Directory -Force packaging\windows\winpty | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile packaging\windows\winpty\winpty.tar.gz
+          tar -xzf packaging\windows\winpty\winpty.tar.gz -C packaging\windows\winpty
+          $agent = Get-ChildItem packaging\windows\winpty -Recurse -Filter winpty-agent.exe | Select-Object -First 1
+          $dll = Get-ChildItem packaging\windows\winpty -Recurse -Filter winpty.dll | Select-Object -First 1
+          if (-not $agent -or -not $dll) {
+            throw "WinPTY runtime files were not found in ${{ matrix.winpty_asset }}"
+          }
+          Copy-Item $agent.FullName packaging\windows\winpty-agent.exe
+          Copy-Item $dll.FullName packaging\windows\winpty.dll
+          $binDir = $agent.Directory.FullName
+          $binDir >> $env:GITHUB_PATH
+          "AURORAOPS_WINPTY_LIB_DIR=$($binDir | Split-Path -Parent)\lib" >> $env:GITHUB_ENV
+
       - name: Build AuroraOps client
         working-directory: new-client
         shell: msys2 {0}
@@ -101,7 +124,19 @@ jobs:
           if (-not (Test-Path $makensis)) {
             $makensis = "makensis.exe"
           }
-          & $makensis /DVERSION=$version /DARCH=${{ matrix.arch }} /DSOURCE_EXE="$PWD\target\${{ matrix.rust_target }}\release\auroraops-agent.exe" packaging\windows\auroraops-client.nsi
+          $nsisArgs = @(
+            "/DVERSION=$version",
+            "/DARCH=${{ matrix.arch }}",
+            "/DSOURCE_EXE=$PWD\target\${{ matrix.rust_target }}\release\auroraops-agent.exe"
+          )
+          if (Test-Path packaging\windows\winpty-agent.exe) {
+            $nsisArgs += "/DWINPTY_AGENT=$PWD\packaging\windows\winpty-agent.exe"
+          }
+          if (Test-Path packaging\windows\winpty.dll) {
+            $nsisArgs += "/DWINPTY_DLL=$PWD\packaging\windows\winpty.dll"
+          }
+          $nsisArgs += "packaging\windows\auroraops-client.nsi"
+          & $makensis @nsisArgs
 
       - name: Stage release files
         id: stage

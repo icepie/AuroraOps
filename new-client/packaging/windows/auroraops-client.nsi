@@ -6,6 +6,12 @@
 !ifndef SOURCE_EXE
 !define SOURCE_EXE "..\target\release\auroraops-agent.exe"
 !endif
+!ifndef WINPTY_AGENT
+!define WINPTY_AGENT ""
+!endif
+!ifndef WINPTY_DLL
+!define WINPTY_DLL ""
+!endif
 !ifndef ARCH
 !define ARCH "x64"
 !endif
@@ -31,6 +37,12 @@ Section "AuroraOps Client" SEC_MAIN
   SectionIn RO
   SetOutPath "$INSTDIR"
   File /oname=auroraops-agent.exe "${SOURCE_EXE}"
+!if "${WINPTY_AGENT}" != ""
+  File /oname=winpty-agent.exe "${WINPTY_AGENT}"
+!endif
+!if "${WINPTY_DLL}" != ""
+  File /oname=winpty.dll "${WINPTY_DLL}"
+!endif
   WriteRegStr HKLM "Software\AuroraOps\Client" "InstallDir" "$INSTDIR"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
@@ -48,6 +60,8 @@ Section "Uninstall"
   Delete "$DESKTOP\AuroraOps Client.lnk"
   Delete "$SMPROGRAMS\AuroraOps\AuroraOps Client.lnk"
   RMDir "$SMPROGRAMS\AuroraOps"
+  Delete "$INSTDIR\winpty-agent.exe"
+  Delete "$INSTDIR\winpty.dll"
   Delete "$INSTDIR\auroraops-agent.exe"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"

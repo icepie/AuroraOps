@@ -264,6 +264,12 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=bcrypt");
         println!("cargo:rustc-link-lib=dylib=gdi32");
         println!("cargo:rustc-link-lib=dylib=user32");
+        if target_arch == "x86_64" && env::var("CARGO_FEATURE_WINPTY_TERMINAL").is_ok() {
+            if let Ok(winpty_lib_dir) = env::var("AURORAOPS_WINPTY_LIB_DIR") {
+                println!("cargo:rustc-link-search=native={winpty_lib_dir}");
+            }
+            println!("cargo:rustc-link-lib=dylib=winpty");
+        }
     }
 }
 

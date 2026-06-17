@@ -62,6 +62,8 @@ const WEYLUS_TUNNEL_FRAME_CLOSE: u8 = 3;
 const WEYLUS_TUNNEL_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const WEYLUS_TUNNEL_PING_INTERVAL: Duration = Duration::from_secs(30);
 const WEYLUS_TUNNEL_PONG_TIMEOUT: Duration = Duration::from_secs(90);
+const WINPTY_IDLE_SLEEP_INITIAL: Duration = Duration::from_millis(1);
+const WINPTY_IDLE_SLEEP_MAX: Duration = Duration::from_millis(25);
 const REGISTER_RETRY_MAX: Duration = Duration::from_secs(10);
 const TCP_RETRY_MAX: Duration = Duration::from_secs(5);
 const MONITOR_REPORT_INTERVAL: Duration = Duration::from_secs(1);
@@ -2630,6 +2632,12 @@ struct TerminalSession {
     master: Option<Box<dyn portable_pty::MasterPty + Send>>,
     pty_child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
     process_child: Option<Child>,
+    #[cfg(all(
+        target_os = "windows",
+        target_arch = "x86_64",
+        feature = "winpty-terminal"
+    ))]
+    winpty: Option<Arc<Mutex<winptyrs::PTY>>>,
     input_mode: TerminalInputMode,
     output_encoding: TerminalOutputEncoding,
     line_buffer: String,
@@ -2658,6 +2666,16 @@ impl Drop for TerminalSession {
         if let Some(mut child) = self.process_child.take() {
             let _ = child.kill();
             let _ = child.wait();
+        }
+        #[cfg(all(
+            target_os = "windows",
+            target_arch = "x86_64",
+            feature = "winpty-terminal"
+        ))]
+        if let Some(winpty) = self.winpty.take() {
+            if let Ok(pty) = winpty.lock() {
+                let _ = pty.cancel_io();
+            }
         }
     }
 }
@@ -2866,14 +2884,69 @@ fn spawn_terminal_reader<F>(
 }
 
 fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
-    if should_prefer_pipe_terminal() {
-        warn!("legacy Windows detected, using terminal pipe mode");
+    if should_prefer_winpty_terminal() {
+        #[cfg(all(
+            target_os = "windows",
+            target_arch = "x86_64",
+            feature = "winpty-terminal"
+        ))]
+        {
+            info!("legacy Windows detected, starting terminal with winpty backend");
+            match start_winpty_terminal_process(shell) {
+                Ok(session) => return Ok(session),
+                Err(winpty_error) => {
+                    warn!(
+                        "winpty terminal start failed, falling back to pipe mode: {winpty_error}"
+                    );
+                    return start_pipe_terminal_process(shell).map_err(|pipe_error| {
+                        format!(
+                            "failed to start terminal; winpty error: {winpty_error}; pipe fallback error: {pipe_error}"
+                        )
+                        .into()
+                    });
+                }
+            }
+        }
+
+        #[cfg(not(all(
+            target_os = "windows",
+            target_arch = "x86_64",
+            feature = "winpty-terminal"
+        )))]
+        {
+            warn!("legacy Windows detected, using terminal pipe mode; build lacks winpty support");
+            return start_pipe_terminal_process(shell);
+        }
+    }
+
+    #[cfg(all(
+        target_os = "windows",
+        target_arch = "x86_64",
+        feature = "winpty-terminal"
+    ))]
+    if winpty_terminal_disabled() && is_legacy_windows() {
+        info!("winpty terminal disabled by AURORAOPS_DISABLE_WINPTY, using pipe mode");
         return start_pipe_terminal_process(shell);
     }
 
     match start_pty_terminal_process(shell) {
         Ok(session) => Ok(session),
         Err(pty_error) => {
+            #[cfg(all(
+                target_os = "windows",
+                target_arch = "x86_64",
+                feature = "winpty-terminal"
+            ))]
+            if is_legacy_windows() && !winpty_terminal_disabled() {
+                warn!("conpty terminal start failed, trying winpty fallback: {pty_error}");
+                match start_winpty_terminal_process(shell) {
+                    Ok(session) => return Ok(session),
+                    Err(winpty_error) => warn!(
+                        "winpty terminal fallback failed, falling back to pipe mode: {winpty_error}"
+                    ),
+                }
+            }
+
             warn!("pty terminal start failed, falling back to pipe mode: {pty_error}");
             start_pipe_terminal_process(shell).map_err(|pipe_error| {
                 format!(
@@ -2885,20 +2958,52 @@ fn start_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
     }
 }
 
-fn should_prefer_pipe_terminal() -> bool {
+fn should_prefer_winpty_terminal() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let version = detect_kernel_version();
-        let first_number = version
-            .split(|ch: char| !ch.is_ascii_digit())
-            .find(|part| !part.is_empty())
-            .and_then(|part| part.parse::<u32>().ok());
-
-        if let Some(value) = first_number {
-            return value < 10 || (1000..10000).contains(&value);
-        }
+        return is_legacy_windows() && !winpty_terminal_disabled();
     }
 
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn winpty_terminal_disabled() -> bool {
+    std::env::var("AURORAOPS_DISABLE_WINPTY")
+        .map(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn winpty_terminal_disabled() -> bool {
+    false
+}
+
+#[cfg(target_os = "windows")]
+fn is_legacy_windows() -> bool {
+    let version = detect_kernel_version();
+    let first_number = version
+        .split(|ch: char| !ch.is_ascii_digit())
+        .find(|part| !part.is_empty())
+        .and_then(|part| part.parse::<u32>().ok());
+
+    if let Some(value) = first_number {
+        return value < 10 || (1000..10000).contains(&value);
+    }
+
+    false
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_legacy_windows() -> bool {
     false
 }
 
@@ -2921,12 +3026,170 @@ fn start_pty_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> 
     let child = pair.slave.spawn_command(cmd)?;
     let reader = pair.master.try_clone_reader()?;
     let writer = pair.master.take_writer()?;
+    info!("started terminal with portable pty backend");
     Ok(TerminalSession {
         readers: vec![reader],
         writer,
         master: Some(pair.master),
         pty_child: Some(child),
         process_child: None,
+        #[cfg(all(
+            target_os = "windows",
+            target_arch = "x86_64",
+            feature = "winpty-terminal"
+        ))]
+        winpty: None,
+        input_mode: TerminalInputMode::Raw,
+        output_encoding: TerminalOutputEncoding::Utf8,
+        line_buffer: String::new(),
+        done: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    })
+}
+
+#[cfg(all(
+    target_os = "windows",
+    target_arch = "x86_64",
+    feature = "winpty-terminal"
+))]
+struct WinPtyReader {
+    pty: Arc<Mutex<winptyrs::PTY>>,
+    pending: Vec<u8>,
+}
+
+#[cfg(all(
+    target_os = "windows",
+    target_arch = "x86_64",
+    feature = "winpty-terminal"
+))]
+impl Read for WinPtyReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
+        let mut idle_sleep = WINPTY_IDLE_SLEEP_INITIAL;
+        while self.pending.is_empty() {
+            let read_result = {
+                let pty = self.pty.lock().map_err(|_| {
+                    std::io::Error::new(std::io::ErrorKind::Other, "winpty lock poisoned")
+                })?;
+                pty.read(false)
+            };
+
+            match read_result {
+                Ok(output) => {
+                    let text = os_string_to_string(output);
+                    if !text.is_empty() {
+                        idle_sleep = WINPTY_IDLE_SLEEP_INITIAL;
+                        self.pending.extend_from_slice(text.as_bytes());
+                    } else {
+                        thread::sleep(idle_sleep);
+                        idle_sleep = (idle_sleep * 2).min(WINPTY_IDLE_SLEEP_MAX);
+                    }
+                }
+                Err(err) => {
+                    let is_alive = self
+                        .pty
+                        .lock()
+                        .map_err(|_| {
+                            std::io::Error::new(std::io::ErrorKind::Other, "winpty lock poisoned")
+                        })?
+                        .is_alive()
+                        .unwrap_or(false);
+                    if !is_alive {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            format!("{err:?}"),
+                        ));
+                    }
+                    thread::sleep(idle_sleep);
+                    idle_sleep = (idle_sleep * 2).min(WINPTY_IDLE_SLEEP_MAX);
+                }
+            }
+        }
+
+        let n = buf.len().min(self.pending.len());
+        buf[..n].copy_from_slice(&self.pending[..n]);
+        self.pending.drain(..n);
+        Ok(n)
+    }
+}
+
+#[cfg(all(
+    target_os = "windows",
+    target_arch = "x86_64",
+    feature = "winpty-terminal"
+))]
+struct WinPtyWriter {
+    pty: Arc<Mutex<winptyrs::PTY>>,
+}
+
+#[cfg(all(
+    target_os = "windows",
+    target_arch = "x86_64",
+    feature = "winpty-terminal"
+))]
+impl Write for WinPtyWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let input = String::from_utf8_lossy(buf).to_string();
+        self.pty
+            .lock()
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "winpty lock poisoned"))?
+            .write(std::ffi::OsString::from(input))
+            .map_err(|err| {
+                std::io::Error::new(std::io::ErrorKind::BrokenPipe, format!("{err:?}"))
+            })?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(all(
+    target_os = "windows",
+    target_arch = "x86_64",
+    feature = "winpty-terminal"
+))]
+fn os_string_to_string(value: std::ffi::OsString) -> String {
+    use std::os::windows::ffi::OsStrExt;
+
+    String::from_utf16_lossy(&value.encode_wide().collect::<Vec<u16>>())
+}
+
+#[cfg(all(
+    target_os = "windows",
+    target_arch = "x86_64",
+    feature = "winpty-terminal"
+))]
+fn start_winpty_terminal_process(shell: &str) -> Result<TerminalSession, BoxError> {
+    use winptyrs::{AgentConfig, MouseMode, PTYArgs, PTYBackend, PTY};
+
+    let args = PTYArgs {
+        cols: 80,
+        rows: 24,
+        mouse_mode: MouseMode::WINPTY_MOUSE_MODE_NONE,
+        timeout: 10000,
+        agent_config: AgentConfig::WINPTY_FLAG_COLOR_ESCAPES,
+    };
+    let mut pty = PTY::new_with_backend(&args, PTYBackend::WinPTY)
+        .map_err(|err| format!("failed to create winpty: {err:?}"))?;
+    pty.spawn(std::ffi::OsString::from(shell), None, None, None)
+        .map_err(|err| format!("failed to spawn winpty shell {shell}: {err:?}"))?;
+    info!("started terminal with winpty backend");
+
+    let pty = Arc::new(Mutex::new(pty));
+    Ok(TerminalSession {
+        readers: vec![Box::new(WinPtyReader {
+            pty: pty.clone(),
+            pending: Vec::new(),
+        })],
+        writer: Box::new(WinPtyWriter { pty: pty.clone() }),
+        master: None,
+        pty_child: None,
+        process_child: None,
+        winpty: Some(pty),
         input_mode: TerminalInputMode::Raw,
         output_encoding: TerminalOutputEncoding::Utf8,
         line_buffer: String::new(),
@@ -2962,12 +3225,19 @@ fn start_pipe_terminal_process(shell: &str) -> Result<TerminalSession, BoxError>
         return Err("terminal pipe fallback did not provide stdout or stderr".into());
     }
 
+    info!("started terminal with pipe backend");
     Ok(TerminalSession {
         readers,
         writer: Box::new(writer),
         master: None,
         pty_child: None,
         process_child: Some(child),
+        #[cfg(all(
+            target_os = "windows",
+            target_arch = "x86_64",
+            feature = "winpty-terminal"
+        ))]
+        winpty: None,
         input_mode: TerminalInputMode::PipeLine,
         output_encoding: TerminalOutputEncoding::WindowsOem,
         line_buffer: String::new(),
@@ -3020,6 +3290,18 @@ fn resize_terminal_session(
             pixel_width: 0,
             pixel_height: 0,
         })?;
+    }
+    #[cfg(all(
+        target_os = "windows",
+        target_arch = "x86_64",
+        feature = "winpty-terminal"
+    ))]
+    if let Some(winpty) = &session.winpty {
+        winpty
+            .lock()
+            .map_err(|_| "winpty lock poisoned")?
+            .set_size(cols as i32, rows as i32)
+            .map_err(|err| format!("failed to resize winpty terminal: {err:?}"))?;
     }
     Ok(())
 }
@@ -3152,6 +3434,16 @@ fn stop_terminal_session(mut session: TerminalSession) {
     if let Some(mut child) = session.process_child.take() {
         let _ = child.kill();
         let _ = child.wait();
+    }
+    #[cfg(all(
+        target_os = "windows",
+        target_arch = "x86_64",
+        feature = "winpty-terminal"
+    ))]
+    if let Some(winpty) = session.winpty.take() {
+        if let Ok(pty) = winpty.lock() {
+            let _ = pty.cancel_io();
+        }
     }
 }
 
